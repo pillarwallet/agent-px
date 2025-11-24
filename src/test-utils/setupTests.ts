@@ -59,8 +59,6 @@ if (typeof globalThis.crypto === 'undefined') {
   } as any;
 }
 
-import React from 'react';
-
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 import { createWalletClient, http } from 'viem';

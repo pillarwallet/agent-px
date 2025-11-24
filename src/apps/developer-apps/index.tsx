@@ -82,7 +82,7 @@ const DevelopersApp: React.FC = () => {
           <Route index element={<AppsList />} />
           <Route path="create" element={<CreateAppPage />} />
           <Route path="edit/:appId" element={<EditAppPage />} />
-          <Route path="*" element={<Navigate to="/app/developer-apps" replace />} />
+          <Route path="*" element={<Navigate to="/developer-apps" replace />} />
         </Routes>
       </div>
     </div>
