@@ -155,7 +155,7 @@ export default function Search({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [showChainOverlay, setShowChainOverlay] = useState(false);
-  const chainButtonRef = useRef<HTMLButtonElement>(null);
+  const chainButtonRef = useRef<HTMLDivElement>(null);
   const chainOverlayRef = useRef<HTMLDivElement>(null);
   const [overlayStyle, setOverlayStyle] = useState<React.CSSProperties>({});
   const searchModalRef = useRef<HTMLDivElement>(null);
@@ -559,11 +559,8 @@ export default function Search({
             </div>
 
             {/* Refresh button */}
-            <button
-              onClick={handleRefresh}
-              disabled={walletPortfolioFetching || isLoading}
+            <div
               className="flex items-center justify-center w-10 h-10 bg-[#121116] rounded-[10px] flex-shrink-0 group p-0.5"
-              type="button"
               data-testid="pulse-search-refresh-button"
             >
               <div className="flex items-center justify-center w-full h-full bg-[#1E1D24] rounded-[8px] group-hover:bg-[#2A2A2A] transition-colors">
@@ -573,28 +570,33 @@ export default function Search({
                   disabled={walletPortfolioFetching || isLoading}
                 />
               </div>
-            </button>
+            </div>
 
             {/* Chain selector (only for buy) */}
             {isBuy ? (
-              <button
+              <div
                 ref={chainButtonRef}
                 onClick={() => {
                   const rect = chainButtonRef?.current?.getBoundingClientRect();
-                  setShowChainOverlay(true);
-                  setOverlayStyle({
-                    ...overlayStyling,
-                    top: `${rect!.bottom + 5}px`,
-                    left: `${rect!.right - 200}px`,
-                  });
+                  if (rect) {
+                    setShowChainOverlay(true);
+                    setOverlayStyle({
+                      ...overlayStyling,
+                      top: `${rect.bottom + 5}px`,
+                      left: `${rect.right - 200}px`,
+                    });
+                  }
                 }}
-                className="flex items-center justify-center w-10 h-10 bg-[#121116] rounded-[10px] flex-shrink-0 group p-0.5"
-                type="button"
+                className="flex items-center justify-center w-10 h-10 bg-[#121116] rounded-[10px] flex-shrink-0 group p-0.5 cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label="Select blockchain"
+                data-testid="pulse-search-chain-selector"
               >
                 <div className="flex items-center justify-center w-full h-full bg-[#1E1D24] rounded-[8px] group-hover:bg-[#2A2A2A] transition-colors">
                   <ChainSelectButton />
                 </div>
-              </button>
+              </div>
             ) : null}
           </div>
 
@@ -791,6 +793,6 @@ export default function Search({
           />
         )
       }
-    </div >
+    </div>
   );
 }

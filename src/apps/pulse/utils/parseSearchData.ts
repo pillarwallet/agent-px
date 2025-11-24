@@ -210,7 +210,7 @@ export function parseMarketPairs(
           token0: orderedToken0,
           token1: orderedToken1,
           liquidity: pair.liquidity,
-          volume24h: (pair as any).volume_24h || pair.volume24h || 0,
+          volume24h: pair.volume24h || 0,
           blockchain: pair.blockchain,
           address: pair.address,
           exchange: pair.exchange,
@@ -405,11 +405,8 @@ function deduplicateAssetsBySymbol(assets: Asset[]): Asset[] {
       const existing = assetMap.get(key);
       if (!existing) {
         assetMap.set(key, asset);
-      } else if (existing.allChains && asset.allChains) {
-        // Merge chains if both have allChains
-        existing.allChains = Array.from(new Set([...existing.allChains, ...asset.allChains]));
-        existing.allContracts = Array.from(new Set([...(existing.allContracts || []), ...(asset.allContracts || [])]));
-        existing.allDecimals = Array.from(new Set([...(existing.allDecimals || []), ...(asset.allDecimals || [])]));
+      } else {
+        mergeMultiChainData(existing, asset);
       }
     }
   });
@@ -432,11 +429,8 @@ function deduplicateAssetsBySymbol(assets: Asset[]): Asset[] {
 
       if (!existing) {
         assetMap.set(key, asset);
-      } else if (existing.allChains && asset.allChains) {
-        // Merge chains
-        existing.allChains = Array.from(new Set([...existing.allChains, ...asset.allChains]));
-        existing.allContracts = Array.from(new Set([...(existing.allContracts || []), ...(asset.allContracts || [])]));
-        existing.allDecimals = Array.from(new Set([...(existing.allDecimals || []), ...(asset.allDecimals || [])]));
+      } else {
+        mergeMultiChainData(existing, asset);
       }
     }
   });
@@ -451,7 +445,8 @@ export function parseFreshAndTrendingTokens(
 
   for (const projection of projections) {
     const chainId = projection.id.split('-')[1];
-    const { rows } = projection.data as TokensMarketData;
+    const marketData = projection.data as TokensMarketData | undefined;
+    const rows = marketData?.rows;
     if (rows) {
       for (const j of rows) {
         const contractAddress = j.leftColumn?.line1?.copyLink || '';
@@ -485,7 +480,7 @@ export function parseFreshAndTrendingTokens(
               }
 
               // Add this chain to allChains
-              if (existing.allChains) {
+              if (existing.allChains && !existing.allChains.includes(chain)) {
                 existing.allChains.push(chain);
                 existing.allContracts?.push(contractAddress);
                 existing.allDecimals?.push(j.meta?.tokenData.decimals || 18);
@@ -532,4 +527,28 @@ export function parseFreshAndTrendingTokens(
   });
 
   return filteredAssets;
+}
+
+function mergeMultiChainData(target: Asset, source: Asset) {
+  if (!source.allChains || !source.allContracts || !source.allDecimals) return;
+
+  if (!target.allChains || !target.allContracts || !target.allDecimals) {
+    // eslint-disable-next-line no-param-reassign
+    target.allChains = [...source.allChains];
+    // eslint-disable-next-line no-param-reassign
+    target.allContracts = [...source.allContracts];
+    // eslint-disable-next-line no-param-reassign
+    target.allDecimals = [...source.allDecimals];
+    return;
+  }
+
+  for (let i = 0; i < source.allChains.length; i += 1) {
+    const chain = source.allChains[i];
+    const existingIndex = target.allChains.indexOf(chain);
+    if (existingIndex === -1) {
+      target.allChains.push(chain);
+      target.allContracts.push(source.allContracts[i]);
+      target.allDecimals.push(source.allDecimals[i]);
+    }
+  }
 }

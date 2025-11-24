@@ -175,7 +175,12 @@ export default function Buy(props: BuyProps) {
 
       // Find the asset in the portfolio
       const assetData = walletPortfolioData.result.data.assets.find(
-        (asset) => asset.asset.symbol === token.symbol
+        (asset) =>
+          asset.asset.symbol === token.symbol &&
+          asset.contracts_balances.some(
+            (contract) =>
+              contract.address.toLowerCase() === token.address.toLowerCase()
+          )
       );
 
       if (!assetData) return 0;
@@ -811,7 +816,7 @@ export default function Buy(props: BuyProps) {
           areModulesInstalled={areModulesInstalled}
           debouncedUsdAmount={debouncedUsdAmount}
           expressIntentResponse={
-            USE_RELAY_BUY ? (buyOffer as any) : expressIntentResponse
+            USE_RELAY_BUY ? buyOffer : expressIntentResponse
           }
           handleBuySubmit={handleBuySubmit}
           isFetching={isFetching}

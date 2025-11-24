@@ -1,5 +1,6 @@
 import { ExpressIntentResponse } from '@etherspot/intent-sdk/dist/cjs/sdk/types/user-intent-types';
 import { TailSpin } from 'react-loader-spinner';
+import { BuyOffer } from '../../hooks/useRelayBuy';
 import { PayingToken, SelectedToken } from '../../types/tokens';
 import { getChainName } from '../../utils/constants';
 
@@ -85,7 +86,7 @@ export interface BuyButtonProps {
   debouncedUsdAmount: string;
   payingTokens: PayingToken[];
   handleBuySubmit: () => Promise<void>;
-  expressIntentResponse: ExpressIntentResponse | null | { error: string };
+  expressIntentResponse: ExpressIntentResponse | null | { error: string } | BuyOffer;
   usdAmount: string;
   notEnoughLiquidity: boolean;
 }
@@ -120,8 +121,9 @@ export default function BuyButton(props: BuyButtonProps) {
       !token ||
       !(parseFloat(usdAmount) > 0) ||
       !expressIntentResponse ||
-      !!(expressIntentResponse as { error: string }).error ||
-      (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0
+      ('error' in expressIntentResponse && !!expressIntentResponse.error) ||
+      ('bids' in expressIntentResponse &&
+        (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0)
     );
   };
 

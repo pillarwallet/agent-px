@@ -75,7 +75,6 @@ const Sell = (props: SellProps) => {
   const [showTooltip, setShowTooltip] = useState<boolean>(false);
   const [truncatedFlag, setTruncatedFlag] = useState<boolean>(false);
 
-
   const {
     getBestSellOffer,
     getBestSellOfferWithBridge,
@@ -157,7 +156,12 @@ const Sell = (props: SellProps) => {
 
       // Find the asset in the portfolio
       const assetData = walletPortfolioData.result.data.assets.find(
-        (asset) => asset.asset.symbol === token.symbol
+        (asset) =>
+          asset.asset.symbol === token.symbol &&
+          asset.contracts_balances.some(
+            (contract) =>
+              contract.address.toLowerCase() === token.address.toLowerCase()
+          )
       );
 
       if (!assetData) return 0;
