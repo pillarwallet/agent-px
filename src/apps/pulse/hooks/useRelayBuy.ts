@@ -609,7 +609,8 @@ export default function useRelayBuy() {
     token: SelectedToken,
     amount: string,
     fromChainId: number,
-    userPortfolio?: Token[]
+    userPortfolio?: Token[],
+    usdcPrice?: number
   ): Promise<boolean | string> => {
     if (!isInitialized || !accountAddress || !walletAddress) {
       setError('Unable to execute transaction. Please try again.');
@@ -633,6 +634,7 @@ export default function useRelayBuy() {
         toTokenAddress: token.address,
         toChainId: token.chainId,
         fromChainId,
+        usdcPrice,
       });
 
       if (!buyOffer) {

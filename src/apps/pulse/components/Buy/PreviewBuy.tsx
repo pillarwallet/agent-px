@@ -390,7 +390,8 @@ export default function PreviewBuy(props: PreviewBuyProps) {
         buyToken,
         usdAmount, // Pass USD amount, not token amount
         fromChainId,
-        userPortfolio
+        userPortfolio,
+        usdcPrice
       );
 
       if (result === true) {
