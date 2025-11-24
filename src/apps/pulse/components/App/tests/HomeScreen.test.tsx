@@ -39,6 +39,11 @@ const mockProps = {
   setBuyToken: vi.fn(),
   chains: 'Ethereum',
   setChains: vi.fn(),
+  onboardingScreen: null,
+  setOnboardingScreen: vi.fn(),
+  topupToken: null,
+  setTopupToken: vi.fn(),
+  setIsSearchingFromTopup: vi.fn(),
 };
 
 const renderWithProviders = (props = {}) => {

@@ -17,6 +17,7 @@ import { getUserOperationStatus } from '../../../../services/userOpStatus';
 import {
   convertPortfolioAPIResponseToToken,
   PortfolioToken,
+  chainNameToChainIdTokensData,
 } from '../../../../services/tokensData';
 
 // types
@@ -33,6 +34,8 @@ import PreviewSell from '../Sell/PreviewSell';
 import Sell from '../Sell/Sell';
 import TransactionStatus from '../Transaction/TransactionStatus';
 import SettingsMenu from '../Settings/SettingsMenu';
+import OnboardingWelcome from '../Onboarding/OnboardingWelcome';
+import TopUpScreen from '../Onboarding/TopUpScreen';
 
 // hooks
 import useTransactionKit from '../../../../hooks/useTransactionKit';
@@ -40,10 +43,15 @@ import { useRemoteConfig } from '../../../../hooks/useRemoteConfig';
 import useIntentSdk from '../../hooks/useIntentSdk';
 import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 import { BuyOffer } from '../../hooks/useRelayBuy';
+import { useGasTankBalance } from '../../hooks/useGasTankBalance';
+import { useTotalUsdcBalance } from '../../hooks/useTotalUsdcBalance';
 
 // utils
 import { getStableCurrencyBalanceOnEachChain } from '../../utils/utils';
 import { logPulseError } from '../../utils/sentry';
+
+// constants
+import { STABLE_CURRENCIES } from '../../constants/tokens';
 
 // types
 type TransactionStatusState =
@@ -86,6 +94,11 @@ interface HomeScreenProps {
   refetchWalletPortfolio: () => void;
   setBuyToken: Dispatch<SetStateAction<SelectedToken | null>>;
   setChains: Dispatch<SetStateAction<MobulaChainNames>>;
+  onboardingScreen: 'welcome' | 'topup' | null;
+  setOnboardingScreen: Dispatch<SetStateAction<'welcome' | 'topup' | null>>;
+  topupToken: SelectedToken | null;
+  setTopupToken: Dispatch<SetStateAction<SelectedToken | null>>;
+  setIsSearchingFromTopup: Dispatch<SetStateAction<boolean>>;
 }
 
 export default function HomeScreen(props: HomeScreenProps) {
@@ -98,6 +111,11 @@ export default function HomeScreen(props: HomeScreenProps) {
     refetchWalletPortfolio,
     setBuyToken,
     setChains,
+    onboardingScreen,
+    setOnboardingScreen,
+    topupToken,
+    setTopupToken,
+    setIsSearchingFromTopup,
   } = props;
   const { walletAddress: accountAddress } = useTransactionKit();
   const { getBestSellOffer, isInitialized } = useRelaySell();
@@ -206,6 +224,86 @@ export default function HomeScreen(props: HomeScreenProps) {
       refetchOnFocus: false,
     }
   );
+
+  // Hooks for onboarding data
+  const { totalBalance: gasTankBalance, isLoading: isGasTankLoading } = useGasTankBalance(accountAddress || null);
+  const { totalUsdcBalance } = useTotalUsdcBalance(walletPortfolioData);
+
+  // Determine if onboarding should be shown based on gas tank balance
+  useEffect(() => {
+    if (!isGasTankLoading && walletPortfolioData && portfolioTokens.length > 0) {
+      if (gasTankBalance === 0 && onboardingScreen === null) {
+        setOnboardingScreen('welcome');
+      } else if (gasTankBalance > 0) {
+        setOnboardingScreen(null);
+      }
+    }
+  }, [isGasTankLoading, walletPortfolioData, portfolioTokens.length, gasTankBalance, onboardingScreen, setOnboardingScreen]);
+
+  // Preselect max USDC token when topup screen is shown and totalUsdcBalance > 0
+  useEffect(() => {
+    if (
+      onboardingScreen === 'topup' &&
+      totalUsdcBalance > 0 &&
+      !topupToken &&
+      walletPortfolioData?.result?.data?.assets
+    ) {
+      // Find all USDC tokens from the portfolio
+      const usdcTokens = portfolioTokens.filter((token) => {
+        const chainId = chainNameToChainIdTokensData(token.blockchain);
+        return STABLE_CURRENCIES.some(
+          (stable) =>
+            stable.chainId === chainId &&
+            stable.address.toLowerCase() === token.contract.toLowerCase()
+        );
+      });
+
+      if (usdcTokens.length > 0) {
+        // Find the USDC token with the highest USD balance
+        const maxUsdcToken = usdcTokens.reduce((max, token) => {
+          const currentBalance = (token.price || 0) * (token.balance || 0);
+          const maxBalance = (max.price || 0) * (max.balance || 0);
+          return currentBalance > maxBalance ? token : max;
+        });
+
+        // Convert to SelectedToken format
+        setTopupToken({
+          name: maxUsdcToken.name,
+          symbol: maxUsdcToken.symbol,
+          logo: maxUsdcToken.logo,
+          usdValue: String(maxUsdcToken.price || 0),
+          dailyPriceChange: 0,
+          chainId: chainNameToChainIdTokensData(maxUsdcToken.blockchain),
+          decimals: maxUsdcToken.decimals,
+          address: maxUsdcToken.contract,
+        });
+      }
+    }
+  }, [
+    onboardingScreen,
+    totalUsdcBalance,
+    topupToken,
+    walletPortfolioData,
+    portfolioTokens,
+    setTopupToken,
+  ]);
+
+  // Sync sellToken to topupToken when in topup mode and token is selected
+  useEffect(() => {
+    if (onboardingScreen === 'topup' && sellToken) {
+      setTopupToken(sellToken);
+      // Reset the searching from topup flag after selection
+      setIsSearchingFromTopup(false);
+    }
+  }, [onboardingScreen, sellToken, setTopupToken, setIsSearchingFromTopup]);
+
+  const handleShowTopUp = () => {
+    setOnboardingScreen('topup');
+  };
+
+  const handleBackToWelcome = () => {
+    setOnboardingScreen('welcome');
+  };
 
   useEffect(() => {
     if (
@@ -946,6 +1044,37 @@ export default function HomeScreen(props: HomeScreenProps) {
   }, [isBuy, buyRefreshCallback, previewBuy, handleRefresh]);
 
   const renderPreview = () => {
+    // Show onboarding screens
+    if (onboardingScreen === 'welcome') {
+      return (
+        <OnboardingWelcome
+          onComplete={handleShowTopUp}
+          totalUsdcBalance={totalUsdcBalance}
+          gasTankBalance={gasTankBalance}
+        />
+      );
+    }
+
+    if (onboardingScreen === 'topup') {
+      return (
+        <TopUpScreen
+          onBack={handleBackToWelcome}
+          initialBalance={totalUsdcBalance}
+          setSearching={() => {
+            // Set to sell mode to show only holdings in search
+            setIsBuy(false);
+            // Set flag to include stable coins in search
+            setIsSearchingFromTopup(true);
+            setSearching(true);
+          }}
+          selectedToken={topupToken}
+          setSelectedToken={setTopupToken}
+          portfolioTokens={portfolioTokens}
+          walletPortfolioData={walletPortfolioData}
+        />
+      );
+    }
+
     if (previewBuy) {
       return (
         <div className="w-full flex justify-center px-3 md:p-3 mb-[70px]">

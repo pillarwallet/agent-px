@@ -48,6 +48,7 @@ interface SearchProps {
   walletPortfolioFetching?: boolean;
   walletPortfolioError?: boolean;
   refetchWalletPortfolio?: () => void;
+  isSearchingFromTopup?: boolean;
 }
 
 const overlayStyling = {
@@ -73,6 +74,7 @@ export default function Search({
   walletPortfolioFetching,
   walletPortfolioError,
   refetchWalletPortfolio,
+  isSearchingFromTopup,
 }: SearchProps) {
   const { searchText, setSearchText, searchData, isFetching } = useTokenSearch({
     isBuy,
@@ -447,6 +449,7 @@ export default function Search({
               isLoading={walletPortfolioLoading}
               isError={walletPortfolioError}
               searchText={searchText}
+              includeStableCoins={isSearchingFromTopup}
             />
           </div>
         )}

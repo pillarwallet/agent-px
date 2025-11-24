@@ -27,6 +27,7 @@ export interface PortfolioTokenListProps {
   isLoading?: boolean;
   isError?: boolean;
   searchText?: string;
+  includeStableCoins?: boolean;
 }
 
 const PortfolioTokenList = (props: PortfolioTokenListProps) => {
@@ -36,6 +37,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
     isLoading,
     isError,
     searchText,
+    includeStableCoins = false,
   } = props;
 
   const isStableCurrency = (token: Token) => {
@@ -52,7 +54,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
     if (!walletPortfolioData?.assets) return [];
 
     let tokens = convertPortfolioAPIResponseToToken(walletPortfolioData)
-      .filter((token) => !isStableCurrency(token))
+      .filter((token) => includeStableCoins || !isStableCurrency(token))
       .sort((a: Token, b: Token) => {
         const balanceUSDA = (a.price || 0) * (a.balance || 0);
         const balanceUSDB = (b.price || 0) * (b.balance || 0);
