@@ -3,6 +3,9 @@ import React, { useRef, useState } from 'react';
 // utils
 import { fileToBase64, validateImageFile } from '../utils/imageUtils';
 
+// icons
+import { ReactComponent as CloseIcon } from '../assets/icons/close.svg';
+
 interface ImageUploadProps {
   label: string;
   value: string;
@@ -81,9 +84,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
               onClick={handleRemove}
               className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center transition-colors"
             >
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <CloseIcon className="w-4 h-4 text-white" />
             </button>
           </div>
         )}

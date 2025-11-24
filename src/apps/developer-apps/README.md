@@ -18,7 +18,7 @@ The Developer Hub app provides a user-friendly interface for developers to:
 ### ✨ Key Features
 
 - **Full CRUD Operations**: Create, Read, Update, and Delete applications
-- **Wallet Authentication**: Uses Privy wallet integration for EOA address verification
+- **Wallet Authentication**: Uses your currently logged in wallet
 - **Image Upload**: Base64 image upload with validation for logos and banners
 - **Real-time Validation**: Form validation with helpful error messages
 - **Responsive Design**: Mobile-first design that works on all devices
@@ -361,21 +361,6 @@ Test the following scenarios:
 5. **Image Upload**: Test with various image formats and sizes
 6. **Wallet Connection**: Test without wallet and with wrong wallet
 7. **Ownership**: Try editing someone else's app (should fail)
-
-## Future Enhancements
-
-Potential features to add:
-
-1. **App Analytics**: Track views, launches, etc.
-2. **App Verification**: Verification badge system
-3. **Categories**: Organize apps by categories
-4. **Search & Filter**: Search apps by name, tags, etc.
-5. **Version History**: Track changes to app listings
-6. **Ratings & Reviews**: Allow users to rate apps
-7. **Featured Apps**: Highlight certain apps
-8. **Draft Mode**: Save apps as drafts before publishing
-9. **Bulk Operations**: Manage multiple apps at once
-10. **Export Data**: Export app data as JSON/CSV
 
 ## Troubleshooting
 
