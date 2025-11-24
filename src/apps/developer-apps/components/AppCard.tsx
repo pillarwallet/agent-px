@@ -4,10 +4,10 @@ import React from 'react';
 import { DeveloperApp } from '../api/developerAppsApi';
 
 // icons
-import { ReactComponent as XTwitterIcon } from '../assets/icons/x-twitter.svg';
-import { ReactComponent as TelegramIcon } from '../assets/icons/telegram.svg';
-import { ReactComponent as FacebookIcon } from '../assets/icons/facebook.svg';
-import { ReactComponent as TikTokIcon } from '../assets/icons/tiktok.svg';
+import XTwitterIcon from '../assets/icons/x-twitter.svg?react';
+import TelegramIcon from '../assets/icons/telegram.svg?react';
+import FacebookIcon from '../assets/icons/facebook.svg?react';
+import TikTokIcon from '../assets/icons/tiktok.svg?react';
 
 interface AppCardProps {
   app: DeveloperApp;

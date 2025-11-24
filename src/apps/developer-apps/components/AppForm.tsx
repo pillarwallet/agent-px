@@ -19,7 +19,7 @@ import { sanitizeAppId } from '../utils/validation';
 import ImageUpload from './ImageUpload';
 
 // icons
-import { ReactComponent as LockIcon } from '../assets/icons/lock.svg';
+import LockIcon from '../assets/icons/lock.svg?react';
 
 interface AppFormProps {
   existingApp?: DeveloperApp;

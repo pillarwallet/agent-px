@@ -4,7 +4,7 @@ import React, { useRef, useState } from 'react';
 import { fileToBase64, validateImageFile } from '../utils/imageUtils';
 
 // icons
-import { ReactComponent as CloseIcon } from '../assets/icons/close.svg';
+import CloseIcon from '../assets/icons/close.svg?react';
 
 interface ImageUploadProps {
   label: string;

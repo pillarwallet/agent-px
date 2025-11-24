@@ -9,9 +9,9 @@ import { useGetAllDeveloperAppsQuery, useDeleteDeveloperAppMutation, useUpdateDe
 import AppCard from './AppCard';
 
 // icons
-import { ReactComponent as LockIcon } from '../assets/icons/lock.svg';
-import { ReactComponent as ErrorIcon } from '../assets/icons/error.svg';
-import { ReactComponent as CubeIcon } from '../assets/icons/cube.svg';
+import LockIcon from '../assets/icons/lock.svg?react';
+import ErrorIcon from '../assets/icons/error.svg?react';
+import CubeIcon from '../assets/icons/cube.svg?react';
 
 const AppsList: React.FC = () => {
   const navigate = useNavigate();

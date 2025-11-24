@@ -12,7 +12,7 @@ import AppForm from './components/AppForm';
 import './styles/developers.css';
 
 // icons
-import { ReactComponent as ErrorIcon } from './assets/icons/error.svg';
+import ErrorIcon from './assets/icons/error.svg?react';
 
 const CreateAppPage: React.FC = () => {
   return <AppForm mode="create" />;
