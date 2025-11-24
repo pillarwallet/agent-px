@@ -1,6 +1,3 @@
-/* eslint-disable react/no-unused-prop-types */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   DispensableAsset,
   ExpressIntentResponse,
@@ -167,8 +164,6 @@ export default function Buy(props: BuyProps) {
   >([]);
   const [permittedChains, setPermittedChains] = useState<bigint[]>([]);
   const [sumOfStableBalance, setSumOfStableBalance] = useState<number>(0);
-
-
 
   // Get the user's balance for the selected token (to display in PnL)
   const getTokenBalance = () => {

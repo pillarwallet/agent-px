@@ -597,7 +597,18 @@ export default function Search({
                   <ChainSelectButton />
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <button
+                onClick={handleClose}
+                className="flex items-center justify-center w-10 h-10 bg-[#121116] rounded-[10px] flex-shrink-0 group p-0.5 cursor-pointer"
+                type="button"
+                data-testid="pulse-search-esc-button"
+              >
+                <div className="flex items-center justify-center w-full h-full bg-[#1E1D24] rounded-[8px] group-hover:bg-[#2A2A2A] transition-colors text-[#858585] text-xs font-medium">
+                  ESC
+                </div>
+              </button>
+            )}
           </div>
 
           {/* Filter tabs - Trending / Fresh / Top Gainers / My Holdings */}
