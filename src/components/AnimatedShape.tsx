@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 
 // images
-import { ReactComponent as RandomShape } from '../assets/images/random-shape.svg';
+import RandomShape from '../assets/images/random-shape.svg?react';
 
 // theme
 import { animation } from '../theme';

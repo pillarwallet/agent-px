@@ -59,8 +59,6 @@ if (typeof globalThis.crypto === 'undefined') {
   } as any;
 }
 
-import React from 'react';
-
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 import { createWalletClient, http } from 'viem';
@@ -382,3 +380,28 @@ vi.mock('../../../services/tokensData', () => ({
 }));
 
 import.meta.env.VITE_PRIVY_APP_ID = 'test';
+
+// Mock SVG imports for Vitest
+// This handles the ReactComponent export from vite-plugin-svgr
+// We need to mock the actual resolved paths that components use
+const React = require('react');
+const SvgMock = React.forwardRef(function SvgMock(props: any, ref: any) {
+  return React.createElement('svg', { ...props, ref, 'data-testid': 'svg-mock' });
+});
+SvgMock.displayName = 'SvgMock';
+
+const createSvgMock = () => ({
+  ReactComponent: SvgMock,
+  default: 'svg-mock',
+});
+
+// Mock SVG files - using the exact import paths as they appear in components
+// The paths are relative to the component files, so we need to match the resolved paths
+vi.mock('../apps/developer-apps/assets/icons/lock.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/error.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/cube.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/close.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/x-twitter.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/telegram.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/facebook.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/tiktok.svg', () => createSvgMock());
