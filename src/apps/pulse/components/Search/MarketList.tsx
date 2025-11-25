@@ -9,12 +9,12 @@ import TokenPriceChange from '../Price/TokenPriceChange';
 export interface MarketListProps {
     markets: Market[];
     handleMarketSelect: (market: Market) => void;
-    showLiquidityFilter?: boolean;
-    minLiquidity?: number;
 }
 
-export default function MarketList(props: MarketListProps) {
-    const { markets, handleMarketSelect } = props;
+export default function MarketList({
+    markets,
+    handleMarketSelect,
+}: MarketListProps) {
 
     if (!markets || markets.length === 0) {
         return null;

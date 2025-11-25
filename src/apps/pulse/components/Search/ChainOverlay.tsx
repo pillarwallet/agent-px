@@ -14,14 +14,16 @@ export interface ChainOverlayProps {
 }
 
 const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
-  (chainOverlayProps, ref) => {
-    const {
+  (
+    {
       setShowChainOverlay,
       setChains,
       setOverlayStyle,
       overlayStyle,
       chains,
-    } = chainOverlayProps;
+    },
+    ref
+  ) => {
     return (
       <>
         <div
