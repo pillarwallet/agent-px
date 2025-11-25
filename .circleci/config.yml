@@ -11,10 +11,16 @@ jobs:
     steps:
       - checkout
 
+
+      - run:
+          name: Install jq
+          command: |
+            apt-get update
+            apt-get install -y jq
+
       - run:
           name: Install Dependencies
-          command: |
-            npm ci
+          command: npm ci
 
       - run:
           name: Run Playwright Tests
@@ -24,6 +30,7 @@ jobs:
       - store_artifacts:
           path: playwright-report
           destination: playwright-report
+
 
       - run:
           name: Move last-run.json to tmp
@@ -42,11 +49,11 @@ jobs:
             RESULTS_FILE="/tmp/test-results/.last-run.json"
 
             if [ ! -f "$RESULTS_FILE" ]; then
-              echo "No results file found, skipping Slack message."
+              echo "No results file found, skipping Slack."
               exit 0
             fi
 
-            # Fetch signed Artifact URL (CORRECT WAY)
+            # Fetch signed artifact URL (correct method)
             ARTIFACT_URL=$(curl -s -H "Circle-Token: $CIRCLECI_TOKEN" \
               "https://circleci.com/api/v2/project/github/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BUILD_NUM}/artifacts" \
               | jq -r '.items[] | select(.path | contains("playwright-report/index.html")) | .url')
@@ -54,12 +61,10 @@ jobs:
             STATUS=$(jq -r '.status' $RESULTS_FILE)
             FAILED_TESTS=$(jq -r '.failedTests | join(", ")' $RESULTS_FILE)
 
-            JOB_URL="https://app.circleci.com/pipelines/github/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BUILD_NUM}"
-
             if [ "$STATUS" == "passed" ]; then
-              SLACK_MESSAGE=":white_check_mark: *Playwright Tests Passed*\n*Project:* ${CIRCLE_PROJECT_REPONAME}\n*Report:* <${ARTIFACT_URL}|View Playwright Report>"
+              SLACK_MESSAGE=":white_check_mark: *Playwright Tests Passed*\n*Report:* <${ARTIFACT_URL}|View Report>"
             else
-              SLACK_MESSAGE=":x: *Playwright Tests Failed*\n*Project:* ${CIRCLE_PROJECT_REPONAME}\n*Failed:* ${FAILED_TESTS}\n*Report:* <${ARTIFACT_URL}|View Playwright Report>"
+              SLACK_MESSAGE=":x: *Playwright Tests Failed*\n*Failed:* ${FAILED_TESTS}\n*Report:* <${ARTIFACT_URL}|View Report>"
             fi
 
             curl -X POST -H 'Content-type: application/json' \
