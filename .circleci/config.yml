@@ -135,4 +135,4 @@ workflows:
       - e2e-tests:
           filters:
             branches:
-              only: e2e-playwright
+              only: staging
