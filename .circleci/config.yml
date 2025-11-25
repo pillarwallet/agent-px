@@ -92,8 +92,9 @@ jobs:
 
             # Fetch real signed artifact URL from CircleCI API
             REPORT_URL=$(curl -s -H "Circle-Token: $CIRCLECI_TOKEN" \
-              "https://circleci.com/api/v2/project/github/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BUILD_NUM}/artifacts" \
-              | jq -r '.items[] | select(.path | contains("playwright-report/index.html")) | .url')
+                "https://circleci.com/api/v2/project/github/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BUILD_NUM}/artifacts" \
+                | jq -r '.items[] | select(.path | endswith("playwright-report/index.html")) | .url')
+
 
             if [ -z "$REPORT_URL" ]; then
               REPORT_URL="No report found"
