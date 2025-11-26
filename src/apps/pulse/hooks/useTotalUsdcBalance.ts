@@ -18,7 +18,8 @@ export function useTotalUsdcBalance(
       };
     }
 
-    const balanceByChain = getStableCurrencyBalanceOnEachChain(walletPortfolioData);
+    const balanceByChain =
+      getStableCurrencyBalanceOnEachChain(walletPortfolioData);
     const totalUsdcBalance = Object.values(balanceByChain).reduce(
       (sum, balance) => sum + balance,
       0

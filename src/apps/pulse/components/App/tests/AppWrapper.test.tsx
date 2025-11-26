@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 
 // hooks
 import useTransactionKit from '../../../../../hooks/useTransactionKit';
+import * as gasTankHooks from '../../../hooks/useGasTankBalance';
 
 // services
 import * as searchService from '../../../../../services/pillarXApiSearchTokens';
@@ -31,6 +32,10 @@ vi.mock('../../../../../services/pillarXApiWalletPortfolio', () => ({
 
 vi.mock('../../../../../services/pillarXApiSearchTokens', () => ({
   useGetSearchTokensQuery: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useGasTankBalance', () => ({
+  useGasTankBalance: vi.fn(),
 }));
 
 const mockStore = configureStore({
@@ -77,6 +82,11 @@ const defaultMocks = () => {
     isLoading: false,
     isFetching: false,
     error: null,
+  });
+
+  (gasTankHooks.useGasTankBalance as any).mockReturnValue({
+    totalBalance: 100, // Non-zero gas tank balance to show main interface
+    isLoading: false,
   });
 };
 

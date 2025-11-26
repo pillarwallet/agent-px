@@ -19,7 +19,9 @@ interface UseGasTankBalanceReturn {
   refetch: () => Promise<void>;
 }
 
-export function useGasTankBalance(walletAddress: string | null): UseGasTankBalanceReturn {
+export function useGasTankBalance(
+  walletAddress: string | null
+): UseGasTankBalanceReturn {
   const [totalBalance, setTotalBalance] = useState<number>(0);
   const [chainBalances, setChainBalances] = useState<ChainBalance[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -66,7 +68,8 @@ export function useGasTankBalance(walletAddress: string | null): UseGasTankBalan
 
       setTotalBalance(total);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err : new Error('Unknown error occurred');
+      const errorMessage =
+        err instanceof Error ? err : new Error('Unknown error occurred');
       setError(errorMessage);
       setTotalBalance(0);
       setChainBalances([]);
@@ -77,6 +80,7 @@ export function useGasTankBalance(walletAddress: string | null): UseGasTankBalan
 
   useEffect(() => {
     fetchGasTankBalance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress, paymasterUrl]);
 
   return {

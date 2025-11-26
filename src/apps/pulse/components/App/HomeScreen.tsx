@@ -217,28 +217,51 @@ export default function HomeScreen(props: HomeScreenProps) {
   const failureGraceExpiryRef = useRef<number | null>(null);
   const hasInitializedChainIdRef = useRef<boolean>(false);
 
-  const { data: walletPortfolioData } = useGetWalletPortfolioQuery(
-    { wallet: accountAddress || '', isPnl: false },
-    {
-      skip: !accountAddress,
-      refetchOnFocus: false,
-    }
+  // Track onboarding completion in localStorage to persist across rerenders
+  const hasCompletedOnboardingRef = useRef<boolean>(
+    localStorage.getItem('hasCompletedOnboarding') === 'true'
   );
 
+  const { data: walletPortfolioData, isLoading: isPortfolioLoading } =
+    useGetWalletPortfolioQuery(
+      { wallet: accountAddress || '', isPnl: false },
+      {
+        skip: !accountAddress,
+        refetchOnFocus: false,
+      }
+    );
+
   // Hooks for onboarding data
-  const { totalBalance: gasTankBalance, isLoading: isGasTankLoading } = useGasTankBalance(accountAddress || null);
+  const { totalBalance: gasTankBalance, isLoading: isGasTankLoading } =
+    useGasTankBalance(accountAddress || null);
   const { totalUsdcBalance } = useTotalUsdcBalance(walletPortfolioData);
 
   // Determine if onboarding should be shown based on gas tank balance
   useEffect(() => {
-    if (!isGasTankLoading && walletPortfolioData && portfolioTokens.length > 0) {
-      if (gasTankBalance === 0 && onboardingScreen === null) {
+    if (
+      !isGasTankLoading &&
+      walletPortfolioData &&
+      portfolioTokens.length > 0
+    ) {
+      // Only show onboarding if gas tank is empty AND user hasn't completed onboarding
+      if (
+        gasTankBalance === 0 &&
+        onboardingScreen === null &&
+        !hasCompletedOnboardingRef.current
+      ) {
         setOnboardingScreen('welcome');
-      } else if (gasTankBalance > 0) {
+      } else if (gasTankBalance > 0 || hasCompletedOnboardingRef.current) {
         setOnboardingScreen(null);
       }
     }
-  }, [isGasTankLoading, walletPortfolioData, portfolioTokens.length, gasTankBalance, onboardingScreen, setOnboardingScreen]);
+  }, [
+    isGasTankLoading,
+    walletPortfolioData,
+    portfolioTokens.length,
+    gasTankBalance,
+    onboardingScreen,
+    setOnboardingScreen,
+  ]);
 
   // Preselect max USDC token when topup screen is shown and totalUsdcBalance > 0
   useEffect(() => {
@@ -546,7 +569,7 @@ export default function HomeScreen(props: HomeScreenProps) {
       failureGraceExpiryRef.current = null;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sellToken, tokenAmount, sellOffer, isBuy]
+    [sellToken, tokenAmount, sellOffer, isBuy, setOnboardingScreen]
   );
 
   const closeTransactionStatus = () => {
@@ -1044,6 +1067,30 @@ export default function HomeScreen(props: HomeScreenProps) {
   }, [isBuy, buyRefreshCallback, previewBuy, handleRefresh]);
 
   const renderPreview = () => {
+    // Show loading state while determining onboarding vs normal flow
+    // This prevents flashing the buy component before onboarding decision is made
+    if (
+      isGasTankLoading ||
+      !walletPortfolioData ||
+      portfolioTokens.length === 0
+    ) {
+      if (
+        onboardingScreen === null &&
+        gasTankBalance === 0 &&
+        !hasCompletedOnboardingRef.current
+      ) {
+        // Show onboarding welcome with loading state
+        return (
+          <OnboardingWelcome
+            onComplete={handleShowTopUp}
+            totalUsdcBalance={totalUsdcBalance}
+            gasTankBalance={gasTankBalance}
+            isGasTankLoading={isGasTankLoading}
+          />
+        );
+      }
+    }
+
     // Show onboarding screens
     if (onboardingScreen === 'welcome') {
       return (
@@ -1051,6 +1098,7 @@ export default function HomeScreen(props: HomeScreenProps) {
           onComplete={handleShowTopUp}
           totalUsdcBalance={totalUsdcBalance}
           gasTankBalance={gasTankBalance}
+          isGasTankLoading={isGasTankLoading}
         />
       );
     }
@@ -1068,9 +1116,13 @@ export default function HomeScreen(props: HomeScreenProps) {
             setSearching(true);
           }}
           selectedToken={topupToken}
-          setSelectedToken={setTopupToken}
           portfolioTokens={portfolioTokens}
-          walletPortfolioData={walletPortfolioData}
+          setOnboardingScreen={setOnboardingScreen}
+          markOnboardingComplete={() => {
+            hasCompletedOnboardingRef.current = true;
+            localStorage.setItem('hasCompletedOnboarding', 'true');
+          }}
+          isPortfolioLoading={isPortfolioLoading}
         />
       );
     }

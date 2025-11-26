@@ -1,4 +1,5 @@
 // assets
+import { TailSpin } from 'react-loader-spinner';
 import WalletIcon from '../../assets/wallet.svg';
 import GasTankIcon from '../../assets/gas-tank-icon.svg';
 
@@ -6,10 +7,16 @@ interface OnboardingWelcomeProps {
   onComplete: () => void;
   totalUsdcBalance: number;
   gasTankBalance: number;
+  isGasTankLoading?: boolean;
 }
 
 export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
-  const { onComplete, totalUsdcBalance, gasTankBalance } = props;
+  const {
+    onComplete,
+    totalUsdcBalance,
+    gasTankBalance,
+    isGasTankLoading = false,
+  } = props;
 
   return (
     <div className="w-full max-w-[446px]">
@@ -74,10 +81,21 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
           <button
             onClick={onComplete}
             type="button"
-            className="flex items-center justify-center w-full rounded-lg h-12 bg-[#8A77FF] text-white font-medium text-base"
+            className="flex items-center justify-center w-full rounded-lg h-12 text-white font-medium text-base disabled:opacity-50"
+            style={{
+              backgroundColor: isGasTankLoading ? '#29292F' : '#8A77FF',
+            }}
+            disabled={isGasTankLoading}
             data-testid="pulse-onboarding-top-up-button"
           >
-            Top up
+            {isGasTankLoading ? (
+              <div className="flex items-center justify-center gap-2">
+                <TailSpin color="#FFFFFF" height={20} width={20} />
+                <span>Loading...</span>
+              </div>
+            ) : (
+              'Top up'
+            )}
           </button>
         </div>
       </div>
