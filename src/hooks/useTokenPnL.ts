@@ -145,18 +145,23 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
             },
           }));
 
-        for (const hash of hashesToFetch) {
-          try {
-            const req = await fetchRelayRequestByHash(hash);
-            if (req && isMounted) {
-              relayRequests.push(req);
+        const relayResults = await Promise.all(
+          hashesToFetch.map(async (hash) => {
+            try {
+              const req = await fetchRelayRequestByHash(hash);
+              return req;
+            } catch (e) {
+              console.error(`Failed to fetch Relay for ${hash}:`, e);
+              return null;
             }
-          } catch (e) {
-            console.error(`Failed to fetch Relay for ${hash}:`, e);
-          }
-        }
+          })
+        );
 
-        if (!isMounted) return;
+        if (!isMounted) return undefined;
+
+        relayRequests.push(...relayResults.filter((req) => req !== null));
+
+        if (!isMounted) return undefined;
 
         if (isMounted)
           setResult((prev) => ({
@@ -208,6 +213,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
             isLoading: false,
             debug: { ...prev.debug, status: 'Error' },
           }));
+        return undefined;
       }
     };
 
@@ -215,18 +221,13 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
 
     return () => {
       isMounted = false;
+      return undefined;
     };
-  }, [
-    props?.token?.contract,
-    props?.transactionsData,
-    props?.walletAddress,
-    props?.chainId,
-    refreshTrigger,
-  ]);
+  }, [props, refreshTrigger]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
-    if (!props) return;
+    if (!props) return undefined;
 
     const interval = setInterval(() => {
       setResult((prev) => ({ ...prev, isLoading: true }));

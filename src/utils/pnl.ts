@@ -373,7 +373,6 @@ export const calculatePnLFromRelay = (
     price?: number; // Added for fallback
   }
 ): ReconstructedTrade[] => {
-  const trades: ReconstructedTrade[] = [];
   const tokenContract = token.address.toLowerCase();
 
   // Known USDC addresses for matching quote currency
@@ -386,128 +385,124 @@ export const calculatePnLFromRelay = (
     '0x0b2c639c533813f4aa9d7837caf992837bd5787f', // Optimism USDC
   ];
 
-  for (const req of relayRequests) {
-    // Check status (only process filled/completed requests if status is available)
-    if (
-      req.status &&
-      req.status !== 'completed' &&
-      req.status !== 'filled' &&
-      req.status !== 'success'
-    ) {
-      // continue; // Uncomment if we need to filter by status
-    }
+  const trades = relayRequests
+    .map((req) => {
+      let amountToken = 0;
+      let amountUSDC = 0;
+      let side: 'BUY' | 'SELL' | null = null;
+      let timestamp = new Date(req.createdAt).getTime() / 1000;
 
-    let amountToken = 0;
-    let amountUSDC = 0;
-    let side: 'BUY' | 'SELL' | null = null;
-    let timestamp = new Date(req.createdAt).getTime() / 1000;
+      const { metadata } = req;
 
-    const { metadata } = req;
+      // Strategy 1: Use Metadata (Preferred)
+      if (metadata && metadata.currencyIn && metadata.currencyOut) {
+        const { currencyIn, currencyOut } = metadata;
+        const inAddress = currencyIn.currency?.address?.toLowerCase();
+        const outAddress = currencyOut.currency?.address?.toLowerCase();
 
-    // Strategy 1: Use Metadata (Preferred)
-    if (metadata && metadata.currencyIn && metadata.currencyOut) {
-      const { currencyIn } = metadata;
-      const { currencyOut } = metadata;
-      const inAddress = currencyIn.currency?.address?.toLowerCase();
-      const outAddress = currencyOut.currency?.address?.toLowerCase();
+        const isBuy = outAddress === tokenContract;
+        const isSell = inAddress === tokenContract;
 
-      const isBuy = outAddress === tokenContract;
-      const isSell = inAddress === tokenContract;
-
-      if (isBuy) {
-        side = 'BUY';
-        amountToken = parseFloat(currencyOut.amountFormatted || '0');
-        if (
-          inAddress &&
-          (USDC_ADDRESSES.includes(inAddress) ||
-            currencyIn.currency?.symbol === 'USDC')
-        ) {
-          amountUSDC = parseFloat(currencyIn.amountFormatted || '0');
-        } else {
-          amountUSDC = parseFloat(currencyIn.amountUsd || '0');
-        }
-      } else if (isSell) {
-        side = 'SELL';
-        amountToken = parseFloat(currencyIn.amountFormatted || '0');
-        if (
-          outAddress &&
-          (USDC_ADDRESSES.includes(outAddress) ||
-            currencyOut.currency?.symbol === 'USDC')
-        ) {
-          amountUSDC = parseFloat(currencyOut.amountFormatted || '0');
-        } else {
-          amountUSDC = parseFloat(currencyOut.amountUsd || '0');
+        if (isBuy) {
+          side = 'BUY';
+          amountToken = parseFloat(currencyOut.amountFormatted || '0');
+          if (
+            inAddress &&
+            (USDC_ADDRESSES.includes(inAddress) ||
+              currencyIn.currency?.symbol === 'USDC')
+          ) {
+            amountUSDC = parseFloat(currencyIn.amountFormatted || '0');
+          } else {
+            amountUSDC = parseFloat(currencyIn.amountUsd || '0');
+          }
+        } else if (isSell) {
+          side = 'SELL';
+          amountToken = parseFloat(currencyIn.amountFormatted || '0');
+          if (
+            outAddress &&
+            (USDC_ADDRESSES.includes(outAddress) ||
+              currencyOut.currency?.symbol === 'USDC')
+          ) {
+            amountUSDC = parseFloat(currencyOut.amountFormatted || '0');
+          } else {
+            amountUSDC = parseFloat(currencyOut.amountUsd || '0');
+          }
         }
       }
-    }
-    // Strategy 2: Use State Changes (Fallback)
-    else if (req.data?.inTxs || req.data?.outTxs) {
-      const userAddress = req.user?.toLowerCase();
-      let tokenChange = 0;
-      let usdcChange = 0;
+      // Strategy 2: Use State Changes (Fallback)
+      else if (req.data?.inTxs || req.data?.outTxs) {
+        const userAddress = req.user?.toLowerCase();
+        const allTxs = [
+          ...(req.data?.inTxs || []),
+          ...(req.data?.outTxs || []),
+        ];
 
-      const allTxs = [...(req.data?.inTxs || []), ...(req.data?.outTxs || [])];
+        const { tokenChange, usdcChange, latestTimestamp } = allTxs.reduce(
+          (acc, tx) => {
+            if (tx.timestamp) acc.latestTimestamp = tx.timestamp;
+            if (tx.stateChanges) {
+              tx.stateChanges.forEach((sc) => {
+                if (sc.address?.toLowerCase() === userAddress) {
+                  const tokenAddr =
+                    sc.change?.data?.tokenAddress?.toLowerCase();
+                  const balanceDiff = parseFloat(sc.change?.balanceDiff || '0');
 
-      for (const tx of allTxs) {
-        if (tx.timestamp) timestamp = tx.timestamp;
-        if (tx.stateChanges) {
-          for (const sc of tx.stateChanges) {
-            if (sc.address?.toLowerCase() !== userAddress) continue;
-
-            const tokenAddr = sc.change?.data?.tokenAddress?.toLowerCase();
-            const balanceDiff = parseFloat(sc.change?.balanceDiff || '0');
-
-            if (tokenAddr === tokenContract) {
-              tokenChange += balanceDiff;
-            } else if (tokenAddr && USDC_ADDRESSES.includes(tokenAddr)) {
-              usdcChange += balanceDiff;
+                  if (tokenAddr === tokenContract) {
+                    acc.tokenChange += balanceDiff;
+                  } else if (tokenAddr && USDC_ADDRESSES.includes(tokenAddr)) {
+                    acc.usdcChange += balanceDiff;
+                  }
+                }
+              });
             }
+            return acc;
+          },
+          { tokenChange: 0, usdcChange: 0, latestTimestamp: timestamp }
+        );
+
+        timestamp = latestTimestamp;
+
+        if (tokenChange !== 0) {
+          const tokenDivisor = 10 ** token.decimals;
+          const usdcDivisor = 1e6;
+
+          const tokenAmountRaw = Math.abs(tokenChange) / tokenDivisor;
+          const usdcAmountRaw = Math.abs(usdcChange) / usdcDivisor;
+
+          if (tokenChange > 0) {
+            side = 'BUY';
+            amountToken = tokenAmountRaw;
+            amountUSDC = usdcAmountRaw;
+          } else {
+            side = 'SELL';
+            amountToken = tokenAmountRaw;
+            amountUSDC = usdcAmountRaw;
           }
         }
       }
 
-      if (tokenChange !== 0) {
-        // Determine decimals for token (from portfolio or Relay if available)
-        // We have token.decimals passed in
-        const tokenDivisor = 10 ** token.decimals;
-        const usdcDivisor = 1e6; // USDC is always 6 decimals on EVM usually
+      if (!side || amountToken === 0) return null;
 
-        const tokenAmountRaw = Math.abs(tokenChange) / tokenDivisor;
-        const usdcAmountRaw = Math.abs(usdcChange) / usdcDivisor;
-
-        if (tokenChange > 0) {
-          side = 'BUY'; // Received token
-          amountToken = tokenAmountRaw;
-          amountUSDC = usdcAmountRaw; // Spent USDC (negative change)
-        } else {
-          side = 'SELL'; // Sent token
-          amountToken = tokenAmountRaw;
-          amountUSDC = usdcAmountRaw; // Received USDC (positive change)
-        }
+      // Fallback: use token price if we couldn't extract USDC amount
+      if (amountUSDC === 0 && token.price) {
+        amountUSDC = amountToken * token.price;
       }
-    }
 
-    if (!side || amountToken === 0) continue;
+      if (amountUSDC === 0) return null;
 
-    // Fallback: use token price if we couldn't extract USDC amount (e.g. complex swap or ETH pair)
-    if (amountUSDC === 0 && token.price) {
-      amountUSDC = amountToken * token.price;
-    }
-
-    if (amountUSDC === 0) continue;
-
-    trades.push({
-      side,
-      txHash: req.id,
-      timestamp,
-      amountToken,
-      amountQuoteUSDC: amountUSDC,
-      execPriceUSD: amountUSDC / amountToken,
-      feesUSD: 0,
-      tokenAddress: token.address,
-      tokenSymbol: token.symbol,
-    });
-  }
+      return {
+        side,
+        txHash: req.id,
+        timestamp,
+        amountToken,
+        amountQuoteUSDC: amountUSDC,
+        execPriceUSD: amountUSDC / amountToken,
+        feesUSD: 0,
+        tokenAddress: token.address,
+        tokenSymbol: token.symbol,
+      };
+    })
+    .filter((trade) => trade !== null) as ReconstructedTrade[];
 
   return trades.sort((a, b) => a.timestamp - b.timestamp);
 };
