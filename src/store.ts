@@ -18,6 +18,7 @@ import tokenAtlasSlice from './apps/token-atlas/reducer/tokenAtlasSlice';
 import { pillarXApiPresence } from './services/pillarXApiPresence';
 import { pillarXApiTransactionsHistory } from './services/pillarXApiTransactionsHistory';
 import { pillarXApiWaitlist } from './services/pillarXApiWaitlist';
+import { pillarXApiWalletTransactions } from './services/pillarXApiWalletTransactions';
 
 // Initialisation
 const dynamicMiddleware = createDynamicMiddleware();
@@ -32,10 +33,17 @@ const middlewareReducers: { [key: string]: Reducer } = {};
  * @param newReducer
  */
 export const addReducer = (newReducer: {
-  reducerPath: string;
+  reducerPath?: string;
+  name?: string;
   reducer: Reducer;
 }) => {
-  middlewareReducers[newReducer.reducerPath as string] = newReducer.reducer;
+  const path = newReducer.reducerPath || newReducer.name;
+
+  if (!path) {
+    console.error('Reducer path or name is missing', newReducer);
+    return;
+  }
+  middlewareReducers[path] = newReducer.reducer;
   store.replaceReducer(combineReducers(middlewareReducers));
 };
 
@@ -66,7 +74,9 @@ export const store = configureStore({
   // Empty reducer for now - the addMiddleware function
   // below will dynamically regenerate the reducers required
   // from the middleware functions.
-  reducer: {},
+  reducer: {
+    init: (state = {}) => state,
+  },
   // Adding the api middleware enables caching, invalidation, polling,
   // and other useful features of `rtk-query`.
   // Note: here we have added dynamicMiddleware.middleware
@@ -84,6 +94,7 @@ export const store = configureStore({
 addMiddleware(pillarXApiWaitlist);
 addMiddleware(pillarXApiPresence);
 addMiddleware(pillarXApiTransactionsHistory);
+addMiddleware(pillarXApiWalletTransactions);
 addReducer(swapSlice);
 addReducer(tokenAtlasSlice);
 addReducer(depositSlice);

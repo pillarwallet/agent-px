@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import renderer from 'react-test-renderer';
 import WalletAddress from '../WalletAddress';
 
@@ -21,7 +27,9 @@ describe('<WalletAddress />', () => {
   });
 
   it('renders correctly and matches snapshot', () => {
-    const tree = renderer.create(<WalletAddress address={mockAddress} />).toJSON();
+    const tree = renderer
+      .create(<WalletAddress address={mockAddress} />)
+      .toJSON();
     expect(tree).toMatchSnapshot();
   });
 
@@ -38,7 +46,7 @@ describe('<WalletAddress />', () => {
 
   it('copies address to clipboard when button is clicked', async () => {
     render(<WalletAddress address={mockAddress} />);
-    
+
     const copyButton = screen.getByRole('button', { name: /copy/i });
     fireEvent.click(copyButton);
 
@@ -49,7 +57,7 @@ describe('<WalletAddress />', () => {
 
   it('shows "Copied" after clicking copy button', async () => {
     render(<WalletAddress address={mockAddress} />);
-    
+
     const copyButton = screen.getByRole('button', { name: /copy/i });
     fireEvent.click(copyButton);
 
@@ -61,9 +69,9 @@ describe('<WalletAddress />', () => {
   it('resets copied state after 2 seconds', async () => {
     vi.useFakeTimers();
     render(<WalletAddress address={mockAddress} />);
-    
+
     const copyButton = screen.getByRole('button', { name: /copy/i });
-    
+
     await act(async () => {
       fireEvent.click(copyButton);
       // Flush promises for async clipboard operation
@@ -90,13 +98,19 @@ describe('<WalletAddress />', () => {
   it('displays instruction text', () => {
     render(<WalletAddress address={mockAddress} />);
     expect(
-      screen.getByText(/Send assets to this address to receive them in your Key Wallet/i)
+      screen.getByText(
+        /Send assets to this address to receive them in your Key Wallet/i
+      )
     ).toBeInTheDocument();
   });
 
   it('handles clipboard error gracefully', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const mockWriteText = vi.fn().mockRejectedValue(new Error('Clipboard error'));
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    const mockWriteText = vi
+      .fn()
+      .mockRejectedValue(new Error('Clipboard error'));
     Object.assign(navigator, {
       clipboard: {
         writeText: mockWriteText,
@@ -104,7 +118,7 @@ describe('<WalletAddress />', () => {
     });
 
     render(<WalletAddress address={mockAddress} />);
-    
+
     const copyButton = screen.getByRole('button', { name: /copy/i });
     fireEvent.click(copyButton);
 

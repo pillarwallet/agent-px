@@ -34,7 +34,7 @@ import ArrowRed from '../../images/arrow-circle-red.svg';
 // components
 import SkeletonLoader from '../../../../components/SkeletonLoader';
 import RandomAvatar from '../RandomAvatar/RandomAvatar';
-import TokenGraph from '../TokenGraph/TokenGraph';
+import { TradingViewChart } from '../TradingViewChart';
 import Body from '../Typography/Body';
 
 type TokenGraphColumnProps = {
@@ -316,7 +316,27 @@ const TokenGraphColumn = ({
           ))}
         </div>
       </div>
-      <TokenGraph />
+      <TradingViewChart
+        symbol={
+          isWrappedOrNativeToken
+            ? getSymbol(selectedToken.symbol)
+            : selectedToken.symbol
+        }
+        interval={
+          periodFilter === PeriodFilter.HOUR
+            ? '60'
+            : periodFilter === PeriodFilter.DAY
+              ? '1D'
+              : periodFilter === PeriodFilter.WEEK
+                ? '1D'
+                : periodFilter === PeriodFilter.MONTH
+                  ? '1D'
+                  : periodFilter === PeriodFilter.YEAR
+                    ? '1W'
+                    : '1D'
+        }
+        className="mt-4"
+      />
     </div>
   );
 };

@@ -12,7 +12,10 @@ interface SearchAssetsProps {
   onFilteredAssetsChange: (filteredAssets: Asset[]) => void;
 }
 
-const SearchAssets = ({ assets, onFilteredAssetsChange }: SearchAssetsProps) => {
+const SearchAssets = ({
+  assets,
+  onFilteredAssetsChange,
+}: SearchAssetsProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Configure Fuse.js for fuzzy search
@@ -103,4 +106,3 @@ const SearchAssets = ({ assets, onFilteredAssetsChange }: SearchAssetsProps) => 
 };
 
 export default SearchAssets;
-

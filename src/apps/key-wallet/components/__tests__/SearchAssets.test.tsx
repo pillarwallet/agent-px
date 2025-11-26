@@ -98,11 +98,16 @@ describe('<SearchAssets />', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search by token name, symbol, or chain/i);
+    const input = screen.getByPlaceholderText(
+      /Search by token name, symbol, or chain/i
+    );
     fireEvent.change(input, { target: { value: 'ETH' } });
 
     // Get the last call (after the initial empty search call)
-    const lastCall = mockOnFilteredAssetsChange.mock.calls[mockOnFilteredAssetsChange.mock.calls.length - 1][0];
+    const lastCall =
+      mockOnFilteredAssetsChange.mock.calls[
+        mockOnFilteredAssetsChange.mock.calls.length - 1
+      ][0];
     expect(lastCall.length).toBeGreaterThanOrEqual(1);
     expect(lastCall.some((asset: Asset) => asset.symbol === 'ETH')).toBe(true);
   });
@@ -115,7 +120,9 @@ describe('<SearchAssets />', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search by token name, symbol, or chain/i);
+    const input = screen.getByPlaceholderText(
+      /Search by token name, symbol, or chain/i
+    );
     fireEvent.change(input, { target: { value: 'Polygon' } });
 
     expect(mockOnFilteredAssetsChange).toHaveBeenCalledWith([mockAssets[1]]);
@@ -129,12 +136,17 @@ describe('<SearchAssets />', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search by token name, symbol, or chain/i);
+    const input = screen.getByPlaceholderText(
+      /Search by token name, symbol, or chain/i
+    );
     fireEvent.change(input, { target: { value: 'Ethereum' } });
 
     // Should match both ETH and USDC on Ethereum
     expect(mockOnFilteredAssetsChange).toHaveBeenCalled();
-    const lastCall = mockOnFilteredAssetsChange.mock.calls[mockOnFilteredAssetsChange.mock.calls.length - 1][0];
+    const lastCall =
+      mockOnFilteredAssetsChange.mock.calls[
+        mockOnFilteredAssetsChange.mock.calls.length - 1
+      ][0];
     expect(lastCall.length).toBeGreaterThan(0);
   });
 
@@ -146,11 +158,16 @@ describe('<SearchAssets />', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search by token name, symbol, or chain/i);
+    const input = screen.getByPlaceholderText(
+      /Search by token name, symbol, or chain/i
+    );
     fireEvent.change(input, { target: { value: 'usd' } });
 
     // Should find USDC (case-insensitive)
-    const lastCall = mockOnFilteredAssetsChange.mock.calls[mockOnFilteredAssetsChange.mock.calls.length - 1][0];
+    const lastCall =
+      mockOnFilteredAssetsChange.mock.calls[
+        mockOnFilteredAssetsChange.mock.calls.length - 1
+      ][0];
     expect(lastCall.some((asset: Asset) => asset.symbol === 'USDC')).toBe(true);
   });
 
@@ -162,7 +179,9 @@ describe('<SearchAssets />', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search by token name, symbol, or chain/i);
+    const input = screen.getByPlaceholderText(
+      /Search by token name, symbol, or chain/i
+    );
     fireEvent.change(input, { target: { value: 'ETH' } });
 
     const clearButton = screen.getByRole('button', { name: /clear search/i });
@@ -177,7 +196,9 @@ describe('<SearchAssets />', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search by token name, symbol, or chain/i);
+    const input = screen.getByPlaceholderText(
+      /Search by token name, symbol, or chain/i
+    );
     fireEvent.change(input, { target: { value: 'ETH' } });
 
     const clearButton = screen.getByRole('button', { name: /clear search/i });
@@ -195,7 +216,9 @@ describe('<SearchAssets />', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search by token name, symbol, or chain/i);
+    const input = screen.getByPlaceholderText(
+      /Search by token name, symbol, or chain/i
+    );
     fireEvent.change(input, { target: { value: 'ETH' } });
 
     expect(screen.getByText(/Searching for "ETH"/i)).toBeInTheDocument();

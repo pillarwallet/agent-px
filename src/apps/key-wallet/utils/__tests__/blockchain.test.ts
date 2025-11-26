@@ -56,16 +56,24 @@ describe('blockchain utils', () => {
 
   describe('isNativeAsset', () => {
     it('returns true for zero address', () => {
-      expect(isNativeAsset('0x0000000000000000000000000000000000000000')).toBe(true);
+      expect(isNativeAsset('0x0000000000000000000000000000000000000000')).toBe(
+        true
+      );
     });
 
     it('returns true for ETH placeholder address', () => {
-      expect(isNativeAsset('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')).toBe(true);
-      expect(isNativeAsset('0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE')).toBe(true);
+      expect(isNativeAsset('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')).toBe(
+        true
+      );
+      expect(isNativeAsset('0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE')).toBe(
+        true
+      );
     });
 
     it('returns false for regular contract address', () => {
-      expect(isNativeAsset('0x1234567890123456789012345678901234567890')).toBe(false);
+      expect(isNativeAsset('0x1234567890123456789012345678901234567890')).toBe(
+        false
+      );
     });
   });
 
@@ -80,9 +88,9 @@ describe('blockchain utils', () => {
 
     it('switches to chain successfully', async () => {
       mockProvider.request.mockResolvedValueOnce(null);
-      
+
       await switchChain(1, mockProvider);
-      
+
       expect(mockProvider.request).toHaveBeenCalledWith({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: '0x1' }],
@@ -136,9 +144,9 @@ describe('blockchain utils', () => {
 
     it('returns chain ID successfully', async () => {
       mockProvider.request.mockResolvedValueOnce('0x1');
-      
+
       const chainId = await getCurrentChainId(mockProvider);
-      
+
       expect(chainId).toBe(1);
       expect(mockProvider.request).toHaveBeenCalledWith({
         method: 'eth_chainId',
@@ -152,7 +160,7 @@ describe('blockchain utils', () => {
 
     it('returns null on error', async () => {
       mockProvider.request.mockRejectedValueOnce(new Error('Failed'));
-      
+
       const chainId = await getCurrentChainId(mockProvider);
       expect(chainId).toBeNull();
     });
@@ -183,15 +191,21 @@ describe('blockchain utils', () => {
         request: vi.fn(),
       };
       mockWalletClient = {
-        getAddresses: vi.fn().mockResolvedValue(['0x1234567890123456789012345678901234567890']),
+        getAddresses: vi
+          .fn()
+          .mockResolvedValue(['0x1234567890123456789012345678901234567890']),
         sendTransaction: vi.fn().mockResolvedValue('0xtxhash'),
       };
       mockPublicClient = {
         estimateGas: vi.fn().mockResolvedValue(BigInt(21000)),
       };
 
-      vi.mocked(viem.createWalletClient).mockReturnValue(mockWalletClient as any);
-      vi.mocked(viem.createPublicClient).mockReturnValue(mockPublicClient as any);
+      vi.mocked(viem.createWalletClient).mockReturnValue(
+        mockWalletClient as any
+      );
+      vi.mocked(viem.createPublicClient).mockReturnValue(
+        mockPublicClient as any
+      );
     });
 
     it('sends native token transaction successfully', async () => {
@@ -201,7 +215,7 @@ describe('blockchain utils', () => {
         '1.0',
         mockProvider
       );
-      
+
       expect(txHash).toBe('0xtxhash');
       expect(mockWalletClient.sendTransaction).toHaveBeenCalled();
       expect(mockPublicClient.estimateGas).toHaveBeenCalled();
@@ -214,7 +228,9 @@ describe('blockchain utils', () => {
         contract: '0x1234567890123456789012345678901234567890',
       };
 
-      vi.mocked(viem.encodeFunctionData).mockReturnValue('0xencoded' as `0x${string}`);
+      vi.mocked(viem.encodeFunctionData).mockReturnValue(
+        '0xencoded' as `0x${string}`
+      );
 
       const txHash = await sendTransaction(
         erc20Asset,
@@ -222,7 +238,7 @@ describe('blockchain utils', () => {
         '1.0',
         mockProvider
       );
-      
+
       expect(txHash).toBe('0xtxhash');
       expect(viem.encodeFunctionData).toHaveBeenCalled();
       expect(mockWalletClient.sendTransaction).toHaveBeenCalled();
@@ -269,7 +285,7 @@ describe('blockchain utils', () => {
 
     it('throws error when no account found', async () => {
       mockWalletClient.getAddresses.mockResolvedValueOnce([]);
-      
+
       await expect(
         sendTransaction(
           mockAsset,
@@ -283,27 +299,39 @@ describe('blockchain utils', () => {
 
   describe('getBlockExplorerUrl', () => {
     it('returns correct URL for Ethereum', () => {
-      expect(getBlockExplorerUrl(1, '0xtxhash')).toBe('https://etherscan.io/tx/0xtxhash');
+      expect(getBlockExplorerUrl(1, '0xtxhash')).toBe(
+        'https://etherscan.io/tx/0xtxhash'
+      );
     });
 
     it('returns correct URL for Polygon', () => {
-      expect(getBlockExplorerUrl(137, '0xtxhash')).toBe('https://polygonscan.com/tx/0xtxhash');
+      expect(getBlockExplorerUrl(137, '0xtxhash')).toBe(
+        'https://polygonscan.com/tx/0xtxhash'
+      );
     });
 
     it('returns correct URL for Base', () => {
-      expect(getBlockExplorerUrl(8453, '0xtxhash')).toBe('https://basescan.org/tx/0xtxhash');
+      expect(getBlockExplorerUrl(8453, '0xtxhash')).toBe(
+        'https://basescan.org/tx/0xtxhash'
+      );
     });
 
     it('returns correct URL for BNB Smart Chain', () => {
-      expect(getBlockExplorerUrl(56, '0xtxhash')).toBe('https://bscscan.com/tx/0xtxhash');
+      expect(getBlockExplorerUrl(56, '0xtxhash')).toBe(
+        'https://bscscan.com/tx/0xtxhash'
+      );
     });
 
     it('returns correct URL for Optimism', () => {
-      expect(getBlockExplorerUrl(10, '0xtxhash')).toBe('https://optimistic.etherscan.io/tx/0xtxhash');
+      expect(getBlockExplorerUrl(10, '0xtxhash')).toBe(
+        'https://optimistic.etherscan.io/tx/0xtxhash'
+      );
     });
 
     it('returns correct URL for Arbitrum', () => {
-      expect(getBlockExplorerUrl(42161, '0xtxhash')).toBe('https://arbiscan.io/tx/0xtxhash');
+      expect(getBlockExplorerUrl(42161, '0xtxhash')).toBe(
+        'https://arbiscan.io/tx/0xtxhash'
+      );
     });
 
     it('returns empty string for unknown chain', () => {

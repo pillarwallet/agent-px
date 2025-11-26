@@ -765,6 +765,66 @@ export type WalletHistoryMobulaResponse = {
 
 export type PrimeAssetType = { name: string; symbol: string };
 
+export type MobulaTransactionRow = {
+  hash: string;
+  tx_hash: string;
+  timestamp: number;
+  method_label: string;
+  asset: {
+    id: number;
+    name: string;
+    symbol: string;
+    logo: string;
+    contract: string;
+    contracts?: string[];
+    decimals: number;
+    type?: string;
+  };
+  type: string;
+  amount: number;
+  amount_usd: number;
+  token_price: number;
+  from: string;
+  to: string;
+  blockchain: string;
+};
+
+export type WalletTransactionsMobulaResponse = {
+  data: {
+    transactions: MobulaTransactionRow[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+    };
+  };
+};
+
+export type ReconstructedTrade = {
+  side: 'BUY' | 'SELL';
+  txHash: string;
+  timestamp: number;
+  amountToken: number; // base asset units
+  amountQuoteUSDC: number; // USDC spent/received
+  execPriceUSD: number; // amountQuoteUSDC / amountToken
+  feesUSD?: number; // optional
+  tokenAddress: string;
+  tokenSymbol: string;
+};
+
+export type PnLMetrics = {
+  realisedPnLUSDC: number;
+  realisedPnLPct: number;
+  unrealisedPnLUSDC: number;
+  unrealisedPnLPct: number;
+  avgBuyPrice: number;
+  avgSellPrice: number;
+  totalBoughtUSDC: number;
+  totalSoldUSDC: number;
+  balanceToken: number;
+  balanceUSDC: number;
+};
+
 export type MigrationTimestamp = {
   _seconds?: number;
   _nanoseconds?: number;
