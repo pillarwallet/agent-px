@@ -30,7 +30,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const [result, setResult] = useState<TokenPnLResult>({
     pnl: null,
     isLoading: false,
-    refetch: () => {},
+    refetch: () => { },
     debug: {
       mobulaTxCount: 0,
       relayRequestCount: 0,
@@ -65,10 +65,21 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           status: 'No Token',
         },
       }));
-      return;
+      return undefined;
     }
 
-    const { token, transactionsData, walletAddress, chainId } = props;
+    const { token, transactionsData, walletAddress, chainId } = props || {};
+
+    // Debug log (can remove later)
+    /*
+    console.log(`[useTokenPnL] Hook called for ${token?.symbol}`, {
+      hasTransactionsData: !!transactionsData,
+      txCount: transactionsData?.data?.transactions?.length,
+      walletAddress,
+      chainId
+    });
+    */
+
     let isMounted = true;
 
     const calculatePnL = async () => {
@@ -79,7 +90,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
             ...prev,
             debug: { ...prev.debug, status: 'No Data' },
           }));
-        return;
+        return undefined;
       }
 
       // Skip small balances
@@ -91,7 +102,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
             ...prev,
             debug: { ...prev.debug, status: 'Small Balance' },
           }));
-        return;
+        return undefined;
       }
 
       if (isMounted)
@@ -100,6 +111,8 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           isLoading: true,
           debug: { ...prev.debug, status: 'Starting' },
         }));
+
+      console.log(`[useTokenPnL] Starting calculation for ${token.symbol}`);
 
       try {
         // Find relevant transaction hashes for this token
@@ -128,7 +141,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
               isLoading: false,
               debug: { ...prev.debug, status: 'No Mobula Txs' },
             }));
-          return;
+          return undefined;
         }
 
         // Fetch Relay data for these hashes (limit to first 20 to avoid too many requests)
@@ -196,14 +209,16 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
               debug: { ...prev.debug, status: 'No Trades Reconstructed' },
             }));
         } else {
-          const metrics = computePnLMetrics(trades, token.price || 0);
-          if (isMounted)
+          const pnlMetrics = computePnLMetrics(trades, token.price || 0);
+          if (isMounted) {
+            console.log(`[useTokenPnL] Calculation complete for ${token.symbol}`, { pnlMetrics });
             setResult((prev) => ({
               ...prev,
-              pnl: metrics,
+              pnl: pnlMetrics,
               isLoading: false,
-              debug: { ...prev.debug, status: 'Success' },
+              debug: { ...prev.debug, status: 'Complete' },
             }));
+          }
         }
       } catch (error) {
         console.error(`Error calculating PnL for ${token.symbol}:`, error);
@@ -223,7 +238,17 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
       isMounted = false;
       return undefined;
     };
-  }, [props, refreshTrigger]);
+  }, [
+    // Use specific dependencies to avoid infinite loops from unstable props object
+    props ? props.token.contract : null,
+    props ? props.token.symbol : null,
+    props ? props.token.balance : null,
+    props ? props.token.price : null,
+    props ? props.transactionsData : null,
+    props ? props.walletAddress : null,
+    props ? props.chainId : null,
+    refreshTrigger
+  ]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
