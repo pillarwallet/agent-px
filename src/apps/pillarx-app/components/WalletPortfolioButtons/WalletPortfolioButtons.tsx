@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useState } from 'react';
 import { RiArrowDownLine } from 'react-icons/ri';
-import { useAccount } from 'wagmi';
 import { TailSpin } from 'react-loader-spinner';
 import { isAddress } from 'viem';
+import { useAccount } from 'wagmi';
 
 // hooks
 import { useEIP7702Upgrade } from '../../../../hooks/useEIP7702Upgrade';
@@ -26,7 +26,7 @@ const WalletPortfolioButtons = () => {
   const { user } = usePrivy();
   const { isConnected } = useAccount();
   const { isEligible, handleUpgradeClick } = useEIP7702Upgrade();
-  const { walletAddress: accountAddress, kit } = useTransactionKit();
+  const { walletAddress: accountAddress } = useTransactionKit();
   const [isAddCashLoading, setIsAddCashLoading] = useState(false);
 
   // Check if Privy user is connected via WalletConnect using linkedAccounts
@@ -41,9 +41,7 @@ const WalletPortfolioButtons = () => {
   // Don't show WalletConnectDropdown if user is connected via Wagmi or Privy with WalletConnect
   // or if user is in delegatedEoa mode
   const shouldShowWalletConnectDropdown =
-    !isConnected &&
-    !isPrivyConnectedViaWalletConnect &&
-    kit.getEtherspotProvider().getWalletMode() !== 'delegatedEoa';
+    !isConnected && !isPrivyConnectedViaWalletConnect;
 
   const handleAddCash = async () => {
     if (isAddCashLoading) return;

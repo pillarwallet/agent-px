@@ -20,6 +20,7 @@ import {
   hexToBigInt,
   http,
   isAddressEqual,
+  toHex,
 } from 'viem';
 import { useAccount } from 'wagmi';
 
@@ -38,12 +39,22 @@ import {
   ETH_SIGN_TYPED_DATA_V4,
   PERSONAL_SIGN,
   WALLETCONNECT_EVENT,
+  WALLET_GET_CALLS_STATUS,
+  WALLET_GET_CAPABILITIES,
+  WALLET_SEND_CALLS,
   getWalletAddressesFromSession,
 } from '../utils/walletConnect';
 
 // utils
 import { getNetworkViem } from '../apps/deposit/utils/blockchain';
 import { useComprehensiveLogout } from '../utils/logout';
+import { getUserOperationStatus } from './userOpStatus';
+
+// In-memory mapping of batch IDs to transaction data
+const batchIdToTxDataMap = new Map<
+  string,
+  { txHash: string; userOpHash?: string }
+>();
 
 // Helper function to capture Sentry events with context
 const captureWithContext = (
@@ -55,6 +66,173 @@ const captureWithContext = (
     scope.setContext(contextName, contextData);
     captureFn();
   });
+};
+
+// Helper function to get calls status according to EIP-5792
+const getCallsStatus = async (
+  batchId: string,
+  chainIdNumber: number
+): Promise<Record<string, unknown>> => {
+  const txData = batchIdToTxDataMap.get(batchId);
+
+  if (!txData) {
+    // No transaction data found - this is normal when dApp polls before user confirms
+    return {
+      version: '1.0',
+      id: batchId,
+      atomic: true,
+      status: 'REJECTED',
+    };
+  }
+
+  const { txHash, userOpHash } = txData;
+
+  const publicClient = createPublicClient({
+    chain: getNetworkViem(chainIdNumber),
+    transport: http(),
+  });
+
+  if (userOpHash) {
+    try {
+      const userOpStatus = await getUserOperationStatus(
+        chainIdNumber,
+        userOpHash
+      );
+
+      const finalTxHash = userOpStatus.transaction || txHash;
+
+      // If transaction is on-chain, get receipt for final status
+      if (userOpStatus.status === 'OnChain' && finalTxHash) {
+        try {
+          const receipt = await publicClient.getTransactionReceipt({
+            hash: finalTxHash as `0x${string}`,
+          });
+
+          const transactionReceipt = {
+            logs: receipt.logs || [],
+            status: receipt.status === 'success' ? '0x1' : '0x0',
+            chainId: toHex(chainIdNumber),
+            blockHash: receipt.blockHash,
+            blockNumber: receipt.blockNumber,
+            gasUsed: receipt.gasUsed,
+            transactionHash: receipt.transactionHash,
+          };
+
+          return {
+            version: '1.0',
+            id: batchId,
+            atomic: true,
+            status: 'CONFIRMED',
+            receipts: [transactionReceipt],
+          };
+        } catch (e) {
+          console.warn('Failed to get transaction receipt:', e);
+        }
+      }
+
+      // No receipt yet, return pending
+      return {
+        version: '1.0',
+        id: batchId,
+        atomic: true,
+        status: 'PENDING',
+      };
+    } catch (e) {
+      console.warn('Failed to get userOp status:', e);
+    }
+  }
+
+  // Fallback: try as regular transaction hash
+  if (txHash) {
+    try {
+      const receipt = await publicClient.getTransactionReceipt({
+        hash: txHash as `0x${string}`,
+      });
+
+      const transactionReceipt = {
+        logs: receipt.logs || [],
+        status: receipt.status === 'success' ? '0x1' : '0x0',
+        chainId: toHex(chainIdNumber),
+        blockHash: receipt.blockHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed,
+        transactionHash: receipt.transactionHash,
+      };
+
+      return {
+        version: '1.0',
+        id: batchId,
+        atomic: true,
+        status: 'CONFIRMED',
+        receipts: [transactionReceipt],
+      };
+    } catch (e) {
+      // Check if transaction exists but no receipt yet
+      try {
+        await publicClient.getTransaction({ hash: txHash as `0x${string}` });
+        return {
+          version: '1.0',
+          id: batchId,
+          atomic: true,
+          status: 'PENDING',
+        };
+      } catch (txError) {
+        return {
+          version: '1.0',
+          id: batchId,
+          atomic: true,
+          status: 'REJECTED',
+        };
+      }
+    }
+  }
+
+  // No transaction data available
+  return {
+    version: '1.0',
+    id: batchId,
+    atomic: true,
+    status: 'REJECTED',
+  };
+};
+
+// Helper function to get wallet capabilities based on wallet mode
+// Returns capabilities keyed by chain ID (as hex string) per EIP-5792
+const getWalletCapabilities = (
+  walletMode: 'modular' | 'delegatedEoa',
+  chainIds: string[] = []
+): Record<string, Record<string, unknown>> => {
+  const isModular = walletMode === 'modular';
+
+  // Base capabilities object
+  const baseCapabilities = {
+    atomicBatch: {
+      supported: true,
+    },
+    auxiliaryFunds: {
+      supported: false,
+    },
+    paymasterService: {
+      supported: isModular,
+    },
+    atomic: {
+      status: 'supported',
+    },
+  };
+
+  // If chainIds provided, return capabilities by chain ID
+  if (chainIds.length > 0) {
+    const result: Record<string, Record<string, unknown>> = {};
+    chainIds.forEach((chainIdHex) => {
+      result[chainIdHex] = baseCapabilities;
+    });
+    return result;
+  }
+
+  // If no chainIds, return with "0x0" to indicate all chains (per EIP-5792)
+  return {
+    '0x0': baseCapabilities,
+  };
 };
 
 export const useWalletConnect = () => {
@@ -979,6 +1157,15 @@ export const useWalletConnect = () => {
                   ETH_SEND_TX,
                   ETH_SIGN_TYPED_DATA,
                   ETH_SIGN_TYPED_DATA_V4,
+                  // EIP-5792 wallet methods only for delegatedEoa mode
+                  ...(kit?.getEtherspotProvider().getConfig().walletMode ===
+                  'delegatedEoa'
+                    ? [
+                        WALLET_GET_CAPABILITIES,
+                        WALLET_SEND_CALLS,
+                        WALLET_GET_CALLS_STATUS,
+                      ]
+                    : []),
                 ],
                 events: [
                   WALLETCONNECT_EVENT.SESSION_PROPOSAL,
@@ -1062,7 +1249,7 @@ export const useWalletConnect = () => {
         });
       }
     },
-    [showModal, showToast, wallet, walletKit]
+    [showModal, showToast, wallet, walletKit, kit]
   );
 
   const onSessionDelete = useCallback(
@@ -1096,7 +1283,7 @@ export const useWalletConnect = () => {
       const dAppName = session?.peer?.metadata?.name;
 
       const chainIdNumber = Number(chainId.replace('eip155:', ''));
-      let requestResponse: string | undefined;
+      let requestResponse: string | Record<string, unknown> | undefined;
 
       try {
         // Get wallet mode
@@ -1249,11 +1436,227 @@ export const useWalletConnect = () => {
           }
         }
 
+        if (request.method === WALLET_GET_CAPABILITIES) {
+          const requestChainIds = (request.params?.[1] as string[]) || [];
+
+          // Return capabilities by chain ID
+          requestResponse = getWalletCapabilities(
+            walletMode || 'delegatedEoa',
+            requestChainIds
+          );
+        }
+
+        if (request.method === WALLET_SEND_CALLS) {
+          // EIP-5792: wallet_sendCalls - Batch transaction execution
+          const sendCallsParams = request.params?.[0] as {
+            calls: Array<{ to: string; data: string; value?: string }>;
+            chainId: string;
+            from: string;
+            atomicRequired?: boolean;
+            version?: string;
+            id?: string; // EIP-5792: Optional batch identifier
+          };
+
+          if (
+            !sendCallsParams?.calls ||
+            !Array.isArray(sendCallsParams.calls)
+          ) {
+            throw new Error(
+              'Invalid wallet_sendCalls params: calls array required'
+            );
+          }
+
+          // Parse chainId (can be hex string like "0xa" or number)
+          const callsChainId = Number(sendCallsParams.chainId);
+
+          if (Number.isNaN(callsChainId)) {
+            throw new Error(
+              `Invalid chainId in wallet_sendCalls: ${sendCallsParams.chainId}`
+            );
+          }
+
+          // Verify chainId matches the request chainId
+          if (callsChainId !== chainIdNumber) {
+            throw new Error(
+              `ChainId mismatch: request chainId ${chainIdNumber} != calls chainId ${callsChainId}`
+            );
+          }
+
+          // Generate batch ID according to EIP-5792
+          const batchId =
+            sendCallsParams.id ||
+            `walletconnect-sendcalls-${chainIdNumber}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+          // Check if this is a single transaction - if so, convert to eth_sendTransaction
+          if (sendCallsParams.calls.length === 1) {
+            const singleCall = sendCallsParams.calls[0];
+
+            // Validate the single call
+            if (!singleCall.to || !singleCall.data) {
+              console.warn(
+                'WalletConnect wallet_sendCalls: Invalid single call',
+                singleCall
+              );
+              // eslint-disable-next-line quotes
+              throw new Error("Invalid call: missing 'to' or 'data'");
+            }
+
+            // Create a transaction object similar to eth_sendTransaction
+            const transaction = {
+              to: singleCall.to,
+              data: singleCall.data,
+              value: singleCall.value || '0x0',
+            };
+
+            const isApprovalTransaction =
+              !!transaction.data?.startsWith('0x095ea7b3');
+
+            if (isApprovalTransaction) {
+              const approvalRequest = {
+                title: 'WalletConnect Approval Request',
+                description: `${dAppName} is requesting approval for a contract.`,
+                transaction: {
+                  to: checksumAddress(transaction.to as `0x${string}`),
+                  data: transaction.data,
+                  chainId: chainIdNumber,
+                },
+              };
+
+              showTransactionConfirmation(approvalRequest);
+              setWalletConnectPayload(approvalRequest);
+            } else {
+              const transactionRequest = {
+                title: 'WalletConnect Transaction Request',
+                description: `${dAppName} wants to send a transaction`,
+                transaction: {
+                  to: checksumAddress(transaction.to as `0x${string}`),
+                  value: transaction.value
+                    ? formatEther(
+                        hexToBigInt(transaction.value as `0x${string}`)
+                      )
+                    : '0',
+                  data: transaction.data,
+                  chainId: chainIdNumber,
+                },
+              };
+
+              showTransactionConfirmation(transactionRequest);
+              setWalletConnectPayload(transactionRequest);
+            }
+
+            // Wait for transaction hash
+            const txHash = await getTransactionHash();
+            if (txHash) {
+              // Store the mapping for wallet_getCallsStatus
+              batchIdToTxDataMap.set(batchId, { txHash });
+            }
+
+            // Returns batch ID for EIP-5792 compliance
+            requestResponse = batchId;
+            return;
+          }
+
+          // Multi-transaction batch flow
+          // Prepare the transaction data in the batch
+          // The batch will be created when user confirms in the SendModal
+          const transactionData = sendCallsParams.calls.map((call, i) => {
+            if (!call.to || !call.data) {
+              throw new Error(
+                `Invalid call at index ${i}: missing 'to' or 'data'`
+              );
+            }
+
+            return {
+              to: checksumAddress(call.to as `0x${string}`),
+              value: call.value
+                ? formatEther(hexToBigInt(call.value as `0x${string}`))
+                : '0',
+              data: call.data as `0x${string}`,
+              chainId: callsChainId,
+            };
+          });
+
+          // Create confirmation payload
+          const batchRequest = {
+            title: 'WalletConnect Batch Transaction Request',
+            description: `${dAppName} wants to execute ${sendCallsParams.calls.length} transaction${sendCallsParams.calls.length > 1 ? 's' : ''}`,
+            batches: [
+              {
+                chainId: callsChainId,
+                transactions: transactionData,
+                batchName: batchId,
+              },
+            ],
+            onSent: async (userOpHashes: string[]) => {
+              // Get transaction hash from userOp hash and store it with the batch ID
+              if (userOpHashes && userOpHashes.length > 0) {
+                const userOpHash = userOpHashes[0];
+                const txHash = await kit.getTransactionHash(
+                  userOpHash,
+                  callsChainId
+                );
+                if (txHash) {
+                  setWalletConnectTxHash(txHash);
+                  // Store mapping of batchId -> {txHash, userOpHash} for proper wallet_getCallsStatus lookup
+                  batchIdToTxDataMap.set(batchId, { txHash, userOpHash });
+                }
+              }
+            },
+          };
+
+          showTransactionConfirmation(batchRequest);
+          setWalletConnectPayload(batchRequest);
+
+          // Returns batch ID for EIP-5792 compliance
+          requestResponse = batchId;
+        }
+
+        if (request.method === WALLET_GET_CALLS_STATUS) {
+          const batchId = request.params?.[0] as string | undefined;
+
+          if (!batchId) {
+            throw new Error(
+              'Invalid wallet_getCallsStatus params: batch id required'
+            );
+          }
+
+          requestResponse = await getCallsStatus(batchId, chainIdNumber);
+        }
+
+        // Recursively serialize BigInt values to strings for JSON serialization
+        const serializeBigInts = (obj: any): any => {
+          if (obj === null || obj === undefined) {
+            return obj;
+          }
+          if (typeof obj === 'bigint') {
+            return obj.toString();
+          }
+          if (Array.isArray(obj)) {
+            return obj.map(serializeBigInts);
+          }
+          if (typeof obj === 'object') {
+            const serialized: any = {};
+            for (const [key, value] of Object.entries(obj)) {
+              serialized[key] = serializeBigInts(value);
+            }
+            return serialized;
+          }
+          return obj;
+        };
+
+        // Serialize the response to convert all BigInt values to strings
+        const serializedResponse = serializeBigInts(requestResponse);
+
         // Respond with success
-        await walletKit?.respondSessionRequest({
-          topic,
-          response: formatJsonRpcResult(id, requestResponse),
-        });
+        try {
+          await walletKit?.respondSessionRequest({
+            topic,
+            response: formatJsonRpcResult(id, serializedResponse),
+          });
+        } catch (responseError) {
+          console.error('Error sending WalletConnect response:', responseError);
+          throw responseError;
+        }
         setWalletConnectTxHash(undefined);
         setWalletConnectPayload(undefined);
       } catch (e: any) {
