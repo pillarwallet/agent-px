@@ -66,6 +66,8 @@ export default function useGasEstimationTopUp({
       if (transactions.length === 0) {
         setGasCostNative('0');
         setNativeTokenSymbol('');
+        isEstimatingRef.current = false;
+        setIsEstimatingGas(false);
         return;
       }
 

@@ -62,8 +62,7 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
               <img
                 src={GasTankIcon}
                 alt="Gas Tank"
-                color="#8A77FF"
-                className="w-5 h-[18px]"
+                className="w-5 h-[18px] text-[#8A77FF]"
               />
             </div>
             <span className="text-sm font-normal text-white">
@@ -81,10 +80,9 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
           <button
             onClick={onComplete}
             type="button"
-            className="flex items-center justify-center w-full rounded-lg h-12 text-white font-medium text-base disabled:opacity-50"
-            style={{
-              backgroundColor: isGasTankLoading ? '#29292F' : '#8A77FF',
-            }}
+            className={`flex items-center justify-center w-full rounded-lg h-12 text-white font-medium text-base disabled:opacity-50 ${
+              isGasTankLoading ? 'bg-[#29292F]' : 'bg-[#8A77FF]'
+            }`}
             disabled={isGasTankLoading}
             data-testid="pulse-onboarding-top-up-button"
           >

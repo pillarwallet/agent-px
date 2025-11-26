@@ -135,19 +135,28 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     useEIP7702Upgrade();
   const { executeTopUp, error: topUpError, clearError } = useTopUp();
 
-  // Gas estimation
+  // Gas estimation - only run when selectedToken is available
   const {
     isEstimatingGas,
     gasEstimationError,
     gasCostNative,
     nativeTokenSymbol,
   } = useGasEstimationTopUp({
-    selectedToken: selectedToken!,
+    selectedToken: selectedToken || {
+      name: '',
+      symbol: '',
+      usdValue: '0',
+      logo: '',
+      dailyPriceChange: 0,
+      chainId: 1,
+      address: '',
+      decimals: 18,
+    },
     amount,
     allocateAmount,
     sellOffer,
     userPortfolio,
-    isPaused: isWaitingForSignature || isLoading,
+    isPaused: isWaitingForSignature || isLoading || !selectedToken,
   });
 
   // Check if selected token is USDC
@@ -373,6 +382,15 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
       setPendingCompletedAt((prev) => prev || now);
     }
   }, [currentTransactionStatus]);
+
+  // Cleanup timeout on unmount or when failureTimeoutId changes
+  useEffect(() => {
+    return () => {
+      if (failureTimeoutId) {
+        clearTimeout(failureTimeoutId);
+      }
+    };
+  }, [failureTimeoutId]);
 
   // Polling effect for UserOp status
   useEffect(() => {

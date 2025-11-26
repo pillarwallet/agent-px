@@ -642,21 +642,19 @@ export default function TopUpScreen(props: TopUpScreenProps) {
           <button
             onClick={handleTopUp}
             type="button"
-            className="flex items-center justify-center w-full rounded-lg text-white font-medium text-base disabled:opacity-50 transition-colors"
-            style={{
-              backgroundColor:
-                parseFloat(amount) <= 0 ||
-                isPortfolioLoading ||
-                portfolioTokens.length === 0 ||
-                isLoadingQuote ||
-                (!isSelectedTokenUSDC() &&
-                  !sellOffer &&
-                  parseFloat(amount) > 0) ||
-                relayError ||
-                error
-                  ? '#29292F'
-                  : '#8A77FF',
-            }}
+            className={`flex items-center justify-center w-full rounded-lg text-white font-medium text-base disabled:opacity-50 transition-colors ${
+              parseFloat(amount) <= 0 ||
+              isPortfolioLoading ||
+              portfolioTokens.length === 0 ||
+              isLoadingQuote ||
+              (!isSelectedTokenUSDC() &&
+                !sellOffer &&
+                parseFloat(amount) > 0) ||
+              relayError ||
+              error
+                ? 'bg-[#29292F]'
+                : 'bg-[#8A77FF]'
+            }`}
             disabled={
               parseFloat(amount) <= 0 ||
               isPortfolioLoading ||

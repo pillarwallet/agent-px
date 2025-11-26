@@ -201,7 +201,7 @@ export default function useIntentSdk(props: IntentProps) {
   const getEnablePulseTradingTransactions = async (): Promise<
     Transactions[]
   > => {
-    if (!intentSdk) return [];
+    if (!intentSdk || !payingTokens?.length) return [];
     const { chainId } = payingTokens[0];
     try {
       const res: Transactions[] = await intentSdk.enablePulseTrading(chainId);

@@ -26,7 +26,16 @@ vi.mock('../../../hooks/useRelaySell', () => ({
 }));
 
 vi.mock('../../../hooks/useIntentSdk', () => ({
-  default: vi.fn(),
+  default: vi.fn(() => ({
+    intentSdk: null,
+    error: null,
+    clearError: vi.fn(),
+    installModules: vi.fn(),
+    areModulesInstalled: false,
+    isInstalling: false,
+    isFetching: false,
+    getEnablePulseTradingTransactions: vi.fn(async () => []),
+  })),
 }));
 
 const mockPortfolioToken = {
