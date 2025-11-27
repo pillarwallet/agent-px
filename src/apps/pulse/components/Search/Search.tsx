@@ -114,7 +114,7 @@ export default function Search({
     // Reset sort when search changes
     setSearchSort({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchText, searchData, list?.assets]);
+  }, [searchText, searchData]);
 
   // Sorting handler for search results
   const handleSearchSortChange = (
