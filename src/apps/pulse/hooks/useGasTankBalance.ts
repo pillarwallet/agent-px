@@ -70,7 +70,12 @@ export function useGasTankBalance(
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err : new Error('Unknown error occurred');
-      setError(errorMessage);
+      console.error('Error fetching gas tank balance:', errorMessage);
+      setError(
+        new Error(
+          'Something went wrong while fetching gas tank balance. Please try again later'
+        )
+      );
       setTotalBalance(0);
       setChainBalances([]);
     } finally {

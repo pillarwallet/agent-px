@@ -28,6 +28,8 @@ import TransactionStatus from '../Transaction/TransactionStatus';
 import { getUserOperationStatus } from '../../../../services/userOpStatus';
 
 // assets
+import BackArrow from '../../assets/back-arrow.svg';
+import ArrowDownOnboarding from '../../assets/arrow-down-onboarding.svg';
 import Install7702Icon from '../../assets/install-7702-icon.svg';
 import OnboardingInstallModulesIcon from '../../assets/onboarding-install-modules-icon.svg';
 import OnboardingSwapIcon from '../../assets/onboarding-swap-icon.svg';
@@ -624,14 +626,7 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
             className="text-white flex items-center justify-center"
             aria-label="Go back"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M6 12L0 6L6 0"
-                stroke="white"
-                strokeWidth="2"
-                fill="none"
-              />
-            </svg>
+            <img src={BackArrow} alt="Back" className="w-3 h-3" />
           </button>
 
           <h2 className="text-white font-medium text-xl leading-5 tracking-tight">
@@ -680,29 +675,7 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
               {/* Connector arrow */}
               {index < steps.length - 1 && (
                 <div className="flex justify-center -my-2 relative z-10">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <circle
-                      cx="10"
-                      cy="10"
-                      r="9.5"
-                      fill="#1E1D24"
-                      stroke="#25232D"
-                    />
-                    <path
-                      d="M10 6V14M10 14L7 11M10 14L13 11"
-                      stroke="white"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      opacity="0.5"
-                    />
-                  </svg>
+                  <img src={ArrowDownOnboarding} alt="Arrow down" className="w-5 h-5" />
                 </div>
               )}
             </div>

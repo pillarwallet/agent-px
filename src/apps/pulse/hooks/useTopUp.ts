@@ -54,7 +54,7 @@ export default function useTopUp() {
         params;
 
       if (!walletAddress) {
-        throw new Error('Wallet address not available');
+        throw new Error('Wallet address not available, Please relogin.');
       }
 
       const transactions = [];
@@ -70,7 +70,7 @@ export default function useTopUp() {
       if (sellOffer) {
         const tokenPrice = parseFloat(selectedToken.usdValue) || 0;
         if (tokenPrice <= 0) {
-          throw new Error('Invalid token price');
+          throw new Error('Invalid token price, Please try again later.');
         }
         const actualTokenAmount = (
           parseFloat(params.amount) / tokenPrice
@@ -89,7 +89,9 @@ export default function useTopUp() {
       // Step 2: Deposit USDC to gas tank using paymaster API
       const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
       if (!paymasterUrl) {
-        throw new Error('Paymaster URL not configured');
+        throw new Error(
+          'Paymaster URL not configured. please try again later.'
+        );
       }
 
       const response = await fetch(
@@ -137,14 +139,16 @@ export default function useTopUp() {
           data: transactionData.result.data || '0x',
         });
       } else {
-        throw new Error('Invalid response from paymaster API');
+        throw new Error(
+          'Invalid response from paymaster API. please try again later.'
+        );
       }
 
       // Verify all transactions are on the same chain
       const allSameChain = transactions.every((tx) => tx.chainId === chainId);
       if (!allSameChain) {
         throw new Error(
-          'Cross-chain transactions detected. All top-up transactions must be on the same chain.'
+          'Cross-chain transactions detected. All top-up transactions must be on the same chain. please refresh and try again.'
         );
       }
 
@@ -161,7 +165,7 @@ export default function useTopUp() {
   const executeTopUp = useCallback(
     async (params: TopUpParams): Promise<string | null> => {
       if (!kit) {
-        setError('Transaction kit not available');
+        setError('Transaction kit not available. please relogin.');
         return null;
       }
 

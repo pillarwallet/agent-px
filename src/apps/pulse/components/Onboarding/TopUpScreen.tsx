@@ -2,6 +2,7 @@ import { Dispatch, SetStateAction, useState, useEffect } from 'react';
 import { TailSpin } from 'react-loader-spinner';
 
 // assets
+import BackArrow from '../../assets/back-arrow.svg';
 import ArrowDown from '../../assets/arrow-down.svg';
 import WalletIcon from '../../assets/wallet.svg';
 import { getLogoForChainId } from '../../../../utils/blockchain';
@@ -434,15 +435,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
             className="mr-2 text-white flex items-center justify-center"
             aria-label="Go back"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M15 18L9 12L15 6"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <img src={BackArrow} alt="Back" className="w-6 h-6" />
           </button>
           <h1 className="text-xl font-medium text-white">Top up Gas Tank</h1>
         </div>
