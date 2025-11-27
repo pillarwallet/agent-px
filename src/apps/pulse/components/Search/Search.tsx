@@ -40,6 +40,7 @@ import PortfolioTokenList from './PortfolioTokenList';
 import SearchSkeleton from './SearchSkeleton';
 import Sort from './Sort';
 import TokenList from './TokenList';
+import SearchIcon from '../../assets/seach-icon.svg';
 
 interface SearchProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
@@ -227,7 +228,8 @@ export default function Search({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       const clickedInsideModal = searchModalRef.current?.contains(target);
-      const clickedInsideChainOverlay = chainOverlayRef.current?.contains(target);
+      const clickedInsideChainOverlay =
+        chainOverlayRef.current?.contains(target);
 
       if (!clickedInsideModal && !clickedInsideChainOverlay) {
         handleClose();
@@ -373,14 +375,25 @@ export default function Search({
         const hasMultipleChains =
           'allChains' in item && item.allChains && item.allChains.length > 1;
 
-        if (hasMultipleChains && 'allChains' in item && 'allContracts' in item && 'allDecimals' in item) {
+        if (
+          hasMultipleChains &&
+          'allChains' in item &&
+          'allContracts' in item &&
+          'allDecimals' in item
+        ) {
           // Multi-chain asset - select chain with most USDC
           const chainWithMostUSDC = getChainWithMostUSDC();
 
-          if (chainWithMostUSDC && item.allChains && item.allContracts && item.allDecimals) {
+          if (
+            chainWithMostUSDC &&
+            item.allChains &&
+            item.allContracts &&
+            item.allDecimals
+          ) {
             // Find the index of the chain with most USDC
             const chainIndex = item.allChains.findIndex(
-              (chain: string) => chainNameToChainIdTokensData(chain) === chainWithMostUSDC
+              (chain: string) =>
+                chainNameToChainIdTokensData(chain) === chainWithMostUSDC
             );
 
             if (chainIndex !== -1) {
@@ -414,7 +427,8 @@ export default function Search({
           usdValue: formatExponentialSmallNumber(
             limitDigitsNumber(item.price || 0)
           ),
-          dailyPriceChange: 'priceChange24h' in item ? (item.priceChange24h || -0.02) : -0.02,
+          dailyPriceChange:
+            'priceChange24h' in item ? item.priceChange24h || -0.02 : -0.02,
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,
@@ -446,7 +460,8 @@ export default function Search({
         usdValue: formatExponentialSmallNumber(
           limitDigitsNumber(item.price || 0)
         ),
-        dailyPriceChange: 'priceChange24h' in item ? (item.priceChange24h || -0.02) : -0.02,
+        dailyPriceChange:
+          'priceChange24h' in item ? item.priceChange24h || -0.02 : -0.02,
         decimals: item.decimals,
         address: item.contract,
       };
@@ -501,10 +516,11 @@ export default function Search({
     >
       <div
         ref={searchModalRef}
-        className={`flex flex-col bg-[#1E1D24] p-3 ${isMobile
-          ? 'fixed inset-0 z-50 w-full h-full'
-          : 'w-[446px] h-[512px] border border-white/[0.05] rounded-2xl shadow-[0px_2px_15px_0px_rgba(18,17,22,0.5)]'
-          }`}
+        className={`flex flex-col bg-[#1E1D24] p-3 ${
+          isMobile
+            ? 'fixed inset-0 z-50 w-full h-full'
+            : 'w-[446px] h-[512px] border border-white/[0.05] rounded-2xl shadow-[0px_2px_15px_0px_rgba(18,17,22,0.5)]'
+        }`}
         data-testid="pulse-search-modal"
       >
         {/* Fixed header section */}
@@ -521,19 +537,28 @@ export default function Search({
               >
                 <div className="flex items-center justify-center w-full h-full bg-[#1E1D24] rounded-[8px] group-hover:bg-[#2A2A2A] transition-colors">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path d="M15 18L9 12L15 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d="M15 18L9 12L15 6"
+                      stroke="white"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </div>
               </button>
             )}
 
             {/* Search input */}
-            <div className={`flex items-center h-10 bg-[#121116] rounded-[10px] px-3 gap-2 ${isMobile ? 'flex-1 min-w-0' : 'flex-1'}`}>
+            <div
+              className={`flex items-center h-10 bg-[#121116] rounded-[10px] px-3 gap-2 ${isMobile ? 'flex-1 min-w-0' : 'flex-1'}`}
+            >
               {/* Search icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
-                <circle cx="11" cy="11" r="7" stroke="#858585" strokeWidth="2" fill="none" />
-                <path d="M20 20L17 17" stroke="#858585" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+              <img
+                src={SearchIcon}
+                alt="search"
+                className="w-4 h-4 flex-shrink-0"
+              />
               <input
                 ref={inputRef}
                 type="text"
@@ -552,7 +577,12 @@ export default function Search({
                   type="button"
                 >
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                    <path d="M15 5L5 15M5 5L15 15" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                    <path
+                      d="M15 5L5 15M5 5L15 15"
+                      stroke="white"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
                   </svg>
                 </button>
               )}
@@ -613,9 +643,17 @@ export default function Search({
 
           {/* Filter tabs - Trending / Fresh / Top Gainers / My Holdings */}
           {!searchText && (
-            <div className="flex flex-wrap gap-2.5 px-1.5 pb-0" data-testid="pulse-search-filter-buttons">
+            <div
+              className="flex flex-wrap gap-2.5 px-1.5 pb-0"
+              data-testid="pulse-search-filter-buttons"
+            >
               {(isBuy
-                ? ['🔥 Trending', '🌱 Fresh', '🚀 Top Gainers', '💰 My Holdings']
+                ? [
+                    '🔥 Trending',
+                    '🌱 Fresh',
+                    '🚀 Top Gainers',
+                    '💰 My Holdings',
+                  ]
                 : ['My Holdings']
               ).map((item, index) => {
                 // For sell screen, always map to MyHoldings index (3)
@@ -643,10 +681,11 @@ export default function Search({
                     }}
                   >
                     <div
-                      className={`w-full h-full rounded-md py-1.5 px-2 flex items-center justify-center ${isActive
-                        ? 'bg-[#2E2A4A] text-white'
-                        : 'bg-[#1E1D24] text-white/60 group-hover:bg-[#2A2A2A]'
-                        }`}
+                      className={`w-full h-full rounded-md py-1.5 px-2 flex items-center justify-center ${
+                        isActive
+                          ? 'bg-[#2E2A4A] text-white'
+                          : 'bg-[#1E1D24] text-white/60 group-hover:bg-[#2A2A2A]'
+                      }`}
                     >
                       {item}
                     </div>
@@ -673,104 +712,110 @@ export default function Search({
             )}
 
           {/* Show search results with grouped Assets and Markets sections */}
-          {searchText && sortedSearchAssets && searchType !== SearchType.MyHoldings && !isFetching && (
-            <div className="flex flex-col">
-              {/* Assets Section */}
-              {sortedSearchAssets.length > 0 && (
-                <>
-                  {/* Column Headers with Sorting */}
-                  <div
-                    className="flex mt-2.5 mb-2.5 text-[13px] font-normal text-gray-400"
-                  >
-                    <div className="flex ml-2.5">
-                      <button
-                        onClick={() => handleSearchSortChange('mCap')}
-                        type="button"
-                        data-testid="pulse-search-sort-mcap"
-                      >
-                        MCap
-                      </button>
-                      <div className="mt-0.5 ml-0.5 mr-0.5">
-                        <Sort sortType={searchSort.mCap} />
+          {searchText &&
+            sortedSearchAssets &&
+            searchType !== SearchType.MyHoldings &&
+            !isFetching && (
+              <div className="flex flex-col">
+                {/* Assets Section */}
+                {sortedSearchAssets.length > 0 && (
+                  <>
+                    {/* Column Headers with Sorting */}
+                    <div className="flex mt-2.5 mb-2.5 text-[13px] font-normal text-gray-400">
+                      <div className="flex ml-2.5">
+                        <button
+                          onClick={() => handleSearchSortChange('mCap')}
+                          type="button"
+                          data-testid="pulse-search-sort-mcap"
+                        >
+                          MCap
+                        </button>
+                        <div className="mt-0.5 ml-0.5 mr-0.5">
+                          <Sort sortType={searchSort.mCap} />
+                        </div>
+                        <div className="ml-0.5 mr-0.5">/</div>
+                        <button
+                          onClick={() => handleSearchSortChange('volume')}
+                          type="button"
+                          data-testid="pulse-search-sort-volume"
+                        >
+                          24h Vol
+                        </button>
+                        <div className="mt-0.5 ml-0.5 mr-0.5">
+                          <Sort sortType={searchSort.volume} />
+                        </div>
                       </div>
-                      <div className="ml-0.5 mr-0.5">/</div>
-                      <button
-                        onClick={() => handleSearchSortChange('volume')}
-                        type="button"
-                        data-testid="pulse-search-sort-volume"
-                      >
-                        24h Vol
-                      </button>
-                      <div className="mt-0.5 ml-0.5 mr-0.5">
-                        <Sort sortType={searchSort.volume} />
+                      <div className="flex ml-auto mr-2.5">
+                        <button
+                          onClick={() => handleSearchSortChange('price')}
+                          type="button"
+                          data-testid="pulse-search-sort-price"
+                        >
+                          Price
+                        </button>
+                        <div className="mt-0.5 ml-0.5 mr-0.5">
+                          <Sort sortType={searchSort.price} />
+                        </div>
+                        <div className="ml-0.5 mr-0.5">/</div>
+                        <button
+                          onClick={() =>
+                            handleSearchSortChange('priceChange24h')
+                          }
+                          type="button"
+                          data-testid="pulse-search-sort-price-change"
+                        >
+                          24h %
+                        </button>
+                        <div className="mt-0.5 ml-0.5 mr-0.5">
+                          <Sort sortType={searchSort.priceChange24h} />
+                        </div>
                       </div>
                     </div>
-                    <div className="flex ml-auto mr-2.5">
-                      <button
-                        onClick={() => handleSearchSortChange('price')}
-                        type="button"
-                        data-testid="pulse-search-sort-price"
-                      >
-                        Price
-                      </button>
-                      <div className="mt-0.5 ml-0.5 mr-0.5">
-                        <Sort sortType={searchSort.price} />
-                      </div>
-                      <div className="ml-0.5 mr-0.5">/</div>
-                      <button
-                        onClick={() => handleSearchSortChange('priceChange24h')}
-                        type="button"
-                        data-testid="pulse-search-sort-price-change"
-                      >
-                        24h %
-                      </button>
-                      <div className="mt-0.5 ml-0.5 mr-0.5">
-                        <Sort sortType={searchSort.priceChange24h} />
-                      </div>
+
+                    <div className="flex items-center justify-between mb-2 px-2.5">
+                      <p className="text-sm font-medium text-white">
+                        Assets ({sortedSearchAssets.length})
+                      </p>
                     </div>
-                  </div>
+                    <TokenList
+                      assets={sortedSearchAssets}
+                      handleTokenSelect={handleTokenSelect}
+                      searchType={searchType}
+                      hideHeaders
+                    />
+                  </>
+                )}
 
-                  <div className="flex items-center justify-between mb-2 px-2.5">
-                    <p className="text-sm font-medium text-white">
-                      Assets ({sortedSearchAssets.length})
-                    </p>
-                  </div>
-                  <TokenList
-                    assets={sortedSearchAssets}
-                    handleTokenSelect={handleTokenSelect}
-                    searchType={searchType}
-                    hideHeaders
-                  />
-                </>
-              )}
-
-              {/* Markets Section */}
-              {filteredMarkets.length > 0 && (
-                <>
-                  <div className="flex items-center justify-between mt-4 mb-2 px-2.5">
-                    <p className="text-sm font-medium text-white">
-                      Markets ({filteredMarkets.length})
-                    </p>
-                  </div>
-                  <MarketList
-                    markets={filteredMarkets}
-                    handleMarketSelect={handleMarketSelect}
-                  />
-                </>
-              )}
-            </div>
-          )}
+                {/* Markets Section */}
+                {filteredMarkets.length > 0 && (
+                  <>
+                    <div className="flex items-center justify-between mt-4 mb-2 px-2.5">
+                      <p className="text-sm font-medium text-white">
+                        Markets ({filteredMarkets.length})
+                      </p>
+                    </div>
+                    <MarketList
+                      markets={filteredMarkets}
+                      handleMarketSelect={handleMarketSelect}
+                    />
+                  </>
+                )}
+              </div>
+            )}
 
           {/* Show Trending/Fresh/Top Gainers results - ONLY when NO search text */}
-          {!searchText && parsedAssets && searchType !== SearchType.MyHoldings && !isLoading && (
-            <div className="flex flex-col">
-              <TokenList
-                assets={parsedAssets}
-                handleTokenSelect={handleTokenSelect}
-                searchType={searchType}
-              />
-            </div>
-          )}
+          {!searchText &&
+            parsedAssets &&
+            searchType !== SearchType.MyHoldings &&
+            !isLoading && (
+              <div className="flex flex-col">
+                <TokenList
+                  assets={parsedAssets}
+                  handleTokenSelect={handleTokenSelect}
+                  searchType={searchType}
+                />
+              </div>
+            )}
 
           {/* Show My Holdings portfolio data (filtered by search if applicable) */}
           {searchType === SearchType.MyHoldings && (
@@ -787,18 +832,16 @@ export default function Search({
         </div>
       </div>
 
-      {
-        showChainOverlay && (
-          <ChainOverlay
-            ref={chainOverlayRef}
-            chains={chains}
-            setChains={setChains}
-            overlayStyle={overlayStyle}
-            setOverlayStyle={setOverlayStyle}
-            setShowChainOverlay={setShowChainOverlay}
-          />
-        )
-      }
+      {showChainOverlay && (
+        <ChainOverlay
+          ref={chainOverlayRef}
+          chains={chains}
+          setChains={setChains}
+          overlayStyle={overlayStyle}
+          setOverlayStyle={setOverlayStyle}
+          setShowChainOverlay={setShowChainOverlay}
+        />
+      )}
     </div>
   );
 }

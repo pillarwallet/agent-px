@@ -18,28 +18,11 @@ exports[`<Search /> > renders correctly and matches snapshot 1`] = `
         <div
           className="flex items-center h-10 bg-[#121116] rounded-[10px] px-3 gap-2 flex-1"
         >
-          <svg
-            className="flex-shrink-0"
-            fill="none"
-            height="16"
-            viewBox="0 0 24 24"
-            width="16"
-          >
-            <circle
-              cx="11"
-              cy="11"
-              fill="none"
-              r="7"
-              stroke="#858585"
-              strokeWidth="2"
-            />
-            <path
-              d="M20 20L17 17"
-              stroke="#858585"
-              strokeLinecap="round"
-              strokeWidth="2"
-            />
-          </svg>
+          <img
+            alt="search"
+            className="w-4 h-4 flex-shrink-0"
+            src="data:image/svg+xml,%3csvg%20class='feather%20feather-search'%20fill='none'%20height='24'%20stroke='white'%20stroke-linecap='round'%20stroke-linejoin='round'%20stroke-width='2'%20viewBox='0%200%2024%2024'%20width='24'%20xmlns='http://www.w3.org/2000/svg'%3e%3ccircle%20cx='11'%20cy='11'%20r='8'/%3e%3cline%20x1='21'%20x2='16.65'%20y1='21'%20y2='16.65'/%3e%3c/svg%3e"
+          />
           <input
             className="flex-1 bg-transparent text-white text-xs outline-none border-none placeholder-transparent font-normal min-w-0 h-full"
             data-testid="pulse-search-input"
