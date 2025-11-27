@@ -55,8 +55,8 @@ export default function MarketList({
                 src={getLogoForChainId(chainId)}
                 className="absolute -bottom-0.5 -right-0.5 w-3.75 h-3.75 rounded-full"
                 alt="chain logo"
-                width={'14px'}
-                height={'14px'}
+                width="14px"
+                height="14px"
               />
             </div>
             <div className="flex flex-col flex-1 min-w-0 ml-2.5">

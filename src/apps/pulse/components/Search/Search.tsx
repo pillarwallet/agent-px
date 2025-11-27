@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
-/* eslint-disable jsx-a11y/control-has-associated-label */
-/* eslint-disable no-nested-ternary */
-/* eslint-disable react-hooks/exhaustive-deps */
 import React, {
   Dispatch,
   SetStateAction,
@@ -105,7 +101,7 @@ export default function Search({
 
   let list: { assets: Asset[]; markets: Market[] } | undefined;
   if (searchData?.result.data) {
-    list = parseSearchData(searchData?.result.data!, chains, searchText);
+    list = parseSearchData(searchData.result.data, chains, searchText);
   }
 
   // Update sorted assets when search results change
@@ -117,7 +113,8 @@ export default function Search({
     }
     // Reset sort when search changes
     setSearchSort({});
-  }, [searchText, searchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchText, searchData, list?.assets]);
 
   // Sorting handler for search results
   const handleSearchSortChange = (
@@ -125,12 +122,13 @@ export default function Search({
   ) => {
     if (!sortedSearchAssets) return;
 
-    const sortType =
-      searchSort[key] === SortType.Down
-        ? SortType.Up
-        : searchSort[key] === SortType.Up
-          ? SortType.Down
-          : SortType.Up;
+    const currentSort = searchSort[key];
+    let sortType = SortType.Up;
+    if (currentSort === SortType.Down) {
+      sortType = SortType.Up;
+    } else if (currentSort === SortType.Up) {
+      sortType = SortType.Down;
+    }
 
     const sorted = [...sortedSearchAssets].sort((a, b) => {
       if (sortType === SortType.Up) {
@@ -534,6 +532,7 @@ export default function Search({
                 className="flex items-center justify-center w-10 h-10 bg-[#121116] rounded-[10px] flex-shrink-0 group p-0.5"
                 type="button"
                 data-testid="pulse-search-back-button"
+                aria-label="Go back"
               >
                 <div className="flex items-center justify-center w-full h-full bg-[#1E1D24] rounded-[8px] group-hover:bg-[#2A2A2A] transition-colors">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -573,8 +572,9 @@ export default function Search({
               {searchText && (
                 <button
                   onClick={() => setSearchText('')}
-                  className="flex items-center justify-center w-4 h-4 flex-shrink-0 opacity-60 hover:opacity-100"
+                  className="flex items-center justify-center flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
                   type="button"
+                  aria-label="Clear search"
                 >
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
                     <path
@@ -633,6 +633,7 @@ export default function Search({
                 className="flex items-center justify-center w-10 h-10 bg-[#121116] rounded-[10px] flex-shrink-0 group p-0.5 cursor-pointer"
                 type="button"
                 data-testid="pulse-search-esc-button"
+                aria-label="Close search"
               >
                 <div className="flex items-center justify-center w-full h-full bg-[#1E1D24] rounded-[8px] group-hover:bg-[#2A2A2A] transition-colors text-[#858585] text-xs font-medium">
                   ESC
