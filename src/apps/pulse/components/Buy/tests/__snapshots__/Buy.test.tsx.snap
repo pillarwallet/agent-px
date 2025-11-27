@@ -93,7 +93,187 @@ exports[`<Buy /> > renders correctly and matches snapshot 1`] = `
       </div>
     </div>
     <div
-      className="flex justify-between p-3"
+      className="w-full px-2.5 mb-2"
+    >
+      <div
+        className="relative w-full h-[92px] bg-[#121116] rounded-[10px]"
+      >
+        <div
+          className="flex flex-row justify-between items-center h-full px-3 py-[10px]"
+        >
+          <div
+            className="flex flex-col h-[72px] justify-between items-start"
+          >
+            <div
+              className="flex flex-col items-start"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Balance USD
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "white",
+                  }
+                }
+              >
+                $0.00
+              </span>
+            </div>
+            <div
+              className="flex flex-col items-start"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Balance
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "white",
+                  }
+                }
+              >
+                0.00
+              </span>
+            </div>
+          </div>
+          <div
+            className="flex flex-col h-[72px] justify-between items-start"
+          >
+            <div
+              className="flex flex-col items-start"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Bought
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "white",
+                  }
+                }
+              >
+                $0.00
+              </span>
+            </div>
+            <div
+              className="flex flex-col items-start"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Buy Price
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "white",
+                  }
+                }
+              >
+                $0.00
+              </span>
+            </div>
+          </div>
+          <div
+            className="flex flex-col h-[72px] justify-between items-start"
+          >
+            <div
+              className="flex flex-col items-start"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Sold
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "white",
+                  }
+                }
+              >
+                -
+              </span>
+            </div>
+            <div
+              className="flex flex-col items-start"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Sell Price
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "white",
+                  }
+                }
+              >
+                -
+              </span>
+            </div>
+          </div>
+          <div
+            className="flex flex-col h-[72px] justify-between items-end"
+          >
+            <div
+              className="flex flex-col items-end"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Floating PnL
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "#5CFF93",
+                  }
+                }
+              >
+                +$0.00 (+0.00%)
+              </span>
+            </div>
+            <div
+              className="flex flex-col items-end"
+            >
+              <span
+                className="text-[10px] text-white opacity-30 font-poppins leading-[10px] mb-[6px]"
+              >
+                Total PnL
+              </span>
+              <span
+                className="text-[12px] font-poppins leading-[12px]"
+                style={
+                  {
+                    "color": "white",
+                  }
+                }
+              >
+                -
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      className="flex p-3 justify-between"
     >
       <div
         className="flex"

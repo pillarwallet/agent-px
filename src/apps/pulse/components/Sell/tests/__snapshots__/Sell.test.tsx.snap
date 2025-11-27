@@ -7,7 +7,7 @@ exports[`<Sell /> > renders correctly and matches snapshot 1`] = `
     data-testid="pulse-sell-component"
   >
     <div
-      class="bg-[#121116] m-2.5 rounded-[10px]"
+      class="m-2.5 bg-[#121116] min-h-[100px] rounded-lg"
     >
       <div
         class="flex items-center p-3"

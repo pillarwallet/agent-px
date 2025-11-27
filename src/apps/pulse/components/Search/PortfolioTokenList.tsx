@@ -296,7 +296,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
           {searchText && searchText.trim()
             ? `No tokens match '${searchText}' in your portfolio`
             : // eslint-disable-next-line quotes
-              "You don't have any tokens in your portfolio yet"}
+            "You don't have any tokens in your portfolio yet"}
         </p>
       </div>
     );
@@ -419,122 +419,122 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
       {/* Show actual tokens (hidden during refresh with opacity) */}
       {sortedTokens.length > 0
         ? sortedTokens.map((token) => {
-            const balanceUSD =
-              token.price && token.balance ? token.price * token.balance : 0;
-            const chainId = chainNameToChainIdTokensData(token.blockchain);
+          const balanceUSD =
+            token.price && token.balance ? token.price * token.balance : 0;
+          const chainId = chainNameToChainIdTokensData(token.blockchain);
 
-            return (
-              <button
-                key={`${token.blockchain}-${token.contract}`}
-                className={`flex w-full hover:bg-[#25232D] rounded-[10px] transition-colors h-[60px] py-3 pl-3 pr-6 ${isFetching ? 'opacity-30' : ''}`}
-                onClick={() => {
-                  handleTokenSelect(token);
-                }}
-                type="button"
-                data-testid={`pulse-portfolio-token-item-${token.blockchain.toLowerCase()}-${token.name.toLowerCase()}`}
+          return (
+            <button
+              key={`${token.blockchain}-${token.contract}`}
+              className={`flex w-full hover:bg-[#25232D] rounded-[10px] transition-colors h-[60px] py-3 pl-3 pr-6 ${isFetching ? 'opacity-30' : ''}`}
+              onClick={() => {
+                handleTokenSelect(token);
+              }}
+              type="button"
+              data-testid={`pulse-portfolio-token-item-${token.blockchain.toLowerCase()}-${token.name.toLowerCase()}`}
+            >
+              {/* Token/Price Column */}
+              <div
+                className="flex items-center flex-[1.8] min-w-0"
+                data-testid="pulse-portfolio-token-info"
               >
-                {/* Token/Price Column */}
-                <div
-                  className="flex items-center flex-[1.8] min-w-0"
-                  data-testid="pulse-portfolio-token-info"
-                >
-                  <div className="relative inline-block flex-shrink-0">
-                    {token.logo ? (
-                      <img
-                        src={token.logo}
-                        className="w-8 h-8 rounded-full"
-                        alt="token logo"
-                        data-testid="pulse-portfolio-token-logo"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full overflow-hidden">
-                        <RandomAvatar name={token.name} />
-                        <span className="absolute inset-0 flex items-center justify-center text-white text-lg font-bold">
-                          {token.name?.slice(0, 2)}
-                        </span>
-                      </div>
-                    )}
+                <div className="relative inline-block flex-shrink-0">
+                  {token.logo ? (
                     <img
-                      src={getLogoForChainId(
-                        chainNameToChainIdTokensData(token.blockchain)
-                      )}
-                      className="absolute -bottom-px -right-px w-3.5 h-3.5 rounded-full border-[0.88px] border-[#25232D]"
-                      alt="chain logo"
-                      data-testid="pulse-portfolio-chain-logo"
+                      src={token.logo}
+                      className="w-8 h-8 rounded-full"
+                      alt="token logo"
+                      data-testid="pulse-portfolio-token-logo"
                     />
-                  </div>
-                  <div className="flex flex-col ml-3 min-w-0">
-                    <div className="flex items-center min-w-0">
-                      <p
-                        className="text-[13px] font-normal text-white tracking-[-0.26px] whitespace-nowrap"
-                        data-testid="pulse-portfolio-token-symbol"
-                      >
-                        {token.symbol}
-                      </p>
-                      <p
-                        className="text-[13px] font-normal tracking-[-0.26px] ml-2 text-white opacity-50 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]"
-                        title={token.name}
-                        data-testid="pulse-portfolio-token-name"
-                      >
-                        {token.name}
-                      </p>
+                  ) : (
+                    <div className="w-8 h-8 rounded-full overflow-hidden">
+                      <RandomAvatar name={token.name} />
+                      <span className="absolute inset-0 flex items-center justify-center text-white text-lg font-bold">
+                        {token.name?.slice(0, 2)}
+                      </span>
                     </div>
-                    <p
-                      className="text-xs font-normal tracking-[-0.24px] text-white opacity-50 text-left"
-                      data-testid="pulse-portfolio-token-price"
-                    >
-                      ${/* // Skip PnL for small balances */}
-                      {/* if (valueUSD < 0.01) { */}
-                      {/*   return { ...token, pnl: null }; */}
-                      {/* } */}
-                      {token.price
-                        ? formatExponentialSmallNumber(
-                            limitDigitsNumber(token.price)
-                          )
-                        : '0.00'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Balance Column */}
-                <div
-                  className="flex flex-col flex-[1.2] items-end justify-center"
-                  data-testid="pulse-portfolio-token-balance"
-                >
-                  <p
-                    className="text-[13px] font-normal tracking-[-0.26px] text-white text-right"
-                    data-testid="pulse-portfolio-balance-usd"
-                  >
-                    $
-                    {formatExponentialSmallNumber(
-                      limitDigitsNumber(balanceUSD)
+                  )}
+                  <img
+                    src={getLogoForChainId(
+                      chainNameToChainIdTokensData(token.blockchain)
                     )}
-                  </p>
-                  <p
-                    className="text-xs font-normal tracking-[-0.24px] text-white text-right"
-                    data-testid="pulse-portfolio-balance-token"
-                  >
-                    {formatExponentialSmallNumber(
-                      limitDigitsNumber(token.balance || 0)
-                    )}
-                  </p>
-                </div>
-
-                {/* PnL Column */}
-                <div
-                  className="flex flex-col flex-[1.8] items-end justify-center"
-                  data-testid="pulse-portfolio-token-pnl"
-                >
-                  <TokenPnLCell
-                    token={token}
-                    chainId={chainId}
-                    transactionsData={transactionsData}
-                    walletAddress={walletAddress}
+                    className="absolute -bottom-px -right-px w-3.5 h-3.5 rounded-full border-[0.88px] border-[#25232D]"
+                    alt="chain logo"
+                    data-testid="pulse-portfolio-chain-logo"
                   />
                 </div>
-              </button>
-            );
-          })
+                <div className="flex flex-col ml-3 min-w-0">
+                  <div className="flex items-center min-w-0">
+                    <p
+                      className="text-[13px] font-normal text-white tracking-[-0.26px] whitespace-nowrap"
+                      data-testid="pulse-portfolio-token-symbol"
+                    >
+                      {token.symbol}
+                    </p>
+                    <p
+                      className="text-[13px] font-normal tracking-[-0.26px] ml-2 text-white opacity-50 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]"
+                      title={token.name}
+                      data-testid="pulse-portfolio-token-name"
+                    >
+                      {token.name}
+                    </p>
+                  </div>
+                  <p
+                    className="text-xs font-normal tracking-[-0.24px] text-white opacity-50 text-left"
+                    data-testid="pulse-portfolio-token-price"
+                  >
+                    ${/* // Skip PnL for small balances */}
+                    {/* if (valueUSD < 0.01) { */}
+                    {/*   return { ...token, pnl: null }; */}
+                    {/* } */}
+                    {token.price
+                      ? formatExponentialSmallNumber(
+                        limitDigitsNumber(token.price)
+                      )
+                      : '0.00'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Balance Column */}
+              <div
+                className="flex flex-col flex-[1.2] items-end justify-center"
+                data-testid="pulse-portfolio-token-balance"
+              >
+                <p
+                  className="text-[13px] font-normal tracking-[-0.26px] text-white text-right"
+                  data-testid="pulse-portfolio-balance-usd"
+                >
+                  $
+                  {formatExponentialSmallNumber(
+                    limitDigitsNumber(balanceUSD)
+                  )}
+                </p>
+                <p
+                  className="text-xs font-normal tracking-[-0.24px] text-white text-right"
+                  data-testid="pulse-portfolio-balance-token"
+                >
+                  {formatExponentialSmallNumber(
+                    limitDigitsNumber(token.balance || 0)
+                  )}
+                </p>
+              </div>
+
+              {/* PnL Column */}
+              <div
+                className="flex flex-col flex-[1.8] items-end justify-center"
+                data-testid="pulse-portfolio-token-pnl"
+              >
+                <TokenPnLCell
+                  token={token}
+                  chainId={chainId}
+                  transactionsData={transactionsData}
+                  walletAddress={walletAddress}
+                />
+              </div>
+            </button>
+          );
+        })
         : null}
     </div>
   );
