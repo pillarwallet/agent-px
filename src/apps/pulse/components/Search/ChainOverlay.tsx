@@ -36,7 +36,7 @@ const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
           style={overlayStyle}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ padding: '12px 0', height: '100%', overflowY: 'auto' }}>
+          <div className="px-3 py-3 h-full overflow-y-auto">
             {Object.values(MobulaChainNames)
               .filter(
                 (chain) => isGnosisEnabled || chain !== MobulaChainNames.XDAI
@@ -63,12 +63,7 @@ const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
                     <img
                       src={getLogoForChainId(chainId)}
                       alt={chain}
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        background: '#23222A',
-                      }}
+                      className="w-6 h-6 rounded-full bg-[#23222A]"
                     />
                   );
                 }
@@ -80,14 +75,14 @@ const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
                       setShowChainOverlay(false);
                       setOverlayStyle({});
                     }}
-                    className={`flex items-center gap-2 px-4.5 py-2.5 cursor-pointer relative text-base ${
+                    className={`flex items-center gap-2 px-2.5 py-2.5 cursor-pointer relative text-base ${
                       isSelected
                         ? 'bg-[#29292F] text-white font-medium'
                         : 'bg-transparent text-[#b0b0b0] font-normal'
                     }`}
                   >
                     {logo}
-                    <span style={{ flex: 1, marginLeft: 10 }}>
+                    <span className="flex-1 ml-2.5">
                       {chain === MobulaChainNames.All ? 'All chains' : chain}
                     </span>
                     {isSelected && (
