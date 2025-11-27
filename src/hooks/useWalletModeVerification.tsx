@@ -59,21 +59,63 @@ export const useWalletModeVerification = ({
       setError(null);
 
       try {
-        // Get EOA address from privateKey
-        let resolvedEoaAddress: string;
+        // Resolve the address to check (could be from privateKey or eoaAddress prop)
+        let resolvedAddress: string | undefined;
         if (privateKey) {
           const eoaAccount = privateKeyToAccount(privateKey as `0x${string}`);
-          resolvedEoaAddress = eoaAccount.address;
+          resolvedAddress = eoaAccount.address;
         }
 
-        // Get counterfactual address from kit (in modular mode)
-        const counterfactualAddress = await kit.getWalletAddress();
-
         if (eoaAddress) {
-          resolvedEoaAddress = eoaAddress;
+          resolvedAddress = eoaAddress;
+        }
+
+        if (!resolvedAddress) {
+          if (cancelled) return;
+          setEip7702Info({});
+          setWalletMode('modular');
+          setError('No address available');
+          return;
         }
 
         if (cancelled) return;
+
+        // Validate that resolvedAddress is actually an EOA, not a smart contract
+        // Check on mainnet first (chainId 1) as a quick validation
+        const mainnetClient = createPublicClient({
+          chain:
+            visibleChains.find((chain) => chain.id === 1) || visibleChains[0],
+          transport: http(),
+        });
+
+        const addressCodeCheck = await mainnetClient.getCode({
+          address: resolvedAddress as `0x${string}`,
+        });
+
+        // If the address has code that's not EIP-7702 format, it's a smart contract
+        const isSmartContract =
+          addressCodeCheck !== undefined &&
+          addressCodeCheck !== '0x' &&
+          !addressCodeCheck.startsWith('0xef0100');
+
+        if (isSmartContract) {
+          // The provided address (from eoaAddress prop or privateKey) is a smart contract, not an EOA
+          // EIP-7702 is only applicable to EOAs, so skip the check and default to modular
+          console.warn(
+            `Address ${resolvedAddress} is a smart contract, not an EOA. Skipping EIP-7702 check and getWalletAddress() call.`
+          );
+          if (cancelled) return;
+          setEip7702Info({});
+          setWalletMode('modular');
+          return;
+        }
+
+        // At this point, resolvedAddress is confirmed to be an EOA (or has EIP-7702 designation)
+        // Get counterfactual address from kit (in modular mode)
+        const counterfactualAddress = await kit.getWalletAddress();
+
+        // We can safely refer to resolvedAddress as the EOA address for the rest of the function
+        const resolvedEoaAddress = resolvedAddress;
 
         // Check all supported chains
         let shouldRemainModular = false;
