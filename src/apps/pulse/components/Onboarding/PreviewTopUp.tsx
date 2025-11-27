@@ -675,7 +675,11 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
               {/* Connector arrow */}
               {index < steps.length - 1 && (
                 <div className="flex justify-center -my-2 relative z-10">
-                  <img src={ArrowDownOnboarding} alt="Arrow down" className="w-5 h-5" />
+                  <img
+                    src={ArrowDownOnboarding}
+                    alt="Arrow down"
+                    className="w-5 h-5"
+                  />
                 </div>
               )}
             </div>
