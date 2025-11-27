@@ -243,14 +243,11 @@ export default function HomeScreen(props: HomeScreenProps) {
       walletPortfolioData &&
       portfolioTokens.length > 0
     ) {
-      // Only show onboarding if gas tank is empty AND user hasn't completed onboarding
-      if (
-        gasTankBalance === 0 &&
-        onboardingScreen === null &&
-        !hasCompletedOnboardingRef.current
-      ) {
+      // Show onboarding if gas tank balance is less than 2
+      if (gasTankBalance < 2 && onboardingScreen === null) {
         setOnboardingScreen('welcome');
-      } else if (gasTankBalance > 0 || hasCompletedOnboardingRef.current) {
+      } else if (gasTankBalance >= 2) {
+        // Hide onboarding when balance is 2 or more
         setOnboardingScreen(null);
       }
     }
@@ -1076,7 +1073,7 @@ export default function HomeScreen(props: HomeScreenProps) {
     ) {
       if (
         onboardingScreen === null &&
-        gasTankBalance === 0 &&
+        gasTankBalance < 2 &&
         !hasCompletedOnboardingRef.current
       ) {
         // Show onboarding welcome with loading state
