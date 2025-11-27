@@ -154,12 +154,12 @@ describe('<OnboardingWelcome />', () => {
       );
 
       let button = screen.getByTestId('pulse-onboarding-top-up-button');
-      expect(button).toHaveStyle({ backgroundColor: '#8A77FF' });
+      expect(button).toHaveClass('bg-[#8A77FF]');
 
       rerender(<OnboardingWelcome {...mockProps} isGasTankLoading />);
 
       button = screen.getByTestId('pulse-onboarding-top-up-button');
-      expect(button).toHaveStyle({ backgroundColor: '#29292F' });
+      expect(button).toHaveClass('bg-[#29292F]');
     });
   });
 
