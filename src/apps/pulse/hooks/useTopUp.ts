@@ -183,6 +183,7 @@ export default function useTopUp() {
           transactions.length === 0 &&
           (!additionalTransactions || additionalTransactions.length === 0)
         ) {
+          setIsLoading(false);
           setError('No transactions to execute. Please try again.');
           return null;
         }

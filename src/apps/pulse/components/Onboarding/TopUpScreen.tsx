@@ -146,10 +146,13 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         parseFloat(amount) <= 0
       ) {
         setSellOffer(null);
+        setIsLoadingQuote(false);
         return;
       }
 
       if (!isRelayInitialized) {
+        setSellOffer(null);
+        setIsLoadingQuote(false);
         return;
       }
 
@@ -160,6 +163,8 @@ export default function TopUpScreen(props: TopUpScreenProps) {
       );
 
       if (!portfolioToken || !portfolioToken.balance || !portfolioToken.price) {
+        setSellOffer(null);
+        setIsLoadingQuote(false);
         return;
       }
 

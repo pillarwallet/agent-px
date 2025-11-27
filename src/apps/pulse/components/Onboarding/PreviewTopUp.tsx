@@ -110,6 +110,7 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
   const blockchainTxHashRef = useRef<string | null>(null);
   const failureGraceExpiryRef = useRef<number | null>(null);
   const statusStartTime = useRef(Date.now());
+  const normalTimeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   const [failureTimeoutId, setFailureTimeoutId] =
     useState<NodeJS.Timeout | null>(null);
 
@@ -355,9 +356,14 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     // For normal status transitions (Starting -> Pending)
     if (timeSinceLastStatus < minDisplayTime) {
       const remainingTime = minDisplayTime - timeSinceLastStatus;
-      setTimeout(() => {
+      // Clear any existing normal timeout before setting a new one
+      if (normalTimeoutIdRef.current) {
+        clearTimeout(normalTimeoutIdRef.current);
+      }
+      normalTimeoutIdRef.current = setTimeout(() => {
         setCurrentTransactionStatus(newStatus);
         statusStartTime.current = Date.now();
+        normalTimeoutIdRef.current = null;
       }, remainingTime);
     } else {
       setCurrentTransactionStatus(newStatus);
@@ -385,11 +391,15 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     }
   }, [currentTransactionStatus]);
 
-  // Cleanup timeout on unmount or when failureTimeoutId changes
+  // Cleanup timeouts on unmount or when failureTimeoutId changes
   useEffect(() => {
     return () => {
       if (failureTimeoutId) {
         clearTimeout(failureTimeoutId);
+      }
+      if (normalTimeoutIdRef.current) {
+        clearTimeout(normalTimeoutIdRef.current);
+        normalTimeoutIdRef.current = null;
       }
     };
   }, [failureTimeoutId]);
