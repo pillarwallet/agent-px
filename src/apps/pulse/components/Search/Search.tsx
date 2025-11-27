@@ -680,12 +680,7 @@ export default function Search({
                 <>
                   {/* Column Headers with Sorting */}
                   <div
-                    className="flex mt-2.5 mb-2.5"
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 400,
-                      color: 'grey',
-                    }}
+                    className="flex mt-2.5 mb-2.5 text-[13px] font-normal text-gray-400"
                   >
                     <div className="flex ml-2.5">
                       <button

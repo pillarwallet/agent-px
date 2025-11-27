@@ -1,6 +1,9 @@
 import React from 'react';
 import { chainNameToChainIdTokensData } from '../../../../services/tokensData';
-import { getLogoForChainId } from '../../../../utils/blockchain';
+import {
+  getLogoForChainId,
+  isGnosisEnabled,
+} from '../../../../utils/blockchain';
 import GlobeIcon from '../../assets/globe-icon.svg';
 import SelectedIcon from '../../assets/selected-icon.svg';
 import { MobulaChainNames } from '../../utils/constants';
@@ -15,38 +18,29 @@ export interface ChainOverlayProps {
 
 const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
   (
-    {
-      setShowChainOverlay,
-      setChains,
-      setOverlayStyle,
-      overlayStyle,
-      chains,
-    },
+    { setShowChainOverlay, setChains, setOverlayStyle, overlayStyle, chains },
     ref
   ) => {
     return (
       <>
         <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: '100vw',
-            height: '100vh',
-            zIndex: 1999,
-            cursor: 'default',
-          }}
+          className="fixed inset-0 w-screen h-screen cursor-default"
+          style={{ zIndex: 1999 }}
           onClick={() => {
             setShowChainOverlay(false);
             setOverlayStyle({});
           }}
         />
-        <div ref={ref} style={overlayStyle} onClick={(e) => e.stopPropagation()}>
+        <div
+          ref={ref}
+          style={overlayStyle}
+          onClick={(e) => e.stopPropagation()}
+        >
           <div style={{ padding: '12px 0', height: '100%', overflowY: 'auto' }}>
             {Object.values(MobulaChainNames)
-              .filter((chain) => chain !== MobulaChainNames.XDAI) // Remove XDAI
+              .filter(
+                (chain) => isGnosisEnabled || chain !== MobulaChainNames.XDAI
+              ) // Remove XDAI if Gnosis is not enabled
               .sort((a, b) => {
                 // Put "All" first, then alphabetical
                 if (a === MobulaChainNames.All) return -1;
@@ -59,15 +53,7 @@ const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
                 let logo = null;
                 if (isAll) {
                   logo = (
-                    <span
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 24,
-                        height: 24,
-                      }}
-                    >
+                    <span className="flex items-center justify-center w-6 h-6">
                       <img src={GlobeIcon} alt="globe-icon" />
                     </span>
                   );
@@ -94,18 +80,11 @@ const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
                       setShowChainOverlay(false);
                       setOverlayStyle({});
                     }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '10px 18px',
-                      cursor: 'pointer',
-                      background: isSelected ? '#29292F' : 'transparent',
-                      color: isSelected ? '#fff' : '#b0b0b0',
-                      fontWeight: isSelected ? 500 : 400,
-                      fontSize: 16,
-                      position: 'relative',
-                    }}
+                    className={`flex items-center gap-2 px-4.5 py-2.5 cursor-pointer relative text-base ${
+                      isSelected
+                        ? 'bg-[#29292F] text-white font-medium'
+                        : 'bg-transparent text-[#b0b0b0] font-normal'
+                    }`}
                   >
                     {logo}
                     <span style={{ flex: 1, marginLeft: 10 }}>

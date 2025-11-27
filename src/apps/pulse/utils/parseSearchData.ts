@@ -1,7 +1,4 @@
 /* eslint-disable no-restricted-syntax */
-/* eslint-disable no-console */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Exchange,
   MobulaToken,
@@ -174,10 +171,7 @@ export function parseMarketPairs(
 
   for (const pair of pairs) {
     // Filter by chain if specified
-    if (
-      chains === MobulaChainNames.All ||
-      pair.blockchain === chains
-    ) {
+    if (chains === MobulaChainNames.All || pair.blockchain === chains) {
       // Determine which token matches the search term
       const token0MatchesSearch =
         pair.token0.symbol.toLowerCase().includes(normalizedSearchTerm) ||
@@ -295,97 +289,28 @@ export function filterMarketsByLiquidity(
   return markets.filter((market) => (market.liquidity || 0) >= minLiquidity);
 }
 
-export function parseSearchData(
-  searchData: TokenAssetResponse[] | PairResponse[],
-  chains: MobulaChainNames,
-  searchTerm: string = ''
-) {
-  const assets: Asset[] = [];
-  const markets: Market[] = [];
+function mergeMultiChainData(target: Asset, source: Asset) {
+  if (!source.allChains || !source.allContracts || !source.allDecimals) return;
 
-  // Debug logging for AAVE
-  if (searchTerm.toLowerCase().includes('aave')) {
-    console.log('🔍 Search API Response for AAVE:', {
-      totalItems: searchData.length,
-      items: searchData.map((item) => ({
-        type: item.type,
-        name: 'name' in item ? item.name : 'N/A',
-        symbol: 'symbol' in item ? item.symbol : 'N/A',
-        id: 'id' in item ? item.id : 'N/A',
-        blockchains: 'blockchains' in item ? item.blockchains : 'N/A',
-      })),
-    });
+  if (!target.allChains || !target.allContracts || !target.allDecimals) {
+    // eslint-disable-next-line no-param-reassign
+    target.allChains = [...source.allChains];
+    // eslint-disable-next-line no-param-reassign
+    target.allContracts = [...source.allContracts];
+    // eslint-disable-next-line no-param-reassign
+    target.allDecimals = [...source.allDecimals];
+    return;
   }
 
-  searchData.forEach((item) => {
-    if (item.type === 'asset') {
-      const assetResponse = item as TokenAssetResponse;
-      // Only add to assets if it's an asset type
-      assets.push(...parseAssetData(assetResponse, chains));
-      // Extract market pairs from asset's pairs field
-      markets.push(...parseMarketPairs(assetResponse, searchTerm, chains));
-    } else if (item.type === 'token') {
-      const tokenResponse = item as TokenAssetResponse;
-      // Token types should NOT be added to assets - they only contribute markets
-      // assets.push(...parseTokenData(tokenResponse)); // REMOVED
-      // Extract market pairs from token's pairs field
-      markets.push(...parseMarketPairs(tokenResponse, searchTerm, chains));
-    } else if ('token0' in item && 'token1' in item) {
-      // This is a PairResponse
-      markets.push(parsePairResponse(item as PairResponse));
+  for (let i = 0; i < source.allChains.length; i += 1) {
+    const chain = source.allChains[i];
+    const existingIndex = target.allChains.indexOf(chain);
+    if (existingIndex === -1) {
+      target.allChains.push(chain);
+      target.allContracts.push(source.allContracts[i]);
+      target.allDecimals.push(source.allDecimals[i]);
     }
-  });
-
-  // Debug logging before deduplication
-  if (searchTerm.toLowerCase().includes('aave')) {
-    console.log('📊 Assets before deduplication:', {
-      count: assets.length,
-      assets: assets.map((a) => ({
-        id: a.id,
-        symbol: a.symbol,
-        name: a.name,
-        mCap: a.mCap,
-        chains: a.allChains,
-      })),
-    });
   }
-
-  // Deduplicate assets by ID
-  const deduplicatedAssets = deduplicateAssetsBySymbol(assets);
-
-  // Filter out assets with 0 volume or 0 market cap
-  const filteredAssets = deduplicatedAssets.filter((asset) => {
-    const hasValidVolume = asset.volume && asset.volume > 0;
-    const hasValidMCap = asset.mCap && asset.mCap > 0;
-    return hasValidVolume && hasValidMCap;
-  });
-
-  // Debug logging after deduplication
-  if (searchTerm.toLowerCase().includes('aave')) {
-    console.log('✅ Assets after deduplication:', {
-      count: filteredAssets.length,
-      assets: filteredAssets.map((a) => ({
-        id: a.id,
-        symbol: a.symbol,
-        name: a.name,
-        mCap: a.mCap,
-        chains: a.allChains,
-      })),
-    });
-  }
-
-  // Deduplicate markets by address + blockchain
-  const uniqueMarkets = Array.from(
-    new Map(markets.map((m) => [`${m.address}-${m.blockchain}`, m])).values()
-  );
-
-  // Sort assets and markets
-  const sortedAssets = searchTerm
-    ? sortAssets(filteredAssets, searchTerm)
-    : filteredAssets;
-  const sortedMarkets = searchTerm ? sortMarkets(uniqueMarkets, searchTerm) : uniqueMarkets;
-
-  return { assets: sortedAssets, markets: sortedMarkets };
 }
 
 /**
@@ -419,7 +344,6 @@ function deduplicateAssetsBySymbol(assets: Asset[]): Asset[] {
       // Check if this symbol already has an asset with an ID
       if (symbolToAssetId.has(symbol)) {
         // Skip this asset - it's a duplicate of an asset-type entry
-        console.log(`🚫 Skipping duplicate token: ${asset.name} (${asset.symbol}) - already have asset with ID ${symbolToAssetId.get(symbol)}`);
         return;
       }
 
@@ -436,6 +360,62 @@ function deduplicateAssetsBySymbol(assets: Asset[]): Asset[] {
   });
 
   return Array.from(assetMap.values());
+}
+
+export function parseSearchData(
+  searchData: TokenAssetResponse[] | PairResponse[],
+  chains: MobulaChainNames,
+  searchTerm: string = ''
+) {
+  const assets: Asset[] = [];
+  const markets: Market[] = [];
+
+
+  searchData.forEach((item) => {
+    if (item.type === 'asset') {
+      const assetResponse = item as TokenAssetResponse;
+      // Only add to assets if it's an asset type
+      assets.push(...parseAssetData(assetResponse, chains));
+      // Extract market pairs from asset's pairs field
+      markets.push(...parseMarketPairs(assetResponse, searchTerm, chains));
+    } else if (item.type === 'token') {
+      const tokenResponse = item as TokenAssetResponse;
+      // Token types should NOT be added to assets - they only contribute markets
+      // assets.push(...parseTokenData(tokenResponse)); // REMOVED
+      // Extract market pairs from token's pairs field
+      markets.push(...parseMarketPairs(tokenResponse, searchTerm, chains));
+    } else if ('token0' in item && 'token1' in item) {
+      // This is a PairResponse
+      markets.push(parsePairResponse(item as PairResponse));
+    }
+  });
+
+
+  // Deduplicate assets by ID
+  const deduplicatedAssets = deduplicateAssetsBySymbol(assets);
+
+  // Filter out assets with 0 volume or 0 market cap
+  const filteredAssets = deduplicatedAssets.filter((asset) => {
+    const hasValidVolume = asset.volume && asset.volume > 0;
+    const hasValidMCap = asset.mCap && asset.mCap > 0;
+    return hasValidVolume && hasValidMCap;
+  });
+
+
+  // Deduplicate markets by address + blockchain
+  const uniqueMarkets = Array.from(
+    new Map(markets.map((m) => [`${m.address}-${m.blockchain}`, m])).values()
+  );
+
+  // Sort assets and markets
+  const sortedAssets = searchTerm
+    ? sortAssets(filteredAssets, searchTerm)
+    : filteredAssets;
+  const sortedMarkets = searchTerm
+    ? sortMarkets(uniqueMarkets, searchTerm)
+    : uniqueMarkets;
+
+  return { assets: sortedAssets, markets: sortedMarkets };
 }
 
 export function parseFreshAndTrendingTokens(
@@ -455,7 +435,9 @@ export function parseFreshAndTrendingTokens(
 
         // Filter out wrapped native tokens
         if (!isWrappedNativeToken(contractAddress, +chainId)) {
-          const volume = parseNumberString(j.leftColumn?.line2?.volume || '0.00K');
+          const volume = parseNumberString(
+            j.leftColumn?.line2?.volume || '0.00K'
+          );
           const mCap = j.meta?.tokenData.marketCap || 0;
 
           // Only process assets with non-zero volume
@@ -475,7 +457,10 @@ export function parseFreshAndTrendingTokens(
               existing.mCap = (existing.mCap || 0) + mCap;
 
               // Keep the newest timestamp for Fresh sorting
-              if (timestamp && (!existing.timestamp || timestamp > existing.timestamp)) {
+              if (
+                timestamp &&
+                (!existing.timestamp || timestamp > existing.timestamp)
+              ) {
                 existing.timestamp = timestamp;
               }
 
@@ -498,8 +483,9 @@ export function parseFreshAndTrendingTokens(
                 name,
                 price: Number(j.rightColumn?.line1?.price || 0),
                 priceChange24h:
-                  Number((j.rightColumn?.line1?.percentage || '0%').slice(0, -1)) *
-                  (j.rightColumn?.line1?.direction === 'DOWN' ? -1 : 1),
+                  Number(
+                    (j.rightColumn?.line1?.percentage || '0%').slice(0, -1)
+                  ) * (j.rightColumn?.line1?.direction === 'DOWN' ? -1 : 1),
                 symbol,
                 volume,
                 mCap,
@@ -527,28 +513,4 @@ export function parseFreshAndTrendingTokens(
   });
 
   return filteredAssets;
-}
-
-function mergeMultiChainData(target: Asset, source: Asset) {
-  if (!source.allChains || !source.allContracts || !source.allDecimals) return;
-
-  if (!target.allChains || !target.allContracts || !target.allDecimals) {
-    // eslint-disable-next-line no-param-reassign
-    target.allChains = [...source.allChains];
-    // eslint-disable-next-line no-param-reassign
-    target.allContracts = [...source.allContracts];
-    // eslint-disable-next-line no-param-reassign
-    target.allDecimals = [...source.allDecimals];
-    return;
-  }
-
-  for (let i = 0; i < source.allChains.length; i += 1) {
-    const chain = source.allChains[i];
-    const existingIndex = target.allChains.indexOf(chain);
-    if (existingIndex === -1) {
-      target.allChains.push(chain);
-      target.allContracts.push(source.allContracts[i]);
-      target.allDecimals.push(source.allDecimals[i]);
-    }
-  }
 }
