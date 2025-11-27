@@ -120,8 +120,12 @@ export const getStepStatus = (
   isBuy: boolean,
   resourceLockTxHash?: string,
   completedTxHash?: string,
-  isResourceLockFailed?: boolean
+  isResourceLockFailed?: boolean,
+  useRelayBuy?: boolean
 ): StepStatus => {
+  // For Relay Buy, treat it like Sell (use Pending, not ResourceLock)
+  const isIntentSdkBuy = isBuy && !useRelayBuy;
+
   if (status === 'Starting Transaction') {
     return 'pending';
   }
@@ -130,15 +134,15 @@ export const getStepStatus = (
     if (step === 'Submitted') return 'completed';
     if (step === 'Pending') return 'pending';
     if (step === 'ResourceLock') {
-      // For Buy, resource lock step shows pending until we have the hash
-      if (isBuy) {
+      // For Intent SDK Buy, resource lock step shows pending until we have the hash
+      if (isIntentSdkBuy) {
         return resourceLockTxHash ? 'completed' : 'pending';
       }
       return 'pending';
     }
     if (step === 'Completed') {
-      // For Buy, completed step shows pending only if resource lock is done
-      if (isBuy) {
+      // For Intent SDK Buy, completed step shows pending only if resource lock is done
+      if (isIntentSdkBuy) {
         if (!resourceLockTxHash) {
           // If resource lock is not done yet, completed step should be inactive
           return 'inactive';
@@ -153,7 +157,7 @@ export const getStepStatus = (
     if (step === 'Submitted') return 'completed';
     if (step === 'Pending') return 'completed';
     if (step === 'ResourceLock') {
-      return isBuy ? 'completed' : 'inactive';
+      return isIntentSdkBuy ? 'completed' : 'inactive';
     }
     if (step === 'Completed') return 'completed';
   }
@@ -162,15 +166,15 @@ export const getStepStatus = (
     if (step === 'Submitted') return 'completed';
     if (step === 'Pending') return 'completed';
     if (step === 'ResourceLock') {
-      if (isBuy) {
+      if (isIntentSdkBuy) {
         if (isResourceLockFailed) return 'failed';
         return 'completed';
       }
       return 'inactive';
     }
     if (step === 'Completed') {
-      if (isBuy && isResourceLockFailed) return 'inactive';
-      return 'failed'; // For Sell, Completed should be failed when transaction fails
+      if (isIntentSdkBuy && isResourceLockFailed) return 'inactive';
+      return 'failed'; // For Sell and Relay Buy, Completed should be failed when transaction fails
     }
   }
 
@@ -213,16 +217,17 @@ export const canCloseTransaction = (
 // Helper function to calculate stable currency balance
 export const getStableCurrencyBalanceOnEachChain = (
   walletPortfolioData: WalletPortfolioMobulaResponse
-): { [chainId: number]: number } => {
+): { [chainId: number]: { balance: number; price?: number } } => {
   // get the list of chainIds from STABLE_CURRENCIES
   const chainIds = Array.from(
     new Set(STABLE_CURRENCIES.map((currency) => currency.chainId))
   );
 
   // create a map to hold the balance for each chainId
-  const balanceMap: { [chainId: number]: number } = {};
+  const balanceMap: { [chainId: number]: { balance: number; price?: number } } =
+    {};
   chainIds.forEach((chainId) => {
-    balanceMap[chainId] = 0;
+    balanceMap[chainId] = { balance: 0, price: undefined };
   });
   // calculate the balance for each chainId
   walletPortfolioData?.result.data.assets
@@ -247,7 +252,10 @@ export const getStableCurrencyBalanceOnEachChain = (
         const chainId = Number(contract.chainId.split(':').at(-1));
         const price = asset.price ?? 0;
         const balance = contract.balance ?? 0;
-        balanceMap[chainId] += price * balance;
+        balanceMap[chainId] = {
+          balance: price * balance,
+          price: asset.price ? asset.price : undefined,
+        };
       });
     });
 
