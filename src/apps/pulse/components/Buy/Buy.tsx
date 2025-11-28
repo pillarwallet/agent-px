@@ -8,6 +8,7 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import { TailSpin } from 'react-loader-spinner';
@@ -167,22 +168,36 @@ export default function Buy(props: BuyProps) {
   const [sumOfStableBalance, setSumOfStableBalance] = useState<number>(0);
 
   // Fetch transactions for PnL
-  const { data: transactionsData, isLoading: isTransactionsLoading } =
-    useGetWalletTransactionsQuery(
-      { wallet: accountAddress || '' },
-      { skip: !accountAddress }
+  useGetWalletTransactionsQuery(
+    { wallet: accountAddress || '' },
+    { skip: !accountAddress }
+  );
+
+  // Find matching portfolio token to get balance and price
+  const portfolioToken = useMemo(() => {
+    if (!token || !portfolioTokens || portfolioTokens.length === 0) return null;
+
+    return portfolioTokens.find(
+      (pt) =>
+        pt.contract.toLowerCase() === token.address.toLowerCase() &&
+        Number(getChainId(pt.blockchain as MobulaChainNames)) === token.chainId
     );
+  }, [token, portfolioTokens]);
 
   // Calculate PnL for selected token
   const { pnl, isLoading: isPnLLoading, refetch: refetchPnL } = useTokenPnL(
-    token && accountAddress
+    token && accountAddress && portfolioToken
       ? ({
         token: {
           ...token,
           contract: token.address || '',
-          id: token.symbol, // Mock id
-          blockchain: 'ethereum', // Mock blockchain, will be ignored by hook logic which uses chainId
-        },
+          id: token.symbol,
+          blockchain: 'ethereum',
+          balance: portfolioToken.balance || 0,
+          price: portfolioToken.price || 0,
+          decimals: token.decimals || 18,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
         transactionsData,
         walletAddress: accountAddress,
         chainId: token.chainId,
