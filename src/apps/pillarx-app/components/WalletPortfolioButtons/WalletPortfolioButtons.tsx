@@ -38,8 +38,8 @@ const WalletPortfolioButtons = () => {
         account.connectorType === 'wallet_connect_v2')
   );
 
-  // Don't show WalletConnectDropdown if user is connected via Wagmi or Privy with WalletConnect
-  // or if user is in delegatedEoa mode
+  // Don't show WalletConnectDropdown if user is connected via Wagmi
+  // or if user is connected via Privy with WalletConnect
   const shouldShowWalletConnectDropdown =
     !isConnected && !isPrivyConnectedViaWalletConnect;
 

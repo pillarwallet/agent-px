@@ -47,6 +47,7 @@ import {
 
 // utils
 import { getNetworkViem } from '../apps/deposit/utils/blockchain';
+import { serializeBigInts } from '../utils/common';
 import { useComprehensiveLogout } from '../utils/logout';
 import { getUserOperationStatus } from './userOpStatus';
 
@@ -1158,7 +1159,7 @@ export const useWalletConnect = () => {
                   ETH_SIGN_TYPED_DATA,
                   ETH_SIGN_TYPED_DATA_V4,
                   // EIP-5792 wallet methods only for delegatedEoa mode
-                  ...(kit?.getEtherspotProvider().getConfig().walletMode ===
+                  ...(kit?.getEtherspotProvider()?.getConfig()?.walletMode ===
                   'delegatedEoa'
                     ? [
                         WALLET_GET_CAPABILITIES,
@@ -1553,7 +1554,6 @@ export const useWalletConnect = () => {
 
             // Returns batch ID for EIP-5792 compliance
             requestResponse = batchId;
-            return;
           }
 
           // Multi-transaction batch flow
@@ -1622,27 +1622,6 @@ export const useWalletConnect = () => {
 
           requestResponse = await getCallsStatus(batchId, chainIdNumber);
         }
-
-        // Recursively serialize BigInt values to strings for JSON serialization
-        const serializeBigInts = (obj: any): any => {
-          if (obj === null || obj === undefined) {
-            return obj;
-          }
-          if (typeof obj === 'bigint') {
-            return obj.toString();
-          }
-          if (Array.isArray(obj)) {
-            return obj.map(serializeBigInts);
-          }
-          if (typeof obj === 'object') {
-            const serialized: any = {};
-            for (const [key, value] of Object.entries(obj)) {
-              serialized[key] = serializeBigInts(value);
-            }
-            return serialized;
-          }
-          return obj;
-        };
 
         // Serialize the response to convert all BigInt values to strings
         const serializedResponse = serializeBigInts(requestResponse);
