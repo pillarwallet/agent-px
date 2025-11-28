@@ -108,3 +108,27 @@ export const sanitizeError = (
 
   return errorMessage;
 };
+
+// Recursively serialize BigInt values to strings for JSON serialization
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const serializeBigInts = (obj: any): any => {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (typeof obj === 'bigint') {
+    return obj.toString();
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(serializeBigInts);
+  }
+  if (typeof obj === 'object') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const serialized: any = {};
+    // eslint-disable-next-line no-restricted-syntax
+    for (const [key, value] of Object.entries(obj)) {
+      serialized[key] = serializeBigInts(value);
+    }
+    return serialized;
+  }
+  return obj;
+};

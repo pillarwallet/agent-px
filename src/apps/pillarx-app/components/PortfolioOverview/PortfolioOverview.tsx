@@ -33,7 +33,7 @@ type PortfolioOverviewProps = {
 
 const PortfolioOverview = ({ data, isDataLoading }: PortfolioOverviewProps) => {
   const [t] = useTranslation();
-  const { walletAddress: accountAddress, kit } = useTransactionKit();
+  const { walletAddress: accountAddress } = useTransactionKit();
   const { user } = usePrivy();
   const { isConnected } = useAccount();
 
@@ -46,12 +46,10 @@ const PortfolioOverview = ({ data, isDataLoading }: PortfolioOverviewProps) => {
         account.connectorType === 'wallet_connect_v2')
   );
 
-  // Don't show WalletConnectDropdown if user is connected via Wagmi or Privy with WalletConnect
-  // or if user is in delegatedEoa mode
+  // Don't show WalletConnectDropdown if user is connected via Wagmi
+  // or if user is connected via Privy with WalletConnect
   const shouldShowWalletConnectDropdown =
-    !isConnected &&
-    !isPrivyConnectedViaWalletConnect &&
-    kit.getEtherspotProvider().getWalletMode() !== 'delegatedEoa';
+    !isConnected && !isPrivyConnectedViaWalletConnect;
 
   const { data: dataPortlioOverview } = data || {};
   const dataWallet = dataPortlioOverview as WalletPortfolioData | undefined;
