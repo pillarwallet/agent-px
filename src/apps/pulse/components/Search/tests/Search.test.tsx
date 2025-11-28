@@ -4,8 +4,6 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import renderer from 'react-test-renderer';
 import { vi } from 'vitest';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
 import { ThemeProvider } from 'styled-components';
 
 // types
@@ -20,9 +18,6 @@ import { defaultTheme } from '../../../../../theme';
 
 // components
 import Search from '../Search';
-
-// services
-import { pillarXApiWalletTransactions } from '../../../../../services/pillarXApiWalletTransactions';
 
 // Mock dependencies
 vi.mock('../../../hooks/useTokenSearch', () => ({
@@ -318,7 +313,9 @@ describe('<Search />', () => {
   });
 
   it('handles empty portfolio data', () => {
-    renderWithProviders(<Search {...defaultProps} walletPortfolioData={undefined} />);
+    renderWithProviders(
+      <Search {...defaultProps} walletPortfolioData={undefined} />
+    );
 
     // Should still render the main search interface
     expect(screen.getByTestId('pulse-search-view')).toBeInTheDocument();

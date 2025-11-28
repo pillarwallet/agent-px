@@ -30,7 +30,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const [result, setResult] = useState<TokenPnLResult>({
     pnl: null,
     isLoading: false,
-    refetch: () => { },
+    refetch: () => {},
     debug: {
       mobulaTxCount: 0,
       relayRequestCount: 0,
@@ -253,6 +253,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     };
   }, [
     // Use specific dependencies to avoid infinite loops from unstable props object
+    token,
     tokenContract,
     tokenSymbol,
     tokenDecimals,
@@ -262,8 +263,6 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     walletAddress,
     chainId,
     refreshTrigger,
-    // Note: 'token' object is intentionally omitted to prevent re-renders
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   // Auto-refresh every 30 seconds

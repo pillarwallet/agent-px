@@ -144,9 +144,22 @@ export default function PnLStats({ metrics, isLoading }: PnLStatsProps) {
 
   // Format PnL with sign and percentage: -$0.80 (-0.5%) or +$1.20 (+2.3%)
   // Format PnL with sign and percentage: -$0.80 (-0.5%) or +$1.20 (+2.3%)
+  // Format PnL with sign and percentage: -$0.80 (-0.5%) or +$1.20 (+2.3%)
   const formatPnLWithPercent = (usdValue: number, pctValue: number) => {
-    const usdSign = usdValue > 0 ? '+' : usdValue < 0 ? '-' : '';
-    const pctSign = pctValue > 0 ? '+' : pctValue < 0 ? '-' : '';
+    let usdSign = '';
+    if (usdValue > 0) {
+      usdSign = '+';
+    } else if (usdValue < 0) {
+      usdSign = '-';
+    }
+
+    let pctSign = '';
+    if (pctValue > 0) {
+      pctSign = '+';
+    } else if (pctValue < 0) {
+      pctSign = '-';
+    }
+
     const usdFormatted = `${usdSign}${formatUSD(Math.abs(usdValue))}`;
     const pctFormatted = `${pctSign}${Math.abs(pctValue).toFixed(2)}%`;
     return `${usdFormatted} (${pctFormatted})`;

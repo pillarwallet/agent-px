@@ -168,10 +168,11 @@ export default function Buy(props: BuyProps) {
   const [sumOfStableBalance, setSumOfStableBalance] = useState<number>(0);
 
   // Fetch transactions for PnL
-  useGetWalletTransactionsQuery(
-    { wallet: accountAddress || '' },
-    { skip: !accountAddress }
-  );
+  const { data: transactionsData, isLoading: isTransactionsLoading } =
+    useGetWalletTransactionsQuery(
+      { wallet: accountAddress || '' },
+      { skip: !accountAddress }
+    );
 
   // Find matching portfolio token to get balance and price
   const portfolioToken = useMemo(() => {
@@ -185,24 +186,28 @@ export default function Buy(props: BuyProps) {
   }, [token, portfolioTokens]);
 
   // Calculate PnL for selected token
-  const { pnl, isLoading: isPnLLoading, refetch: refetchPnL } = useTokenPnL(
+  const {
+    pnl,
+    isLoading: isPnLLoading,
+    refetch: refetchPnL,
+  } = useTokenPnL(
     token && accountAddress && portfolioToken
       ? ({
-        token: {
-          ...token,
-          contract: token.address || '',
-          id: token.symbol,
-          blockchain: 'ethereum',
-          balance: portfolioToken.balance || 0,
-          price: portfolioToken.price || 0,
-          decimals: token.decimals || 18,
+          token: {
+            ...token,
+            contract: token.address || '',
+            id: token.symbol,
+            blockchain: 'ethereum',
+            balance: portfolioToken.balance || 0,
+            price: portfolioToken.price || 0,
+            decimals: token.decimals || 18,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
+          transactionsData,
+          walletAddress: accountAddress,
+          chainId: token.chainId,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-        transactionsData,
-        walletAddress: accountAddress,
-        chainId: token.chainId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
+        } as any)
       : null
   );
 
@@ -222,7 +227,7 @@ export default function Buy(props: BuyProps) {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-        maxStableCoinBalance.chainId && isNativeToken(t.contract)
+          maxStableCoinBalance.chainId && isNativeToken(t.contract)
     );
 
     if (!nativeToken) {
@@ -796,10 +801,11 @@ export default function Buy(props: BuyProps) {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
-                  ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
-                  : 'bg-[#121116] text-white cursor-pointer'
-                  }`}
+                className={`flex-1 items-center justify-center rounded-[10px] ${
+                  isDisabled
+                    ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
+                    : 'bg-[#121116] text-white cursor-pointer'
+                }`}
                 onClick={() => {
                   if (!isDisabled) {
                     if (isMax) {
