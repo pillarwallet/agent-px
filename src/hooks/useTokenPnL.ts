@@ -39,6 +39,24 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     },
   });
 
+  // eslint-disable-next-line no-console
+  console.log('[useTokenPnL] Hook render', {
+    tokenSymbol: props?.token?.symbol,
+    isLoading: result.isLoading,
+    pnl: result.pnl,
+  });
+
+  const token = props?.token;
+  const tokenContract = props?.token?.contract;
+  const tokenSymbol = props?.token?.symbol;
+  const tokenDecimals = props?.token?.decimals;
+  const tokenBalance = props?.token?.balance;
+  const tokenPrice = props?.token?.price;
+  const transactionsData = props?.transactionsData;
+  const transactions = props?.transactionsData?.data?.transactions;
+  const walletAddress = props?.walletAddress;
+  const chainId = props?.chainId;
+
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const refetch = useCallback(() => {
@@ -51,9 +69,21 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     setResult((prev) => ({ ...prev, refetch }));
   }, [refetch]);
 
+  // Reset state when token changes
   useEffect(() => {
-    // Early return if no props
-    if (!props) {
+    if (tokenSymbol) {
+      setResult((prev) => ({
+        ...prev,
+        pnl: null,
+        isLoading: true,
+        debug: { ...prev.debug, status: 'Resetting' },
+      }));
+    }
+  }, [tokenSymbol]);
+
+  useEffect(() => {
+    // Early return if no token or wallet address
+    if (!token || !walletAddress) {
       setResult((prev) => ({
         ...prev,
         pnl: null,
@@ -68,41 +98,24 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
       return undefined;
     }
 
-    const { token, transactionsData, walletAddress, chainId } = props || {};
-
-    // Debug log (can remove later)
-    /*
-    console.log(`[useTokenPnL] Hook called for ${token?.symbol}`, {
-      hasTransactionsData: !!transactionsData,
-      txCount: transactionsData?.data?.transactions?.length,
-      walletAddress,
-      chainId
-    });
-    */
-
     let isMounted = true;
 
-    const calculatePnL = async () => {
+    const calculatePnL = async (): Promise<void> => {
+      // eslint-disable-next-line no-console
+      console.log('[useTokenPnL] calculatePnL start', {
+        hasTransactions: !!transactions,
+        walletAddress: !!walletAddress,
+      });
+
       // Skip if no data
-      if (!transactionsData?.data?.transactions || !walletAddress) {
+      if (!transactions || !walletAddress) {
         if (isMounted)
           setResult((prev) => ({
             ...prev,
+            isLoading: false,
             debug: { ...prev.debug, status: 'No Data' },
           }));
-        return undefined;
-      }
-
-      // Skip small balances
-      const valueUSD = (token.balance || 0) * (token.price || 0);
-
-      if (valueUSD < 0.5) {
-        if (isMounted)
-          setResult((prev) => ({
-            ...prev,
-            debug: { ...prev.debug, status: 'Small Balance' },
-          }));
-        return undefined;
+        return;
       }
 
       if (isMounted)
@@ -112,18 +125,18 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           debug: { ...prev.debug, status: 'Starting' },
         }));
 
-      console.log(`[useTokenPnL] Starting calculation for ${token.symbol}`);
+      // Starting PnL calculation
 
       try {
         // Find relevant transaction hashes for this token
         const relevantHashes: string[] = [];
-        const tokenContract = token.contract.toLowerCase();
+        const contractAddress = tokenContract?.toLowerCase() || '';
 
-        transactionsData.data.transactions.forEach((tx) => {
+        transactions.forEach((tx) => {
           const txContract =
             (tx.asset.contracts && tx.asset.contracts[0]) || tx.asset.contract;
 
-          if (txContract && txContract.toLowerCase() === tokenContract) {
+          if (txContract && txContract.toLowerCase() === contractAddress) {
             relevantHashes.push(tx.hash);
           }
         });
@@ -141,7 +154,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
               isLoading: false,
               debug: { ...prev.debug, status: 'No Mobula Txs' },
             }));
-          return undefined;
+          return;
         }
 
         // Fetch Relay data for these hashes (limit to first 20 to avoid too many requests)
@@ -161,8 +174,8 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
         const relayResults = await Promise.all(
           hashesToFetch.map(async (hash) => {
             try {
-              const req = await fetchRelayRequestByHash(hash);
-              return req;
+              const relayRequest = await fetchRelayRequestByHash(hash);
+              return relayRequest;
             } catch (e) {
               console.error(`Failed to fetch Relay for ${hash}:`, e);
               return null;
@@ -170,11 +183,11 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           })
         );
 
-        if (!isMounted) return undefined;
+        if (!isMounted) return;
 
         relayRequests.push(...relayResults.filter((req) => req !== null));
 
-        if (!isMounted) return undefined;
+        if (!isMounted) return;
 
         if (isMounted)
           setResult((prev) => ({
@@ -194,11 +207,11 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
 
         // Calculate PnL from Relay data
         const trades = calculatePnLFromRelay(relayRequests, {
-          address: token.contract,
-          symbol: token.symbol,
-          decimals: token.decimals,
-          chainId,
-          price: token.price,
+          address: tokenContract || '',
+          symbol: tokenSymbol || '',
+          decimals: tokenDecimals || 18,
+          chainId: chainId!,
+          price: tokenPrice,
         });
 
         if (trades.length === 0) {
@@ -209,9 +222,10 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
               debug: { ...prev.debug, status: 'No Trades Reconstructed' },
             }));
         } else {
-          const pnlMetrics = computePnLMetrics(trades, token.price || 0);
+          const pnlMetrics = computePnLMetrics(trades, tokenPrice || 0);
+
           if (isMounted) {
-            console.log(`[useTokenPnL] Calculation complete for ${token.symbol}`, { pnlMetrics });
+            // PnL calculation complete
             setResult((prev) => ({
               ...prev,
               pnl: pnlMetrics,
@@ -219,16 +233,17 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
               debug: { ...prev.debug, status: 'Complete' },
             }));
           }
+          // eslint-disable-next-line no-console
+          console.log('[useTokenPnL] Calculation complete', pnlMetrics);
         }
       } catch (error) {
-        console.error(`Error calculating PnL for ${token.symbol}:`, error);
+        console.error(`Error calculating PnL for ${tokenSymbol}:`, error);
         if (isMounted)
           setResult((prev) => ({
             ...prev,
             isLoading: false,
             debug: { ...prev.debug, status: 'Error' },
           }));
-        return undefined;
       }
     };
 
@@ -236,18 +251,19 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
 
     return () => {
       isMounted = false;
-      return undefined;
     };
   }, [
     // Use specific dependencies to avoid infinite loops from unstable props object
-    props ? props.token.contract : null,
-    props ? props.token.symbol : null,
-    props ? props.token.balance : null,
-    props ? props.token.price : null,
-    props ? props.transactionsData : null,
-    props ? props.walletAddress : null,
-    props ? props.chainId : null,
-    refreshTrigger
+    tokenContract,
+    tokenSymbol,
+    tokenDecimals,
+    tokenBalance,
+    tokenPrice,
+    transactions,
+    walletAddress,
+    chainId,
+    refreshTrigger,
+    // Note: 'token' object is intentionally omitted to prevent re-renders
   ]);
 
   // Auto-refresh every 30 seconds

@@ -174,7 +174,7 @@ export default function Buy(props: BuyProps) {
     );
 
   // Calculate PnL for selected token
-  const { pnl, isLoading: isPnLLoading } = useTokenPnL(
+  const { pnl, isLoading: isPnLLoading, refetch: refetchPnL } = useTokenPnL(
     token && accountAddress
       ? ({
         token: {
@@ -402,6 +402,11 @@ export default function Buy(props: BuyProps) {
     setNoEnoughLiquidity(false);
     setInsufficientWalletBalance(false);
     setIsLoading(true);
+
+    // Refresh PnL data
+    if (refetchPnL) {
+      refetchPnL();
+    }
 
     try {
       const intent: UserIntent = {
@@ -777,8 +782,8 @@ export default function Buy(props: BuyProps) {
             >
               <button
                 className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
-                    ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
-                    : 'bg-[#121116] text-white cursor-pointer'
+                  ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
+                  : 'bg-[#121116] text-white cursor-pointer'
                   }`}
                 onClick={() => {
                   if (!isDisabled) {

@@ -190,6 +190,7 @@ export const pillarXApiWalletPortfolio = createApi({
           },
         };
       },
+      keepUnusedDataFor: 300, // Cache for 5 minutes
     }),
   }),
 });

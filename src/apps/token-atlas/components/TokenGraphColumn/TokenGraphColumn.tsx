@@ -277,8 +277,9 @@ const TokenGraphColumn = ({
                     <img
                       src={getArrow()}
                       alt="arrow"
-                      className={`w-[30px] mr-1 mobile:w-3.5 mobile:mb-2 ${tokenDataInfo.price_change_24h < 0 && 'rotate-180'
-                        }`}
+                      className={`w-[30px] mr-1 mobile:w-3.5 mobile:mb-2 ${
+                        tokenDataInfo.price_change_24h < 0 && 'rotate-180'
+                      }`}
                     />
                     <div className="flex">
                       <Body className="text-[15px] mobile:text-[13px]">
@@ -302,10 +303,11 @@ const TokenGraphColumn = ({
             <button
               type="button"
               key={index}
-              className={`flex-1 text-[11px] font-semibold capitalize truncate py-3 rounded ${tokenDataGraph?.result.data.length
+              className={`flex-1 text-[11px] font-semibold capitalize truncate py-3 rounded ${
+                tokenDataGraph?.result.data.length
                   ? 'hover:bg-green hover:text-dark_grey'
                   : ''
-                } ${periodFilter === filter && tokenDataGraph?.result.data.length ? 'bg-green text-dark_grey' : 'text-white_grey bg-medium_grey'}`}
+              } ${periodFilter === filter && tokenDataGraph?.result.data.length ? 'bg-green text-dark_grey' : 'text-white_grey bg-medium_grey'}`}
               onClick={() => handleClickTimePeriod(filter)}
             >
               {filter}

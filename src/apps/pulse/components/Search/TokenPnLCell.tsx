@@ -45,8 +45,9 @@ const TokenPnLCell = ({
   return (
     <div className="flex flex-col items-end">
       <p
-        className={`text-[13px] font-normal tracking-[-0.26px] text-right ${pnl.unrealisedPnLUSDC >= 0 ? 'text-[#4ADE80]' : 'text-[#EF4444]'
-          }`}
+        className={`text-[13px] font-normal tracking-[-0.26px] text-right ${
+          pnl.unrealisedPnLUSDC >= 0 ? 'text-[#4ADE80]' : 'text-[#EF4444]'
+        }`}
       >
         {pnl.unrealisedPnLUSDC >= 0 ? '+' : ''}$
         {formatExponentialSmallNumber(
@@ -54,8 +55,9 @@ const TokenPnLCell = ({
         )}
       </p>
       <p
-        className={`text-xs font-normal tracking-[-0.24px] text-right ${pnl.unrealisedPnLPct >= 0 ? 'text-[#4ADE80]' : 'text-[#EF4444]'
-          }`}
+        className={`text-xs font-normal tracking-[-0.24px] text-right ${
+          pnl.unrealisedPnLPct >= 0 ? 'text-[#4ADE80]' : 'text-[#EF4444]'
+        }`}
       >
         {pnl.unrealisedPnLPct >= 0 ? '+' : ''}
         {pnl.unrealisedPnLPct.toFixed(2)}%

@@ -1,6 +1,5 @@
 import React from 'react';
 import { PnLMetrics } from '../../../../types/api';
-import { formatExponentialSmallNumber } from '../../../../utils/number';
 
 interface PnLStatsProps {
   metrics: PnLMetrics | null;
@@ -116,22 +115,18 @@ export default function PnLStats({ metrics, isLoading }: PnLStatsProps) {
     return <PnLStatsSkeleton />;
   }
 
-  if (!metrics) {
-    return null;
-  }
-
   const {
-    balanceUSDC,
-    balanceToken,
-    totalBoughtUSDC,
-    avgBuyPrice,
-    totalSoldUSDC,
-    avgSellPrice,
-    realisedPnLUSDC,
-    realisedPnLPct,
-    unrealisedPnLUSDC,
-    unrealisedPnLPct,
-  } = metrics;
+    balanceUSDC = 0,
+    balanceToken = 0,
+    totalBoughtUSDC = 0,
+    avgBuyPrice = 0,
+    totalSoldUSDC = 0,
+    avgSellPrice = 0,
+    realisedPnLUSDC = 0,
+    realisedPnLPct = 0,
+    unrealisedPnLUSDC = 0,
+    unrealisedPnLPct = 0,
+  } = metrics || {};
 
   const hasSells = totalSoldUSDC > 0;
   const hasRealisedPnL = hasSells && realisedPnLUSDC !== 0;
@@ -159,7 +154,7 @@ export default function PnLStats({ metrics, isLoading }: PnLStatsProps) {
   const realisedColor = realisedPnLUSDC >= 0 ? '#5CFF93' : '#FF366C';
 
   return (
-    <div className="relative w-auto h-[92px] bg-[#121116] mx-2.5 mt-1 mb-2.5 rounded-[10px] border-t border-b border-[#121116]">
+    <div className="relative w-full h-[92px] bg-[#121116] rounded-[10px]">
       <div className="flex flex-row justify-between items-center h-full px-3 py-[10px]">
         {/* Column 1: Balance */}
         <StatGroup

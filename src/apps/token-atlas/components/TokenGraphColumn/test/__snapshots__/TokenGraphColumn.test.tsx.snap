@@ -123,16 +123,5 @@ exports[`<TokenGraphColumn /> > renders correctly and matches snapshot 1`] = `
       </button>
     </div>
   </div>
-  <div
-    className="flex w-[99%] mb-20 h-full max-h-[400px] mobile:mb-0"
-    id="token-atlas-token-graph"
-  >
-    <canvas
-      data-testid="price-graph"
-      height={150}
-      role="img"
-      width={300}
-    />
-  </div>
 </div>
 `;

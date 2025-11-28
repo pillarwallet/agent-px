@@ -372,7 +372,10 @@ export default function Search({
 
             if (!isBuy) {
               return (
-                <div key={item} className="flex items-center justify-between w-full pr-3">
+                <div
+                  key={item}
+                  className="flex items-center justify-between w-full pr-3"
+                >
                   <p className="text-[13px] font-normal text-white tracking-[-0.26px] px-3">
                     {item}
                   </p>
@@ -382,8 +385,12 @@ export default function Search({
                     className="flex items-center gap-1.5 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
                     onClick={() => setHideSmallBalances(!hideSmallBalances)}
                   >
-                    <div className={`w-2.5 h-2.5 rounded-full border border-white ${hideSmallBalances ? 'bg-white' : 'bg-transparent'}`} />
-                    <span className="text-[10px] text-white whitespace-nowrap">Hide &lt;$0.5</span>
+                    <div
+                      className={`w-2.5 h-2.5 rounded-full border border-white ${hideSmallBalances ? 'bg-white' : 'bg-transparent'}`}
+                    />
+                    <span className="text-[10px] text-white whitespace-nowrap">
+                      Hide &lt;$0.5
+                    </span>
                   </div>
                 </div>
               );
@@ -395,20 +402,22 @@ export default function Search({
                 className="flex bg-black w-[100px] h-10 rounded-[10px]"
               >
                 <button
-                  className={`flex-1 items-center justify-center rounded-[6px] m-0.5 mb-1 ${searchType && item.includes(searchType)
-                    ? 'bg-[#2E2A4A]'
-                    : 'bg-[#1E1D24]'
-                    }`}
+                  className={`flex-1 items-center justify-center rounded-[6px] m-0.5 mb-1 ${
+                    searchType && item.includes(searchType)
+                      ? 'bg-[#2E2A4A]'
+                      : 'bg-[#1E1D24]'
+                  }`}
                   type="button"
                   onClick={() => {
                     handleSearchTypeChange(actualIndex);
                   }}
                 >
                   <p
-                    className={`text-xs font-normal text-center ${searchType && item.includes(searchType)
-                      ? 'text-white'
-                      : 'text-white opacity-50'
-                      }`}
+                    className={`text-xs font-normal text-center ${
+                      searchType && item.includes(searchType)
+                        ? 'text-white'
+                        : 'text-white opacity-50'
+                    }`}
                   >
                     {item}
                   </p>

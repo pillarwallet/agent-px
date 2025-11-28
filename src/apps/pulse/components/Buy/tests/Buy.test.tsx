@@ -28,6 +28,7 @@ vi.mock('../../../../../hooks/useTokenPnL', () => ({
   useTokenPnL: vi.fn(() => ({
     pnl: null,
     isLoading: false,
+    refetch: vi.fn(),
   })),
 }));
 

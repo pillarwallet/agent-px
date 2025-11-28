@@ -100,7 +100,7 @@ const Sell = (props: SellProps) => {
   }, [token, portfolioTokens]);
 
   // Calculate PnL for selected token with proper balance and price
-  const { pnl, isLoading: isPnLLoading } = useTokenPnL(
+  const { pnl, isLoading: isPnLLoading, refetch: refetchPnL } = useTokenPnL(
     token && accountAddress && portfolioToken
       ? ({
         token: {
@@ -120,6 +120,13 @@ const Sell = (props: SellProps) => {
       } as any)
       : null
   );
+
+  // Refetch PnL when parent triggers refresh
+  useEffect(() => {
+    if (isRefreshing && refetchPnL) {
+      refetchPnL();
+    }
+  }, [isRefreshing, refetchPnL]);
 
   const {
     getBestSellOffer,
