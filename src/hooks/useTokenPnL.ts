@@ -52,7 +52,6 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const tokenDecimals = props?.token?.decimals;
   const tokenBalance = props?.token?.balance;
   const tokenPrice = props?.token?.price;
-  const transactionsData = props?.transactionsData;
   const transactions = props?.transactionsData?.data?.transactions;
   const walletAddress = props?.walletAddress;
   const chainId = props?.chainId;
@@ -264,6 +263,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     chainId,
     refreshTrigger,
     // Note: 'token' object is intentionally omitted to prevent re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   // Auto-refresh every 30 seconds
