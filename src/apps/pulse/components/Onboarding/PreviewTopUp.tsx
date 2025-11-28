@@ -283,10 +283,10 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     if (status === 'Submitted' || status === 'Pending') {
       return 'Transaction Pending';
     }
-    if (status === 'OnChain' || status === 'Finalized') {
+    if (status === 'OnChain' || status === 'Finalized' || status === 'Confirmed') {
       return 'Transaction Complete';
     }
-    if (status === 'Cancelled' || status === 'Reverted') {
+    if (status === 'Cancelled' || status === 'Reverted' || status === 'Failed') {
       return 'Transaction Failed';
     }
     return 'Starting Transaction'; // fallback
