@@ -25,29 +25,39 @@ exports[`<PortfolioTokenList /> > renders correctly and matches snapshot 1`] = `
           className="flex flex-col w-2 h-[14px] justify-center gap-[2px]"
         >
           <svg
+            className="transition-opacity"
             fill="none"
             height="6"
+            style={
+              {
+                "opacity": 0.3,
+              }
+            }
             viewBox="0 0 8 6"
             width="8"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M4 0.5L7.5 5.5H0.5L4 0.5Z"
+              d="M4 0L7.4641 6H0.535898L4 0Z"
               fill="white"
-              fillOpacity={0.3}
             />
           </svg>
           <svg
+            className="transition-opacity"
             fill="none"
             height="6"
+            style={
+              {
+                "opacity": 0.3,
+              }
+            }
             viewBox="0 0 8 6"
             width="8"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M4 5.5L0.5 0.5H7.5L4 5.5Z"
+              d="M4 6L0.535898 0L7.4641 0L4 6Z"
               fill="white"
-              fillOpacity={0.3}
             />
           </svg>
         </div>
@@ -66,29 +76,39 @@ exports[`<PortfolioTokenList /> > renders correctly and matches snapshot 1`] = `
           className="flex flex-col w-2 h-[14px] justify-center gap-[2px]"
         >
           <svg
+            className="transition-opacity"
             fill="none"
             height="6"
+            style={
+              {
+                "opacity": 0.3,
+              }
+            }
             viewBox="0 0 8 6"
             width="8"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M4 0.5L7.5 5.5H0.5L4 0.5Z"
+              d="M4 0L7.4641 6H0.535898L4 0Z"
               fill="white"
-              fillOpacity={0.3}
             />
           </svg>
           <svg
+            className="transition-opacity"
             fill="none"
             height="6"
+            style={
+              {
+                "opacity": 1,
+              }
+            }
             viewBox="0 0 8 6"
             width="8"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M4 5.5L0.5 0.5H7.5L4 5.5Z"
+              d="M4 6L0.535898 0L7.4641 0L4 6Z"
               fill="white"
-              fillOpacity={1}
             />
           </svg>
         </div>
@@ -107,29 +127,39 @@ exports[`<PortfolioTokenList /> > renders correctly and matches snapshot 1`] = `
           className="flex flex-col w-2 h-[14px] justify-center gap-[2px]"
         >
           <svg
+            className="transition-opacity"
             fill="none"
             height="6"
+            style={
+              {
+                "opacity": 0.3,
+              }
+            }
             viewBox="0 0 8 6"
             width="8"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M4 0.5L7.5 5.5H0.5L4 0.5Z"
+              d="M4 0L7.4641 6H0.535898L4 0Z"
               fill="white"
-              fillOpacity={0.3}
             />
           </svg>
           <svg
+            className="transition-opacity"
             fill="none"
             height="6"
+            style={
+              {
+                "opacity": 0.3,
+              }
+            }
             viewBox="0 0 8 6"
             width="8"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M4 5.5L0.5 0.5H7.5L4 5.5Z"
+              d="M4 6L0.535898 0L7.4641 0L4 6Z"
               fill="white"
-              fillOpacity={0.3}
             />
           </svg>
         </div>

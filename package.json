@@ -27,7 +27,7 @@
     "@hypelab/sdk-react": "1.0.4",
     "@lifi/sdk": "3.6.8",
     "@mui/icons-material": "5.16.6",
-    "@mui/joy": "5.0.0-beta.22",
+    "@mui/joy": "5.0.0-beta.48",
     "@mui/material": "5.16.6",
     "@privy-io/react-auth": "2.16.0",
     "@react-spring/web": "9.7.4",
@@ -165,7 +165,8 @@
     "react-scripts": {
       "typescript": "5.5.4"
     },
-    "viem": "2.37.1"
+    "viem": "2.37.1",
+    "eslint": "8.57.0"
   },
   "resolutions": {
     "styled-components": "6.1.1"

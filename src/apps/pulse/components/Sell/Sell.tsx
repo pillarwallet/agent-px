@@ -4,6 +4,7 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 
@@ -31,11 +32,15 @@ import RandomAvatar from '../../../pillarx-app/components/RandomAvatar/RandomAva
 import ArrowDown from '../../assets/arrow-down.svg';
 import WarningIcon from '../../assets/warning.svg';
 import SellButton from './SellButton';
+import PnLStats from '../PnLStats/PnLStats';
 
 // hooks
 import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
+import { useTokenPnL } from '../../../../hooks/useTokenPnL';
+import useTransactionKit from '../../../../hooks/useTransactionKit';
 
 // services
+import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
 import { PortfolioToken } from '../../../../services/tokensData';
 
 interface SellProps {
@@ -74,6 +79,47 @@ const Sell = (props: SellProps) => {
   const [isLoadingOffer, setIsLoadingOffer] = useState<boolean>(false);
   const [showTooltip, setShowTooltip] = useState<boolean>(false);
   const [truncatedFlag, setTruncatedFlag] = useState<boolean>(false);
+  const { walletAddress: accountAddress } = useTransactionKit();
+
+  // Fetch transactions for PnL
+  const { data: transactionsData, isLoading: isTransactionsLoading } =
+    useGetWalletTransactionsQuery(
+      { wallet: accountAddress || '' },
+      { skip: !accountAddress }
+    );
+
+  // Find matching portfolio token to get balance and price
+  const portfolioToken = useMemo(() => {
+    if (!token || !portfolioTokens || portfolioTokens.length === 0) return null;
+
+    return portfolioTokens.find(
+      (pt) =>
+        pt.contract.toLowerCase() === token.address.toLowerCase() &&
+        Number(getChainId(pt.blockchain as MobulaChainNames)) === token.chainId
+    );
+  }, [token, portfolioTokens]);
+
+  // Calculate PnL for selected token with proper balance and price
+  const { pnl, isLoading: isPnLLoading } = useTokenPnL(
+    token && accountAddress && portfolioToken
+      ? ({
+        token: {
+          ...token,
+          contract: token.address || '',
+          id: token.symbol,
+          blockchain: 'ethereum',
+          balance: portfolioToken.balance || 0,
+          price: portfolioToken.price || 0,
+          decimals: token.decimals || 18,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+        transactionsData,
+        walletAddress: accountAddress,
+        chainId: token.chainId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+      : null
+  );
 
   const {
     getBestSellOffer,
@@ -195,7 +241,7 @@ const Sell = (props: SellProps) => {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-          token.chainId && isNativeToken(t.contract)
+        token.chainId && isNativeToken(t.contract)
     );
     if (!nativeToken) {
       setMinGasAmount(true);
@@ -208,6 +254,7 @@ const Sell = (props: SellProps) => {
     }
   }, [portfolioTokens, token]);
 
+  // Calculate token balance (must be after getTokenBalance function)
   const tokenBalance = getTokenBalance();
 
   const handleTokenAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,7 +305,7 @@ const Sell = (props: SellProps) => {
 
   return (
     <div className="flex flex-col w-full" data-testid="pulse-sell-component">
-      <div className="bg-[#121116] m-2.5 rounded-[10px]">
+      <div className="m-2.5 bg-[#121116] min-h-[100px] rounded-lg">
         <div className="flex items-center p-3">
           <button
             onClick={() => {
@@ -408,11 +455,10 @@ const Sell = (props: SellProps) => {
                 </>
               ) : (
                 <input
-                  className={`no-spinner flex mobile:text-4xl xs:text-4xl desktop:text-4xl tablet:text-4xl font-medium text-right ${
-                    token
-                      ? 'flex-1 desktop:w-40 tablet:w-40 mobile:w-32 xs:w-full'
-                      : 'flex-1 desktop:w-60 tablet:w-60 mobile:w-56 xs:w-full'
-                  }`}
+                  className={`no-spinner flex mobile:text-4xl xs:text-4xl desktop:text-4xl tablet:text-4xl font-medium text-right ${token
+                    ? 'flex-1 desktop:w-40 tablet:w-40 mobile:w-32 xs:w-full'
+                    : 'flex-1 desktop:w-60 tablet:w-60 mobile:w-56 xs:w-full'
+                    }`}
                   placeholder={inputPlaceholder}
                   onChange={handleTokenAmountChange}
                   value={tokenAmount}
@@ -441,6 +487,7 @@ const Sell = (props: SellProps) => {
             </div>
           </div>
         </div>
+
         <div className="flex justify-between items-center p-3">
           <div className="flex">
             {(notEnoughLiquidity || relayError || minGasAmount) && (
@@ -509,11 +556,10 @@ const Sell = (props: SellProps) => {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${
-                  isDisabled
-                    ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
-                    : 'bg-[#121116] text-white cursor-pointer'
-                }`}
+                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
+                  ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
+                  : 'bg-[#121116] text-white cursor-pointer'
+                  }`}
                 onClick={() => {
                   if (!isDisabled) {
                     setShowNumInP(true);
@@ -567,6 +613,19 @@ const Sell = (props: SellProps) => {
           isInitialized={isInitialized}
         />
       </div>
+
+      {/* PnL Stats - only show if there's actual PnL data */}
+      {token &&
+        (isPnLLoading ||
+          (pnl && (pnl.totalBoughtUSDC > 0 || pnl.totalSoldUSDC > 0))) && (
+          <div className="w-full px-2.5 mb-2">
+            <PnLStats
+              metrics={pnl}
+              isLoading={isPnLLoading || isTransactionsLoading}
+            />
+
+          </div>
+        )}
     </div>
   );
 };

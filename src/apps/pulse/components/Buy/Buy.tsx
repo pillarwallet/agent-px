@@ -17,14 +17,17 @@ import { Hex, getAddress, isAddress } from 'viem';
 // components
 import BuyButton from './BuyButton';
 import RandomAvatar from '../../../pillarx-app/components/RandomAvatar/RandomAvatar';
+import PnLStats from '../PnLStats/PnLStats';
 
 // hooks
 import useTransactionKit from '../../../../hooks/useTransactionKit';
 import { useRemoteConfig } from '../../../../hooks/useRemoteConfig';
 import useIntentSdk from '../../hooks/useIntentSdk';
 import useRelayBuy, { BuyOffer } from '../../hooks/useRelayBuy';
+import { useTokenPnL } from '../../../../hooks/useTokenPnL';
 
 // services
+import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
 import { useGetSearchTokensQuery } from '../../../../services/pillarXApiSearchTokens';
 import {
   chainNameToChainIdTokensData,
@@ -163,6 +166,31 @@ export default function Buy(props: BuyProps) {
   const [permittedChains, setPermittedChains] = useState<bigint[]>([]);
   const [sumOfStableBalance, setSumOfStableBalance] = useState<number>(0);
 
+  // Fetch transactions for PnL
+  const { data: transactionsData, isLoading: isTransactionsLoading } =
+    useGetWalletTransactionsQuery(
+      { wallet: accountAddress || '' },
+      { skip: !accountAddress }
+    );
+
+  // Calculate PnL for selected token
+  const { pnl, isLoading: isPnLLoading } = useTokenPnL(
+    token && accountAddress
+      ? ({
+        token: {
+          ...token,
+          contract: token.address || '',
+          id: token.symbol, // Mock id
+          blockchain: 'ethereum', // Mock blockchain, will be ignored by hook logic which uses chainId
+        },
+        transactionsData,
+        walletAddress: accountAddress,
+        chainId: token.chainId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+      : null
+  );
+
   useEffect(() => {
     if (!portfolioTokens || portfolioTokens.length === 0) {
       console.warn('No wallet portfolio data');
@@ -179,7 +207,7 @@ export default function Buy(props: BuyProps) {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-          maxStableCoinBalance.chainId && isNativeToken(t.contract)
+        maxStableCoinBalance.chainId && isNativeToken(t.contract)
     );
 
     if (!nativeToken) {
@@ -656,7 +684,8 @@ export default function Buy(props: BuyProps) {
             </div>
           </div>
         </div>
-        <div className="flex justify-between p-3">
+
+        <div className="flex p-3 justify-between">
           <div className="flex">
             {(() => {
               const showError =
@@ -747,11 +776,10 @@ export default function Buy(props: BuyProps) {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${
-                  isDisabled
+                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
                     ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
                     : 'bg-[#121116] text-white cursor-pointer'
-                }`}
+                  }`}
                 onClick={() => {
                   if (!isDisabled) {
                     if (isMax) {
@@ -780,7 +808,8 @@ export default function Buy(props: BuyProps) {
           areModulesInstalled={areModulesInstalled}
           debouncedUsdAmount={debouncedUsdAmount}
           expressIntentResponse={
-            USE_RELAY_BUY ? buyOffer : expressIntentResponse
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            USE_RELAY_BUY ? (buyOffer as any) : expressIntentResponse
           }
           handleBuySubmit={handleBuySubmit}
           isFetching={isFetching}
@@ -799,6 +828,18 @@ export default function Buy(props: BuyProps) {
           usdAmount={usdAmount}
         />
       </div>
+
+      {/* PnL Stats - only show if there's actual PnL data */}
+      {token &&
+        (isPnLLoading ||
+          (pnl && (pnl.totalBoughtUSDC > 0 || pnl.totalSoldUSDC > 0))) && (
+          <div className="w-full px-2.5 mb-2">
+            <PnLStats
+              metrics={pnl}
+              isLoading={isPnLLoading || isTransactionsLoading}
+            />
+          </div>
+        )}
     </div>
   );
 }
