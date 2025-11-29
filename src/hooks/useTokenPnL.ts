@@ -124,6 +124,20 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           debug: { ...prev.debug, status: 'Starting' },
         }));
 
+      // Ensure minimum loading duration for better UX (skeleton animation visibility)
+      const startTime = Date.now();
+      const minLoadingDuration = 100; // ms
+
+      const waitMinDuration = async () => {
+        const elapsed = Date.now() - startTime;
+        const remainingDelay = Math.max(0, minLoadingDuration - elapsed);
+        if (remainingDelay > 0) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, remainingDelay);
+          });
+        }
+      };
+
       // Starting PnL calculation
 
       try {
@@ -147,6 +161,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           }));
 
         if (relevantHashes.length === 0) {
+          await waitMinDuration();
           if (isMounted)
             setResult((prev) => ({
               ...prev,
@@ -195,6 +210,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           }));
 
         if (relayRequests.length === 0) {
+          await waitMinDuration();
           if (isMounted)
             setResult((prev) => ({
               ...prev,
@@ -214,6 +230,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
         });
 
         if (trades.length === 0) {
+          await waitMinDuration();
           if (isMounted)
             setResult((prev) => ({
               ...prev,
@@ -222,6 +239,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
             }));
         } else {
           const pnlMetrics = computePnLMetrics(trades, tokenPrice || 0);
+          await waitMinDuration();
 
           if (isMounted) {
             // PnL calculation complete
@@ -237,6 +255,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
         }
       } catch (error) {
         console.error(`Error calculating PnL for ${tokenSymbol}:`, error);
+        await waitMinDuration();
         if (isMounted)
           setResult((prev) => ({
             ...prev,
@@ -251,9 +270,10 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     // Use specific dependencies to avoid infinite loops from unstable props object
-    token,
+    // token, // Removed to avoid infinite loop as it's a new object on every render
     tokenContract,
     tokenSymbol,
     tokenDecimals,
@@ -275,7 +295,8 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, [props]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenSymbol, walletAddress, chainId]);
 
   return result;
 };

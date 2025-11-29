@@ -95,6 +95,7 @@ export const fetchRelayRequests = async (
           user: userAddress,
           status,
         },
+        timeout: 5000,
       }
     );
     return response.data.requests || [];
@@ -114,6 +115,7 @@ export const fetchRelayRequestByHash = async (
         params: {
           hash: txHash,
         },
+        timeout: 5000,
       }
     );
     // v2 API returns { requests: [...] }
@@ -136,6 +138,7 @@ export const fetchRelayRequestsByUser = async (
       params: {
         user: userAddress,
       },
+      timeout: 5000,
     });
 
     if (response.data && Array.isArray(response.data.requests)) {

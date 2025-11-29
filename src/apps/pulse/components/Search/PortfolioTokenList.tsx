@@ -515,6 +515,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
                     chainId={chainId}
                     transactionsData={transactionsData}
                     walletAddress={walletAddress}
+                    isRefreshing={isFetching}
                   />
                 </div>
               </button>

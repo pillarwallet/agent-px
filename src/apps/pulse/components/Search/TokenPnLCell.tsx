@@ -1,35 +1,59 @@
+import React, { useEffect } from 'react';
 import { useTokenPnL } from '../../../../hooks/useTokenPnL';
-import { Token } from '../../../../services/tokensData';
 import { WalletTransactionsMobulaResponse } from '../../../../types/api';
+import { PortfolioToken } from '../../../../services/tokensData';
 import {
-  formatExponentialSmallNumber,
   limitDigitsNumber,
+  formatExponentialSmallNumber,
 } from '../../../../utils/number';
 
 interface TokenPnLCellProps {
-  token: Token;
-  chainId: number;
+  token: PortfolioToken; // Changed Token to PortfolioToken
   transactionsData: WalletTransactionsMobulaResponse | undefined;
   walletAddress: string | undefined;
+  chainId: number;
+  isRefreshing?: boolean; // Added isRefreshing prop
 }
 
-const TokenPnLCell = ({
+export const TokenPnLCell = ({
+  // Changed to named export
   token,
-  chainId,
   transactionsData,
   walletAddress,
+  chainId,
+  isRefreshing, // Destructured isRefreshing
 }: TokenPnLCellProps) => {
-  const { pnl, isLoading } = useTokenPnL({
-    token,
-    transactionsData,
-    walletAddress,
-    chainId,
-  });
+  const {
+    pnl,
+    isLoading,
+    refetch, // Added refetch
+  } = useTokenPnL(
+    token && walletAddress // Conditional hook call
+      ? {
+          token: {
+            ...token,
+            balance: token.balance, // Added balance
+            price: token.price, // Added price
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any, // Cast to any
+          transactionsData,
+          walletAddress,
+          chainId,
+        }
+      : null
+  );
+
+  useEffect(() => {
+    if (isRefreshing && refetch) {
+      refetch();
+    }
+  }, [isRefreshing, refetch]);
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-end">
-        <p className="text-xs text-white/30">-</p>
+      <div className="flex flex-col items-end gap-1">
+        <div className="h-3 w-16 bg-white/10 rounded animate-pulse" />
+        <div className="h-2 w-12 bg-white/10 rounded animate-pulse" />
       </div>
     );
   }

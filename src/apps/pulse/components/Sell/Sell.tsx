@@ -630,6 +630,7 @@ const Sell = (props: SellProps) => {
       {/* PnL Stats - only show if there's actual PnL data */}
       {token &&
         (isPnLLoading ||
+          isTransactionsLoading ||
           (pnl && (pnl.totalBoughtUSDC > 0 || pnl.totalSoldUSDC > 0))) && (
           <div className="w-full px-2.5 mb-2">
             <PnLStats

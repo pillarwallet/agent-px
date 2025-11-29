@@ -381,6 +381,11 @@ export default function Buy(props: BuyProps) {
 
   // Intent SDK: Refresh buy intent
   const refreshBuyIntent = useCallback(async () => {
+    // Refresh PnL data
+    if (refetchPnL) {
+      refetchPnL();
+    }
+
     // Prevent multiple simultaneous calls
     if (isLoading) {
       return;
@@ -424,9 +429,6 @@ export default function Buy(props: BuyProps) {
     setIsLoading(true);
 
     // Refresh PnL data
-    if (refetchPnL) {
-      refetchPnL();
-    }
 
     try {
       const intent: UserIntent = {
@@ -858,6 +860,7 @@ export default function Buy(props: BuyProps) {
       {/* PnL Stats - only show if there's actual PnL data */}
       {token &&
         (isPnLLoading ||
+          isTransactionsLoading ||
           (pnl && (pnl.totalBoughtUSDC > 0 || pnl.totalSoldUSDC > 0))) && (
           <div className="w-full px-2.5 mb-2">
             <PnLStats
