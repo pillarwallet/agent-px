@@ -73,6 +73,28 @@ export interface RelayRequest {
         address?: string;
       }>;
     }>;
+    metadata?: {
+      currencyIn?: {
+        currency?: {
+          address?: string;
+          symbol?: string;
+          decimals?: number;
+        };
+        amount?: string;
+        amountFormatted?: string;
+        amountUsd?: string;
+      };
+      currencyOut?: {
+        currency?: {
+          address?: string;
+          symbol?: string;
+          decimals?: number;
+        };
+        amount?: string;
+        amountFormatted?: string;
+        amountUsd?: string;
+      };
+    };
   };
 }
 

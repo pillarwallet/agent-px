@@ -392,7 +392,8 @@ export const calculatePnLFromRelay = (
       let side: 'BUY' | 'SELL' | null = null;
       let timestamp = new Date(req.createdAt).getTime() / 1000;
 
-      const { metadata } = req;
+      // Check both req.metadata and req.data.metadata (different API versions)
+      const metadata = req.metadata || req.data?.metadata;
 
       // Strategy 1: Use Metadata (Preferred)
       if (metadata && metadata.currencyIn && metadata.currencyOut) {
@@ -479,6 +480,11 @@ export const calculatePnLFromRelay = (
             amountUSDC = usdcAmountRaw;
           }
         }
+      } else {
+        // No metadata and no state changes - log warning
+        console.warn(
+          `[calculatePnLFromRelay] No metadata or state changes for request ${req.id}`
+        );
       }
 
       if (!side || amountToken === 0) return null;
@@ -490,13 +496,40 @@ export const calculatePnLFromRelay = (
 
       if (amountUSDC === 0) return null;
 
+      // Validate USDC amount and execution price - reject absurdly large values
+      const execPrice = amountUSDC / amountToken;
+
+      // Sanity check: USDC amount shouldn't exceed $1 trillion
+      if (amountUSDC > 1e12) {
+        console.warn(
+          `[calculatePnLFromRelay] Suspiciously large USDC amount for ${token.symbol}: $${amountUSDC.toLocaleString()}. Skipping trade ${req.id}`
+        );
+        return null;
+      }
+
+      // Sanity check: Execution price shouldn't exceed $1 million per token
+      if (execPrice > 1e6) {
+        console.warn(
+          `[calculatePnLFromRelay] Suspiciously high execution price for ${token.symbol}: $${execPrice.toLocaleString()}/token. Skipping trade ${req.id}`
+        );
+        return null;
+      }
+
+      // Sanity check: Execution price shouldn't be negative or zero
+      if (execPrice <= 0) {
+        console.warn(
+          `[calculatePnLFromRelay] Invalid execution price for ${token.symbol}: $${execPrice}. Skipping trade ${req.id}`
+        );
+        return null;
+      }
+
       return {
         side,
         txHash: req.id,
         timestamp,
         amountToken,
         amountQuoteUSDC: amountUSDC,
-        execPriceUSD: amountUSDC / amountToken,
+        execPriceUSD: execPrice,
         feesUSD: 0,
         tokenAddress: token.address,
         tokenSymbol: token.symbol,
