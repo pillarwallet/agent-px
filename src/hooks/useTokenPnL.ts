@@ -30,7 +30,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const [result, setResult] = useState<TokenPnLResult>({
     pnl: null,
     isLoading: false,
-    refetch: () => {},
+    refetch: () => { },
     debug: {
       mobulaTxCount: 0,
       relayRequestCount: 0,
@@ -239,6 +239,21 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
             }));
         } else {
           const pnlMetrics = computePnLMetrics(trades, tokenPrice || 0);
+
+          // Check if PnL calculation returned null (e.g., no BUY transactions)
+          if (!pnlMetrics) {
+            await waitMinDuration();
+            if (isMounted) {
+              setResult((prev) => ({
+                ...prev,
+                pnl: null,
+                isLoading: false,
+                debug: { ...prev.debug, status: 'No Valid PnL (No Buys)' },
+              }));
+            }
+            return;
+          }
+
           await waitMinDuration();
 
           if (isMounted) {

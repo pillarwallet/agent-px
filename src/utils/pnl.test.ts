@@ -20,6 +20,7 @@ describe('PnL Logic', () => {
         symbol: 'USDC',
         id: 1,
         contracts: [usdcAddress],
+        contract: usdcAddress,
         logo: '',
         decimals: 6,
       },
@@ -30,6 +31,8 @@ describe('PnL Logic', () => {
       from: walletAddress, // Outbound
       to: '0xPool',
       tx_hash: buyTxHash,
+      hash: buyTxHash,
+      method_label: 'Transfer',
       blockchain: 'Ethereum',
     },
     {
@@ -39,6 +42,7 @@ describe('PnL Logic', () => {
         symbol: 'ETHDYDX',
         id: 2,
         contracts: [tokenAddress],
+        contract: tokenAddress,
         logo: '',
         decimals: 18,
       },
@@ -49,6 +53,8 @@ describe('PnL Logic', () => {
       from: '0xPool',
       to: walletAddress, // Inbound
       tx_hash: buyTxHash,
+      hash: buyTxHash,
+      method_label: 'Transfer',
       blockchain: 'Ethereum',
     },
     // Gas row (ignored for amounts but present)
@@ -59,6 +65,7 @@ describe('PnL Logic', () => {
         symbol: 'ETH',
         id: 3,
         contracts: [],
+        contract: '',
         logo: '',
         decimals: 18,
       },
@@ -69,6 +76,8 @@ describe('PnL Logic', () => {
       from: walletAddress,
       to: '0xMiner',
       tx_hash: buyTxHash,
+      hash: buyTxHash,
+      method_label: 'Transfer',
       blockchain: 'Ethereum',
     },
   ];
@@ -82,6 +91,7 @@ describe('PnL Logic', () => {
         symbol: 'ETHDYDX',
         id: 2,
         contracts: [tokenAddress],
+        contract: tokenAddress,
         logo: '',
         decimals: 18,
       },
@@ -92,6 +102,8 @@ describe('PnL Logic', () => {
       from: walletAddress, // Outbound
       to: '0xPool',
       tx_hash: sellTxHash,
+      hash: sellTxHash,
+      method_label: 'Transfer',
       blockchain: 'Ethereum',
     },
     {
@@ -101,6 +113,7 @@ describe('PnL Logic', () => {
         symbol: 'USDC',
         id: 1,
         contracts: [usdcAddress],
+        contract: usdcAddress,
         logo: '',
         decimals: 6,
       },
@@ -111,6 +124,8 @@ describe('PnL Logic', () => {
       from: '0xPool',
       to: walletAddress, // Inbound
       tx_hash: sellTxHash,
+      hash: sellTxHash,
+      method_label: 'Transfer',
       blockchain: 'Ethereum',
     },
   ];
@@ -160,8 +175,8 @@ describe('PnL Logic', () => {
     const proceeds = 0.473808;
     const expectedRealisedPnL = proceeds - costBasisSold;
 
-    expect(metrics.realisedPnLUSDC).toBeCloseTo(expectedRealisedPnL);
-    expect(metrics.totalSoldUSDC).toBeCloseTo(proceeds);
+    expect(metrics!.realisedPnLUSDC).toBeCloseTo(expectedRealisedPnL);
+    expect(metrics!.totalSoldUSDC).toBeCloseTo(proceeds);
 
     // Verify Unrealised PnL
     const remainingTokens = totalTokensBought - tokensSold;
@@ -169,12 +184,27 @@ describe('PnL Logic', () => {
     const currentValue = remainingTokens * currentPrice;
     const expectedUnrealisedPnL = currentValue - remainingCostBasis;
 
-    expect(metrics.unrealisedPnLUSDC).toBeCloseTo(expectedUnrealisedPnL);
-    expect(metrics.balanceToken).toBeCloseTo(remainingTokens);
+    expect(metrics!.unrealisedPnLUSDC).toBeCloseTo(expectedUnrealisedPnL);
+    expect(metrics!.balanceToken).toBeCloseTo(remainingTokens);
 
     // Verify Avg Buy Price (Historical)
     // "Average Buy Price = totalHistoricalBuyUSDC / totalHistoricalBuyTokens"
     // Here only 1 buy, so it should match WAC
-    expect(metrics.avgBuyPrice).toBeCloseTo(wac);
+    expect(metrics!.avgBuyPrice).toBeCloseTo(wac);
+  });
+
+  it('should return null when there are only SELL transactions (no BUY history)', () => {
+    const transactions = [...sellRows];
+    const trades = reconstructTrades(transactions, walletAddress);
+
+    // Should have 1 SELL trade
+    expect(trades).toHaveLength(1);
+    expect(trades[0].side).toBe('SELL');
+
+    const currentPrice = 0.1;
+    const metrics = calculatePnL(trades, currentPrice);
+
+    // Should return null because we can't calculate cost basis without BUYs
+    expect(metrics).toBeNull();
   });
 });

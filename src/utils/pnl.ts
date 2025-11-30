@@ -104,7 +104,7 @@ export const reconstructTrades = (
 export const calculatePnL = (
   trades: ReconstructedTrade[],
   currentPrice: number
-): PnLMetrics => {
+): PnLMetrics | null => {
   let totalTokens = 0;
   let totalCostUSDC = 0;
   let realisedPnLUSDC = 0;
@@ -164,6 +164,12 @@ export const calculatePnL = (
     totalHistoricalSellTokens > 0
       ? totalHistoricalSellUSDC / totalHistoricalSellTokens
       : 0;
+
+  // If there are no BUY transactions, we cannot calculate a cost basis
+  // Return null to indicate no valid PnL data (prevents showing +$0)
+  if (totalHistoricalBuyTokens === 0) {
+    return null;
+  }
 
   return {
     realisedPnLUSDC,
