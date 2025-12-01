@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import renderer from 'react-test-renderer';
-import SearchAssets from '../SearchAssets';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Asset } from '../../types';
+import SearchAssets from '../SearchAssets';
 
 const mockAssets: Asset[] = [
   {

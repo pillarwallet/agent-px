@@ -1,9 +1,9 @@
+import { RelayRequest, fetchRelayRequestByHash } from '../services/relayApi';
 import {
   MobulaTransactionRow,
-  ReconstructedTrade,
   PnLMetrics,
+  ReconstructedTrade,
 } from '../types/api';
-import { fetchRelayRequestByHash, RelayRequest } from '../services/relayApi';
 
 export const reconstructTrades = (
   transactions: MobulaTransactionRow[],

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import renderer from 'react-test-renderer';
-import AssetRow from '../AssetRow';
+import { describe, expect, it, vi } from 'vitest';
 import { Asset } from '../../types';
+import AssetRow from '../AssetRow';
 
 const mockAsset: Asset = {
   id: 1,

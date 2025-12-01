@@ -1,5 +1,5 @@
 // Core
-import { useState, useMemo, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 // Vendors
 import Fuse from 'fuse.js';

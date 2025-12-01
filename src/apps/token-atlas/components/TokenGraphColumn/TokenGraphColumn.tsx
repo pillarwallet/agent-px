@@ -34,6 +34,7 @@ import ArrowRed from '../../images/arrow-circle-red.svg';
 // components
 import SkeletonLoader from '../../../../components/SkeletonLoader';
 import RandomAvatar from '../RandomAvatar/RandomAvatar';
+import TokenGraph from '../TokenGraph/TokenGraph';
 import Body from '../Typography/Body';
 
 type TokenGraphColumnProps = {
@@ -315,6 +316,7 @@ const TokenGraphColumn = ({
           ))}
         </div>
       </div>
+      <TokenGraph />
     </div>
   );
 };

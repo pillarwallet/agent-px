@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import renderer from 'react-test-renderer';
-import SendAssetModal from '../SendAssetModal';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { WalletProviderLike } from '../../../../types/walletProvider';
 import { Asset } from '../../types';
-import type { WalletProviderLike } from '../../../types/walletProvider';
+import SendAssetModal from '../SendAssetModal';
 
 vi.mock('../../../hooks/useTransactionKit', () => ({
   default: () => ({

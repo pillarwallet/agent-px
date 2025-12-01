@@ -33,17 +33,10 @@ const middlewareReducers: { [key: string]: Reducer } = {};
  * @param newReducer
  */
 export const addReducer = (newReducer: {
-  reducerPath?: string;
-  name?: string;
+  reducerPath: string;
   reducer: Reducer;
 }) => {
-  const path = newReducer.reducerPath || newReducer.name;
-
-  if (!path) {
-    console.error('Reducer path or name is missing', newReducer);
-    return;
-  }
-  middlewareReducers[path] = newReducer.reducer;
+  middlewareReducers[newReducer.reducerPath as string] = newReducer.reducer;
   store.replaceReducer(combineReducers(middlewareReducers));
 };
 
@@ -74,9 +67,7 @@ export const store = configureStore({
   // Empty reducer for now - the addMiddleware function
   // below will dynamically regenerate the reducers required
   // from the middleware functions.
-  reducer: {
-    init: (state = {}) => state,
-  },
+  reducer: {},
   // Adding the api middleware enables caching, invalidation, polling,
   // and other useful features of `rtk-query`.
   // Note: here we have added dynamicMiddleware.middleware

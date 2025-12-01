@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { createPublicClient, http } from 'viem';
-import type { WalletClient } from 'viem';
 import { useWallets } from '@privy-io/react-auth';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { WalletClient } from 'viem';
+import { createPublicClient, http } from 'viem';
 
 // Styles
 import './styles/tailwindKeyWallet.css';
@@ -9,25 +9,25 @@ import './styles/tailwindKeyWallet.css';
 // Hooks
 import useTransactionKit from '../../hooks/useTransactionKit';
 import type {
-  WalletProviderLike,
   Eip1193LikeProvider,
+  WalletProviderLike,
 } from '../../types/walletProvider';
 
 // Services
 import { pillarXApiWalletPortfolio } from '../../services/pillarXApiWalletPortfolio';
 
 // Components
-import WalletAddress from './components/WalletAddress';
 import AssetsList from './components/AssetsList';
 import SendAssetModal from './components/SendAssetModal';
 import TransactionStatus from './components/TransactionStatus';
+import WalletAddress from './components/WalletAddress';
 
 // Utils
-import {
-  transformPortfolioToAssets,
-  getTotalPortfolioValue,
-} from './utils/portfolio';
 import { getChainById } from './utils/blockchain';
+import {
+  getTotalPortfolioValue,
+  transformPortfolioToAssets,
+} from './utils/portfolio';
 
 // Types
 import { Asset, TransactionStatus as TxStatus } from './types';

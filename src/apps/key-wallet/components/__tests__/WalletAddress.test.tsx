@@ -1,12 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  act,
+  fireEvent,
   render,
   screen,
-  fireEvent,
   waitFor,
-  act,
 } from '@testing-library/react';
 import renderer from 'react-test-renderer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WalletAddress from '../WalletAddress';
 
 describe('<WalletAddress />', () => {

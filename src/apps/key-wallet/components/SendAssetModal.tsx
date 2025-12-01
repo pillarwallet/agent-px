@@ -1,5 +1,5 @@
 // Core
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 // Viem
 import { encodeFunctionData, erc20Abi, parseUnits } from 'viem';
@@ -11,11 +11,11 @@ import { Asset } from '../types';
 import {
   formatBalance,
   formatUsdValue,
+  getChainById,
+  getCurrentChainId,
+  isNativeAsset,
   sendTransaction,
   switchChain,
-  getCurrentChainId,
-  getChainById,
-  isNativeAsset,
 } from '../utils/blockchain';
 
 // Hooks
@@ -25,8 +25,8 @@ import useTransactionKit from '../../../hooks/useTransactionKit';
 import { getEIP7702AuthorizationIfNeeded } from '../../../utils/eip7702Authorization';
 
 // Assets
-import defaultLogo from '../images/logo-unknown.png';
 import type { WalletProviderLike } from '../../../types/walletProvider';
+import defaultLogo from '../images/logo-unknown.png';
 
 interface SendAssetModalProps {
   asset: Asset | null;

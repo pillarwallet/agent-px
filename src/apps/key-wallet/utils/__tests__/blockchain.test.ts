@@ -1,16 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Asset } from '../../types';
 import {
-  getChainById,
-  isNativeAsset,
-  switchChain,
-  getCurrentChainId,
-  sendTransaction,
-  getBlockExplorerUrl,
   formatBalance,
   formatUsdValue,
+  getBlockExplorerUrl,
+  getChainById,
+  getCurrentChainId,
+  isNativeAsset,
+  sendTransaction,
   shortenAddress,
+  switchChain,
 } from '../blockchain';
-import { Asset } from '../../types';
 
 // Mock viem functions
 vi.mock('viem', async () => {

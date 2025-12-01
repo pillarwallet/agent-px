@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { reconstructTrades, calculatePnL } from './pnl';
-import { MobulaTransactionRow } from '../types/api';
+import { describe, expect, it } from 'vitest';
+import { MobulaTransactionRow } from '../../types/api';
+import { calculatePnL, reconstructTrades } from '../pnl';
 
 describe('PnL Logic', () => {
   const walletAddress = '0x123';

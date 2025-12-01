@@ -1,5 +1,5 @@
 // Core
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 // Types
 import { Asset } from '../types';

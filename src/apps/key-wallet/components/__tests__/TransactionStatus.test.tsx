@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import renderer from 'react-test-renderer';
-import TransactionStatus from '../TransactionStatus';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TransactionStatus as TxStatus } from '../../types';
+import TransactionStatus from '../TransactionStatus';
 
 // Fixed timestamp for consistent test results
 const FIXED_TIMESTAMP = new Date('2023-01-01T12:00:00Z').getTime();
