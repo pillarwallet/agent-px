@@ -370,7 +370,6 @@ export function parseSearchData(
   const assets: Asset[] = [];
   const markets: Market[] = [];
 
-
   searchData.forEach((item) => {
     if (item.type === 'asset') {
       const assetResponse = item as TokenAssetResponse;
@@ -390,7 +389,6 @@ export function parseSearchData(
     }
   });
 
-
   // Deduplicate assets by ID
   const deduplicatedAssets = deduplicateAssetsBySymbol(assets);
 
@@ -400,7 +398,6 @@ export function parseSearchData(
     const hasValidMCap = asset.mCap && asset.mCap > 0;
     return hasValidVolume && hasValidMCap;
   });
-
 
   // Deduplicate markets by address + blockchain
   const uniqueMarkets = Array.from(

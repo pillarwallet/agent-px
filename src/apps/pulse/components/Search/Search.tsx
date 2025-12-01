@@ -7,19 +7,18 @@ import React, {
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { isAddress } from 'viem';
-import {
-  Token,
-  chainNameToChainIdTokensData,
-} from '../../../../services/tokensData';
+
+// types
 import { PortfolioData } from '../../../../types/api';
+import { SearchType, SelectedToken, SortType } from '../../types/tokens';
+
+// utils
 import { isTestnet } from '../../../../utils/blockchain';
 import {
   formatExponentialSmallNumber,
   limitDigitsNumber,
 } from '../../../../utils/number';
 import { useIsMobile } from '../../../../utils/media';
-import { useTokenSearch } from '../../hooks/useTokenSearch';
-import { SearchType, SelectedToken, SortType } from '../../types/tokens';
 import { MobulaChainNames, getChainId } from '../../utils/constants';
 import {
   Asset,
@@ -28,6 +27,21 @@ import {
   parseFreshAndTrendingTokens,
   parseSearchData,
 } from '../../utils/parseSearchData';
+import { getStableCurrencyBalanceOnEachChain } from '../../utils/utils';
+
+// services
+import {
+  Token,
+  chainNameToChainIdTokensData,
+} from '../../../../services/tokensData';
+
+// hooks
+import { useTokenSearch } from '../../hooks/useTokenSearch';
+
+// constants
+// (STABLE_CURRENCIES filtering is handled by getStableCurrencyBalanceOnEachChain utility)
+
+// components
 import Refresh from '../Misc/Refresh';
 import ChainOverlay from './ChainOverlay';
 import ChainSelectButton from './ChainSelect';
@@ -36,7 +50,11 @@ import PortfolioTokenList from './PortfolioTokenList';
 import SearchSkeleton from './SearchSkeleton';
 import Sort from './Sort';
 import TokenList from './TokenList';
+
+// assets
 import SearchIcon from '../../assets/seach-icon.svg';
+import ClearSearchIcon from '../../assets/clear-search-icon.svg';
+import BackArrowIcon from '../../assets/back-arrow-icon.svg';
 
 interface SearchProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
@@ -320,37 +338,29 @@ export default function Search({
   };
 
   /**
-   * Get the chain with the highest USDC balance from portfolio data
+   * Get the chain with the highest stable currency balance from portfolio data
    * Used for multi-chain asset selection
    */
   const getChainWithMostUSDC = (): number | null => {
-    if (!walletPortfolioData?.assets) return null;
+    if (!walletPortfolioData) return null;
 
-    // Find all USDC assets in the portfolio
-    const usdcAssets = walletPortfolioData.assets.filter(
-      (asset) =>
-        asset.asset.symbol.toUpperCase() === 'USDC' ||
-        asset.asset.name.toLowerCase().includes('usd coin')
+    // Use the same logic as HomeScreen to get stable currency balances per chain
+    // Wrap PortfolioData in the WalletPortfolioMobulaResponse structure expected by the utility
+    const stableBalance = getStableCurrencyBalanceOnEachChain({
+      result: { data: walletPortfolioData },
+    });
+    const maxStableBalance = Math.max(
+      ...Object.values(stableBalance).map((s) => s.balance)
     );
 
-    if (usdcAssets.length === 0) return null;
+    // Find the chain ID with the highest stable currency balance
+    const chainIdOfMaxBalance = Number(
+      Object.keys(stableBalance).find(
+        (key) => stableBalance[Number(key)].balance === maxStableBalance
+      ) || null
+    );
 
-    // Find the chain with the highest USDC balance
-    let maxBalance = 0;
-    let bestChainId: number | null = null;
-
-    usdcAssets.forEach((usdcAsset) => {
-      usdcAsset.contracts_balances.forEach((balance) => {
-        if (balance.balance > maxBalance) {
-          maxBalance = balance.balance;
-          // Extract chain ID from chainId string (format: "eip155:1")
-          const chainIdStr = balance.chainId.split(':')[1];
-          bestChainId = parseInt(chainIdStr, 10);
-        }
-      });
-    });
-
-    return bestChainId;
+    return chainIdOfMaxBalance > 0 ? chainIdOfMaxBalance : null;
   };
 
   const handleSearchTypeChange = (index: number) => {
@@ -426,7 +436,7 @@ export default function Search({
             limitDigitsNumber(item.price || 0)
           ),
           dailyPriceChange:
-            'priceChange24h' in item ? item.priceChange24h || -0.02 : -0.02,
+            'priceChange24h' in item ? item.priceChange24h || 0.0 : 0.0,
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,
@@ -459,7 +469,7 @@ export default function Search({
           limitDigitsNumber(item.price || 0)
         ),
         dailyPriceChange:
-          'priceChange24h' in item ? item.priceChange24h || -0.02 : -0.02,
+          'priceChange24h' in item ? item.priceChange24h || 0.0 : 0.0,
         decimals: item.decimals,
         address: item.contract,
       };
@@ -521,7 +531,6 @@ export default function Search({
         }`}
         data-testid="pulse-search-modal"
       >
-        {/* Fixed header section */}
         <div className="flex-shrink-0">
           {/* Header: Back/Search bar, Refresh, Chain selector */}
           <div className="flex items-center gap-2 px-1.5 pt-1.5 pb-2">
@@ -535,15 +544,7 @@ export default function Search({
                 aria-label="Go back"
               >
                 <div className="flex items-center justify-center w-full h-full bg-[#1E1D24] rounded-[8px] group-hover:bg-[#2A2A2A] transition-colors">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M15 18L9 12L15 6"
-                      stroke="white"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <img src={BackArrowIcon} alt="Go back" />
                 </div>
               </button>
             )}
@@ -576,14 +577,7 @@ export default function Search({
                   type="button"
                   aria-label="Clear search"
                 >
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                    <path
-                      d="M15 5L5 15M5 5L15 15"
-                      stroke="white"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                  <img src={ClearSearchIcon} alt="Clear search" />
                 </button>
               )}
             </div>

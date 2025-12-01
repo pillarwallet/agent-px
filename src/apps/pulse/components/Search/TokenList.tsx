@@ -57,11 +57,10 @@ export default function TokenList(props: TokenListProps) {
   if (assets) {
     return (
       <>
-        {!hideHeaders && (searchType === SearchType.Trending ||
-          searchType === SearchType.Fresh) && (
-            <div
-              className="flex mt-2.5 mb-2.5 text-[13px] font-normal text-gray-400"
-            >
+        {!hideHeaders &&
+          (searchType === SearchType.Trending ||
+            searchType === SearchType.Fresh) && (
+            <div className="flex mt-2.5 mb-2.5 text-[13px] font-normal text-gray-400">
               <div className="flex ml-2.5">
                 <button
                   onClick={() => {
@@ -183,14 +182,12 @@ export default function TokenList(props: TokenListProps) {
                   />
                 )}
               </div>
-              <div
-                className="flex flex-col flex-1 min-w-0 ml-2.5 justify-center"
-              >
+              <div className="flex flex-col flex-1 min-w-0 ml-2.5 justify-center">
                 <div className="flex items-center min-w-0">
-                  <p className="text-[13px] font-normal flex-shrink-0 text-white">{item.symbol}</p>
-                  <p
-                    className="text-xs font-normal ml-1 text-[#858585] truncate"
-                  >
+                  <p className="text-[13px] font-normal flex-shrink-0 text-white">
+                    {item.symbol}
+                  </p>
+                  <p className="text-xs font-normal ml-1 text-[#858585] truncate">
                     {item.name}
                   </p>
                 </div>
@@ -200,11 +197,21 @@ export default function TokenList(props: TokenListProps) {
                       {formatElapsedTime(item.timestamp)}
                     </p>
                   )}
-                  <p className="text-[#858585]">MCap: <span className="text-white">${formatBigNumber(item.mCap || 0)}</span></p>
-                  <p className="ml-1 text-[#858585]">Vol: <span className="text-white">${formatBigNumber(item.volume || 0)}</span></p>
+                  <p className="text-[#858585]">
+                    MCap:{' '}
+                    <span className="text-white">
+                      ${formatBigNumber(item.mCap || 0)}
+                    </span>
+                  </p>
+                  <p className="ml-1 text-[#858585]">
+                    Vol:{' '}
+                    <span className="text-white">
+                      ${formatBigNumber(item.volume || 0)}
+                    </span>
+                  </p>
                 </div>
               </div>
-              <div className="flex flex-col ml-auto mr-2.5" style={{ width: '100px', alignItems: 'flex-end' }}>
+              <div className="flex flex-col ml-auto mr-2.5 w-[100px] items-end">
                 <div>
                   <TokenPrice value={item.price || 0} />
                 </div>

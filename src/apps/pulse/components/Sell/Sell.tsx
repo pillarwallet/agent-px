@@ -200,7 +200,7 @@ const Sell = (props: SellProps) => {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-        token.chainId && isNativeToken(t.contract)
+          token.chainId && isNativeToken(t.contract)
     );
     if (!nativeToken) {
       setMinGasAmount(true);
@@ -413,10 +413,11 @@ const Sell = (props: SellProps) => {
                 </>
               ) : (
                 <input
-                  className={`no-spinner flex mobile:text-4xl xs:text-4xl desktop:text-4xl tablet:text-4xl font-medium text-right ${token
-                    ? 'flex-1 desktop:w-40 tablet:w-40 mobile:w-32 xs:w-full'
-                    : 'flex-1 desktop:w-60 tablet:w-60 mobile:w-56 xs:w-full'
-                    }`}
+                  className={`no-spinner flex mobile:text-4xl xs:text-4xl desktop:text-4xl tablet:text-4xl font-medium text-right ${
+                    token
+                      ? 'flex-1 desktop:w-40 tablet:w-40 mobile:w-32 xs:w-full'
+                      : 'flex-1 desktop:w-60 tablet:w-60 mobile:w-56 xs:w-full'
+                  }`}
                   placeholder={inputPlaceholder}
                   onChange={handleTokenAmountChange}
                   value={tokenAmount}
@@ -513,10 +514,11 @@ const Sell = (props: SellProps) => {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
-                  ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
-                  : 'bg-[#121116] text-white cursor-pointer'
-                  }`}
+                className={`flex-1 items-center justify-center rounded-[10px] ${
+                  isDisabled
+                    ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
+                    : 'bg-[#121116] text-white cursor-pointer'
+                }`}
                 onClick={() => {
                   if (!isDisabled) {
                     setShowNumInP(true);

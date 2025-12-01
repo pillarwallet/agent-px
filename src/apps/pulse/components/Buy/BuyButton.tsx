@@ -116,10 +116,10 @@ export interface BuyButtonProps {
   payingTokens: PayingToken[];
   handleBuySubmit: () => Promise<void>;
   expressIntentResponse:
-  | ExpressIntentResponse
-  | BuyOffer
-  | null
-  | { error: string };
+    | ExpressIntentResponse
+    | BuyOffer
+    | null
+    | { error: string };
   usdAmount: string;
   notEnoughLiquidity: boolean;
   useRelayBuy: boolean;

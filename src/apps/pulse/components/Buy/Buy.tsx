@@ -181,7 +181,7 @@ export default function Buy(props: BuyProps) {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-        maxStableCoinBalance.chainId && isNativeToken(t.contract)
+          maxStableCoinBalance.chainId && isNativeToken(t.contract)
     );
 
     if (!nativeToken) {
@@ -751,10 +751,11 @@ export default function Buy(props: BuyProps) {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
-                  ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
-                  : 'bg-[#121116] text-white cursor-pointer'
-                  }`}
+                className={`flex-1 items-center justify-center rounded-[10px] ${
+                  isDisabled
+                    ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
+                    : 'bg-[#121116] text-white cursor-pointer'
+                }`}
                 onClick={() => {
                   if (!isDisabled) {
                     if (isMax) {
