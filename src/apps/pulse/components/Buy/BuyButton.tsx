@@ -157,8 +157,9 @@ export default function BuyButton(props: BuyButtonProps) {
       !token ||
       !(parseFloat(usdAmount) > 0) ||
       !expressIntentResponse ||
-      !!(expressIntentResponse as { error: string }).error ||
-      (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0
+      ('error' in expressIntentResponse && !!expressIntentResponse.error) ||
+      ('bids' in expressIntentResponse &&
+        (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0)
     );
   };
 
