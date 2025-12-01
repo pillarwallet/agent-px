@@ -38,9 +38,6 @@ import {
 // hooks
 import { useTokenSearch } from '../../hooks/useTokenSearch';
 
-// constants
-// (STABLE_CURRENCIES filtering is handled by getStableCurrencyBalanceOnEachChain utility)
-
 // components
 import Refresh from '../Misc/Refresh';
 import ChainOverlay from './ChainOverlay';
@@ -103,6 +100,7 @@ export default function Search({
     isBuy ? SearchType.Trending : undefined
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
   const [parsedAssets, setParsedAssets] = useState<Asset[]>();
   const MIN_LIQUIDITY_THRESHOLD = 1000;
 
@@ -131,6 +129,8 @@ export default function Search({
     }
     // Reset sort when search changes
     setSearchSort({});
+    // Reset error state when new search is initiated
+    setIsError(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, searchData]);
 
@@ -332,6 +332,7 @@ export default function Search({
         })
         .catch((err) => {
           setIsLoading(false);
+          setIsError(true);
           console.error(err);
         });
     }
@@ -454,7 +455,7 @@ export default function Search({
           usdValue: formatExponentialSmallNumber(
             limitDigitsNumber(item.price || 0)
           ),
-          dailyPriceChange: -0.02,
+          dailyPriceChange: 0.0,
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,
@@ -696,9 +697,22 @@ export default function Search({
           {/* Show skeleton during loading */}
           {(isFetching || isLoading) && <SearchSkeleton />}
 
+          {/* Show error message if loading failed */}
+          {isError && !isLoading && (
+            <div className="flex items-center justify-center m-[50px]">
+              <div className="text-center">
+                <p className="text-red-500 mb-2">⚠️ Loading Failed</p>
+                <p className="text-gray-500 text-sm">
+                  Unable to load results. Please try again.
+                </p>
+              </div>
+            </div>
+          )}
+
           {!searchText &&
             parsedAssets === undefined &&
-            searchType !== SearchType.MyHoldings && (
+            searchType !== SearchType.MyHoldings &&
+            !isError && (
               <div className="flex items-center justify-center m-[50px]">
                 <p className="text-gray-500">
                   Search by token or paste address...
