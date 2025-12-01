@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { fetchRelayRequestByHash, RelayRequest } from '../services/relayApi';
+import { useCallback, useEffect, useState } from 'react';
+import { RelayRequest, fetchRelayRequestByHash } from '../services/relayApi';
+import { Token } from '../services/tokensData';
+import { PnLMetrics, WalletTransactionsMobulaResponse } from '../types/api';
 import {
   calculatePnLFromRelay,
   calculatePnL as computePnLMetrics,
 } from '../utils/pnl';
-import { Token } from '../services/tokensData';
-import { PnLMetrics, WalletTransactionsMobulaResponse } from '../types/api';
 
 interface UseTokenPnLProps {
   token: Token;
@@ -30,7 +30,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const [result, setResult] = useState<TokenPnLResult>({
     pnl: null,
     isLoading: false,
-    refetch: () => { },
+    refetch: () => {},
     debug: {
       mobulaTxCount: 0,
       relayRequestCount: 0,
@@ -199,7 +199,9 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
 
         if (!isMounted) return;
 
-        relayRequests.push(...relayResults.filter((req) => req !== null));
+        relayRequests.push(
+          ...relayResults.filter((req): req is RelayRequest => req !== null)
+        );
 
         if (!isMounted) return;
 

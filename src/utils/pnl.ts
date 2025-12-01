@@ -1,4 +1,7 @@
+// services
 import { RelayRequest, fetchRelayRequestByHash } from '../services/relayApi';
+
+// types
 import {
   MobulaTransactionRow,
   PnLMetrics,
