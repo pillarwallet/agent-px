@@ -130,7 +130,7 @@ export const calculatePnL = (
       totalCostUSDC += trade.amountQuoteUSDC;
     } else {
       // SELL
-      if (totalTokens === 0) return; // Selling without inventory (shouldn't happen in perfect history)
+      if (totalTokens <= 0) return; // Selling without inventory (handles zero and negative cases)
 
       const wac = totalCostUSDC / totalTokens;
       const costBasis = trade.amountToken * wac;
@@ -411,10 +411,10 @@ export const calculatePnLFromRelay = (
         if (isBuy) {
           side = 'BUY';
           amountToken = parseFloat(currencyOut.amountFormatted || '0');
+          const inSymbol = currencyIn.currency?.symbol?.toUpperCase();
           if (
             inAddress &&
-            (USDC_ADDRESSES.includes(inAddress) ||
-              currencyIn.currency?.symbol === 'USDC')
+            (USDC_ADDRESSES.includes(inAddress) || inSymbol === 'USDC')
           ) {
             amountUSDC = parseFloat(currencyIn.amountFormatted || '0');
           } else {
@@ -423,10 +423,10 @@ export const calculatePnLFromRelay = (
         } else if (isSell) {
           side = 'SELL';
           amountToken = parseFloat(currencyIn.amountFormatted || '0');
+          const outSymbol = currencyOut.currency?.symbol?.toUpperCase();
           if (
             outAddress &&
-            (USDC_ADDRESSES.includes(outAddress) ||
-              currencyOut.currency?.symbol === 'USDC')
+            (USDC_ADDRESSES.includes(outAddress) || outSymbol === 'USDC')
           ) {
             amountUSDC = parseFloat(currencyOut.amountFormatted || '0');
           } else {
@@ -444,7 +444,13 @@ export const calculatePnLFromRelay = (
 
         const { tokenChange, usdcChange, latestTimestamp } = allTxs.reduce(
           (acc, tx) => {
-            if (tx.timestamp) acc.latestTimestamp = tx.timestamp;
+            if (tx.timestamp) {
+              // Normalize Relay tx timestamp to seconds to match other producers
+              acc.latestTimestamp =
+                tx.timestamp > 1e12
+                  ? Math.floor(tx.timestamp / 1000)
+                  : tx.timestamp;
+            }
             if (tx.stateChanges) {
               tx.stateChanges.forEach((sc) => {
                 if (sc.address?.toLowerCase() === userAddress) {
