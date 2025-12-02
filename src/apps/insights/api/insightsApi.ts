@@ -1,0 +1,141 @@
+/**
+ * Insights App API Service
+ * Handles all API calls to Firebase Functions for the Insights app
+ */
+
+// TODO: Get Firebase Functions base URL from environment/config
+const getBaseUrl = () => {
+  // In production, this should be the actual Firebase Functions URL
+  // For now, using a placeholder - should be configured via environment variable
+  return process.env.VITE_PILLARX_APPS_SERVICE_HOST || 'http://localhost:5000/pillarx-staging/us-central1';
+};
+
+/**
+ * Fetch sparkline data for a trading signal
+ */
+export const fetchSparklineData = async (ticker: string, startTime: number, endTime: number) => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/insights/sparkline-data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ticker,
+        startTime,
+        endTime,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching sparkline data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all trading signals
+ */
+export const getTradingSignals = async () => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/insights/trading-signals`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching trading signals:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update signal prices
+ */
+export const updateSignalPrices = async () => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/insights/update-signal-prices`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error updating signal prices:', error);
+    return { data: null, error };
+  }
+};
+
+/**
+ * Recalculate historical PnL
+ */
+export const recalculateHistoricalPnL = async (signalId?: string) => {
+  try {
+    const url = `${getBaseUrl()}/insights/recalculate-historical-pnl`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(signalId ? { id: signalId } : {}),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error recalculating historical PnL:', error);
+    return { data: null, error };
+  }
+};
+
+/**
+ * Webhook receiver for trading signals
+ */
+export const webhookReceiver = async (signalData: any) => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/insights/webhook-receiver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(signalData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error in webhook receiver:', error);
+    throw error;
+  }
+};
+
