@@ -7,7 +7,7 @@
 const getBaseUrl = () => {
   // In production, this should be the actual Firebase Functions URL
   // For now, using a placeholder - should be configured via environment variable
-  return process.env.VITE_PILLARX_APPS_SERVICE_HOST || 'http://localhost:5000/pillarx-staging/us-central1';
+  return import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 'http://localhost:5000/pillarx-staging/us-central1';
 };
 
 /**

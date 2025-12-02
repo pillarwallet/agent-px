@@ -8,11 +8,6 @@
 
 import { fetchSparklineData, getTradingSignals, updateSignalPrices } from '../api/insightsApi';
 
-// Get Firebase Functions base URL
-const getBaseUrl = () => {
-  return process.env.VITE_FIREBASE_FUNCTIONS_URL || 'https://us-central1-pillarx-76235.cloudfunctions.net';
-};
-
 /**
  * Mock Supabase client that translates calls to Firebase API
  */
