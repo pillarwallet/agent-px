@@ -65,7 +65,7 @@ interface SearchProps {
   walletPortfolioFetching?: boolean;
   walletPortfolioError?: boolean;
   refetchWalletPortfolio?: () => void;
-  isSearchingFromTopup?: boolean;
+  isSearchingFromTopup?: boolean; // For onboarding: show stable coins in portfolio search
 }
 
 const overlayStyling = {
@@ -837,6 +837,7 @@ export default function Search({
                 isLoading={walletPortfolioLoading}
                 isError={walletPortfolioError}
                 searchText={searchText}
+                includeStableCoins={isSearchingFromTopup}
               />
             </div>
           )}

@@ -12,7 +12,6 @@ import { BuyOffer } from '../../hooks/useRelayBuy';
 import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsFormatted/HighDecimalsFormatted';
 
 // utils
-import { getChainName } from '../../utils/constants';
 import { limitDigitsNumber } from '../../../../utils/number';
 
 function getButtonText(
