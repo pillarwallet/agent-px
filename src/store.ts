@@ -19,6 +19,7 @@ import { pillarXApiPresence } from './services/pillarXApiPresence';
 import { pillarXApiTransactionsHistory } from './services/pillarXApiTransactionsHistory';
 import { pillarXApiWaitlist } from './services/pillarXApiWaitlist';
 import { pillarXApiWalletTransactions } from './services/pillarXApiWalletTransactions';
+import { relayApi } from './services/relayApi';
 
 // Initialisation
 const dynamicMiddleware = createDynamicMiddleware();
@@ -86,6 +87,7 @@ addMiddleware(pillarXApiWaitlist);
 addMiddleware(pillarXApiPresence);
 addMiddleware(pillarXApiTransactionsHistory);
 addMiddleware(pillarXApiWalletTransactions);
+addMiddleware(relayApi);
 addReducer(swapSlice);
 addReducer(tokenAtlasSlice);
 addReducer(depositSlice);

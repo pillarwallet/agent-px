@@ -1,10 +1,10 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useTokenPnL } from '../../../../hooks/useTokenPnL';
-import { WalletTransactionsMobulaResponse } from '../../../../types/api';
 import { PortfolioToken } from '../../../../services/tokensData';
+import { WalletTransactionsMobulaResponse } from '../../../../types/api';
 import {
-  limitDigitsNumber,
   formatExponentialSmallNumber,
+  limitDigitsNumber,
 } from '../../../../utils/number';
 
 interface TokenPnLCellProps {
@@ -31,11 +31,12 @@ export const TokenPnLCell = ({
     token && walletAddress // Conditional hook call
       ? {
           token: {
-            ...token,
-            balance: token.balance, // Added balance
-            price: token.price, // Added price
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any, // Cast to any
+            contract: token.contract,
+            symbol: token.symbol,
+            decimals: token.decimals,
+            balance: token.balance,
+            price: token.price,
+          },
           transactionsData,
           walletAddress,
           chainId,

@@ -31,13 +31,13 @@ import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsF
 import RandomAvatar from '../../../pillarx-app/components/RandomAvatar/RandomAvatar';
 import ArrowDown from '../../assets/arrow-down.svg';
 import WarningIcon from '../../assets/warning.svg';
-import SellButton from './SellButton';
 import PnLStats from '../PnLStats/PnLStats';
+import SellButton from './SellButton';
 
 // hooks
-import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 import { useTokenPnL } from '../../../../hooks/useTokenPnL';
 import useTransactionKit from '../../../../hooks/useTransactionKit';
+import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 
 // services
 import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
@@ -106,22 +106,18 @@ const Sell = (props: SellProps) => {
     refetch: refetchPnL,
   } = useTokenPnL(
     token && accountAddress && portfolioToken
-      ? ({
+      ? {
           token: {
-            ...token,
             contract: token.address || '',
-            id: token.symbol,
-            blockchain: 'ethereum',
+            symbol: token.symbol,
+            decimals: token.decimals || 18,
             balance: portfolioToken.balance || 0,
             price: portfolioToken.price || 0,
-            decimals: token.decimals || 18,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
+          },
           transactionsData,
           walletAddress: accountAddress,
           chainId: token.chainId,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        }
       : null
   );
 

@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { TailSpin } from 'react-loader-spinner';
 
 // types
@@ -21,47 +21,13 @@ import { STABLE_CURRENCIES } from '../../constants/tokens';
 
 // components
 import RandomAvatar from '../../../pillarx-app/components/RandomAvatar/RandomAvatar';
+import SkeletonTokenRow from './SkeletonTokenRow';
+import SortIndicator from './SortIndicator';
 import TokenPnLCell from './TokenPnLCell';
 
 // hooks
 import useTransactionKit from '../../../../hooks/useTransactionKit';
 import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
-
-// Sort indicator component
-const SortIndicator = ({
-  active,
-  direction,
-}: {
-  active: boolean;
-  direction: 'asc' | 'desc';
-}) => (
-  <div className="flex flex-col w-2 h-[14px] justify-center gap-[2px]">
-    {/* Up Arrow - Polygon 50 */}
-    <svg
-      width="8"
-      height="6"
-      viewBox="0 0 8 6"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="transition-opacity"
-      style={{ opacity: active && direction === 'asc' ? 1 : 0.3 }}
-    >
-      <path d="M4 0L7.4641 6H0.535898L4 0Z" fill="white" />
-    </svg>
-    {/* Down Arrow - Polygon 51 */}
-    <svg
-      width="8"
-      height="6"
-      viewBox="0 0 8 6"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="transition-opacity"
-      style={{ opacity: active && direction === 'desc' ? 1 : 0.3 }}
-    >
-      <path d="M4 6L0.535898 0L7.4641 0L4 6Z" fill="white" />
-    </svg>
-  </div>
-);
 
 export interface PortfolioTokenListProps {
   walletPortfolioData: PortfolioData | undefined;
@@ -72,27 +38,6 @@ export interface PortfolioTokenListProps {
   hideSmallBalances: boolean;
   isFetching?: boolean;
 }
-
-// Skeleton loader component
-const SkeletonTokenRow = () => (
-  <div className="flex w-full rounded-[10px] h-[60px] py-3 px-6 animate-pulse">
-    <div className="flex items-center flex-[2.2] min-w-0">
-      <div className="w-8 h-8 rounded-full bg-white/10" />
-      <div className="flex flex-col ml-3 min-w-0 gap-2">
-        <div className="h-3 w-20 bg-white/10 rounded" />
-        <div className="h-2 w-16 bg-white/10 rounded" />
-      </div>
-    </div>
-    <div className="flex flex-col flex-1 items-end justify-center gap-2">
-      <div className="h-3 w-16 bg-white/10 rounded" />
-      <div className="h-2 w-12 bg-white/10 rounded" />
-    </div>
-    <div className="flex flex-col flex-[1.6] items-end justify-center gap-2">
-      <div className="h-3 w-14 bg-white/10 rounded" />
-      <div className="h-2 w-10 bg-white/10 rounded" />
-    </div>
-  </div>
-);
 
 const PortfolioTokenList = (props: PortfolioTokenListProps) => {
   const {

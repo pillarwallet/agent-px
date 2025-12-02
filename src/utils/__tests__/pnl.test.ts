@@ -5,7 +5,8 @@ import { calculatePnL, reconstructTrades } from '../pnl';
 describe('PnL Logic', () => {
   const walletAddress = '0x123';
   const tokenAddress = '0xToken';
-  const usdcAddress = '0xUSDC';
+  // Use actual USDC address from allStableCurrencies (Ethereum mainnet)
+  const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
 
   const buyTxHash = '0xBuyTx';
   const sellTxHash = '0xSellTx';

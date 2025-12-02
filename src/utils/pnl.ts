@@ -1,5 +1,6 @@
 // services
-import { RelayRequest, fetchRelayRequestByHash } from '../services/relayApi';
+import { RelayRequest } from '../services/relayApi';
+import { fetchRelayRequestByHash } from '../services/relayApiAsync';
 
 // types
 import {
@@ -7,6 +8,15 @@ import {
   PnLMetrics,
   ReconstructedTrade,
 } from '../types/api';
+
+// constants
+import { allStableCurrencies } from '../apps/pulse/constants/tokens';
+
+// Extract USDC addresses from allStableCurrencies
+const USDC_ADDRESSES = allStableCurrencies.map(
+  (currency: { chainId: number; address: string }) =>
+    currency.address.toLowerCase()
+);
 
 export const reconstructTrades = (
   transactions: MobulaTransactionRow[],
@@ -49,14 +59,15 @@ export const reconstructTrades = (
         return;
       }
 
-      if (symbol === 'USDC' || symbol === 'USDT' || symbol === 'DAI') {
-        // Treat stablecoins as Quote. User specifically mentioned USDC, but usually USDT/DAI are also quotes.
-        // User said: "Identify quote USDC = rows where asset.symbol == USDC."
-        // I will stick to USDC for now as per strict requirement, maybe add others if needed.
-        if (symbol === 'USDC') {
-          if (isInbound) usdcChange += amount;
-          if (isOutbound) usdcChange -= amount;
-        }
+      // Check if this is a USDC transaction by matching address
+      const txContract =
+        (tx.asset.contracts && tx.asset.contracts[0]) || tx.asset.contract;
+      const isUSDC =
+        txContract && USDC_ADDRESSES.includes(txContract.toLowerCase());
+
+      if (isUSDC) {
+        if (isInbound) usdcChange += amount;
+        if (isOutbound) usdcChange -= amount;
       } else if (tokenSymbol && tokenSymbol !== symbol) {
         // Base Token
         // If we already found a DIFFERENT base token in this tx, it's a multi-token trade (unsupported).
@@ -250,12 +261,6 @@ export const getRelayValidatedTrades = async (
       if (!relayReq) return null;
 
       // Check if USDC is involved in the Relay transaction (via stateChanges)
-      const USDC_ADDRESSES = [
-        '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // Base USDC
-        '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // Ethereum USDC
-        '0x3c499c54b84a76ad7e9c93437bfc5ac33e2ddae9', // Polygon USDC
-        '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // BSC USDC
-      ];
 
       let hasUSDCInRelay = false;
       let usdcAmount = 0;
@@ -314,9 +319,7 @@ export const getRelayValidatedTrades = async (
               // Check if this is a USDC state change for the user
               if (
                 tokenAddr &&
-                USDC_ADDRESSES.some(
-                  (addr) => addr.toLowerCase() === tokenAddr
-                ) &&
+                USDC_ADDRESSES.some((addr: string) => addr === tokenAddr) &&
                 changeAddress === userAddress
               ) {
                 hasUSDCInRelay = true;
@@ -385,14 +388,6 @@ export const calculatePnLFromRelay = (
   const tokenContract = token.address.toLowerCase();
 
   // Known USDC addresses for matching quote currency
-  const USDC_ADDRESSES = [
-    '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // Base USDC
-    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // Ethereum USDC
-    '0x3c499c54b84a76ad7e9c93437bfc5ac33e2ddae9', // Polygon USDC
-    '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // BSC USDC
-    '0xaf88d065e77c8cc2239327c5edb3a432268e5831', // Arbitrum USDC
-    '0x0b2c639c533813f4aa9d7837caf992837bd5787f', // Optimism USDC
-  ];
 
   const trades = relayRequests
     .map((req) => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RelayRequest, fetchRelayRequestByHash } from '../services/relayApi';
-import { Token } from '../services/tokensData';
+import { RelayRequest } from '../services/relayApi';
+import { fetchRelayRequestByHash } from '../services/relayApiAsync';
 import { PnLMetrics, WalletTransactionsMobulaResponse } from '../types/api';
 import {
   calculatePnLFromRelay,
@@ -8,7 +8,13 @@ import {
 } from '../utils/pnl';
 
 interface UseTokenPnLProps {
-  token: Token;
+  token: {
+    contract: string;
+    symbol: string;
+    decimals: number;
+    balance?: number;
+    price?: number;
+  };
   transactionsData: WalletTransactionsMobulaResponse | undefined;
   walletAddress: string | undefined;
   chainId: number;
@@ -37,13 +43,6 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
       relayResponseCount: 0,
       status: 'Idle',
     },
-  });
-
-  // eslint-disable-next-line no-console
-  console.log('[useTokenPnL] Hook render', {
-    tokenSymbol: props?.token?.symbol,
-    isLoading: result.isLoading,
-    pnl: result.pnl,
   });
 
   const token = props?.token;
@@ -100,12 +99,6 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     let isMounted = true;
 
     const calculatePnL = async (): Promise<void> => {
-      // eslint-disable-next-line no-console
-      console.log('[useTokenPnL] calculatePnL start', {
-        hasTransactions: !!transactions,
-        walletAddress: !!walletAddress,
-      });
-
       // Skip if no data
       if (!transactions || !walletAddress) {
         if (isMounted)
@@ -267,8 +260,6 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
               debug: { ...prev.debug, status: 'Complete' },
             }));
           }
-          // eslint-disable-next-line no-console
-          console.log('[useTokenPnL] Calculation complete', pnlMetrics);
         }
       } catch (error) {
         console.error(`Error calculating PnL for ${tokenSymbol}:`, error);

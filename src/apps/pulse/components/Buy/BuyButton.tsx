@@ -1,5 +1,6 @@
 import { ExpressIntentResponse } from '@etherspot/intent-sdk/dist/cjs/sdk/types/user-intent-types';
 import { TailSpin } from 'react-loader-spinner';
+import { BuyOffer } from '../../hooks/useRelayBuy';
 import { PayingToken, SelectedToken } from '../../types/tokens';
 import { getChainName } from '../../utils/constants';
 
@@ -85,7 +86,11 @@ export interface BuyButtonProps {
   debouncedUsdAmount: string;
   payingTokens: PayingToken[];
   handleBuySubmit: () => Promise<void>;
-  expressIntentResponse: ExpressIntentResponse | null | { error: string };
+  expressIntentResponse:
+    | ExpressIntentResponse
+    | BuyOffer
+    | null
+    | { error: string };
   usdAmount: string;
   notEnoughLiquidity: boolean;
 }
@@ -115,13 +120,26 @@ export default function BuyButton(props: BuyButtonProps) {
     if (!areModulesInstalled && payingTokens.length > 0) {
       return false;
     }
+    // Check if it's an error object
+    if ((expressIntentResponse as { error?: string })?.error) {
+      return true;
+    }
+    // Check if it's ExpressIntentResponse with no bids
+    if ('bids' in (expressIntentResponse || {})) {
+      return (
+        isLoading ||
+        !token ||
+        !(parseFloat(usdAmount) > 0) ||
+        !expressIntentResponse ||
+        (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0
+      );
+    }
+    // For BuyOffer or other types, just check basic conditions
     return (
       isLoading ||
       !token ||
       !(parseFloat(usdAmount) > 0) ||
-      !expressIntentResponse ||
-      !!(expressIntentResponse as { error: string }).error ||
-      (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0
+      !expressIntentResponse
     );
   };
 

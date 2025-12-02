@@ -16,9 +16,9 @@ import { addMiddleware } from '../store';
 // utils
 import {
   CompatibleChains,
+  getWrappedTokenSymbol,
   isTestnet,
   isWrappedNativeToken,
-  getWrappedTokenSymbol,
 } from '../utils/blockchain';
 
 // services
@@ -190,7 +190,6 @@ export const pillarXApiWalletPortfolio = createApi({
           },
         };
       },
-      keepUnusedDataFor: 300, // Cache for 5 minutes
     }),
   }),
 });

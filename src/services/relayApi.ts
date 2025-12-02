@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { createApi, fetchBaseQuery, retry } from '@reduxjs/toolkit/query/react';
 
 export interface RelayRequest {
   id: string;
@@ -105,76 +105,65 @@ export interface RelayRequestsResponse {
 
 const RELAY_API_URL = 'https://api.relay.link';
 
-export const fetchRelayRequests = async (
-  userAddress: string,
-  status: string = 'filled'
-): Promise<RelayRequest[]> => {
-  try {
-    const response = await axios.get<RelayRequestsResponse>(
-      `${RELAY_API_URL}/requests`,
-      {
-        params: {
-          user: userAddress,
-          status,
-        },
-        timeout: 5000,
-      }
-    );
-    return response.data.requests || [];
-  } catch (error) {
-    console.error('Failed to fetch Relay requests:', error);
-    return [];
-  }
-};
+const fetchBaseQueryWithRetry = retry(
+  fetchBaseQuery({
+    baseUrl: RELAY_API_URL,
+    timeout: 5000,
+  }),
+  { maxRetries: 2 }
+);
 
-export const fetchRelayRequestByHash = async (
-  txHash: string
-): Promise<RelayRequest | null> => {
-  try {
-    const response = await axios.get<{ requests: RelayRequest[] }>(
-      `${RELAY_API_URL}/requests/v2`,
-      {
-        params: {
-          hash: txHash,
-        },
-        timeout: 5000,
-      }
-    );
-    // v2 API returns { requests: [...] }
-    const requests = response.data?.requests || [];
-    return requests.length > 0 ? requests[0] : null;
-  } catch (error) {
-    // 404 means transaction not found in Relay, which is expected
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return null;
-    }
-    console.error(`Failed to fetch Relay request for hash ${txHash}:`, error);
-    return null;
-  }
-};
-export const fetchRelayRequestsByUser = async (
-  userAddress: string
-): Promise<RelayRequest[]> => {
-  try {
-    const response = await axios.get('https://api.relay.link/requests/v2', {
-      params: {
-        user: userAddress,
+export const relayApi = createApi({
+  reducerPath: 'relayApi',
+  baseQuery: fetchBaseQueryWithRetry,
+  endpoints: (builder) => ({
+    getRelayRequests: builder.query<
+      RelayRequest[],
+      { user: string; status?: string }
+    >({
+      query: ({ user, status = 'filled' }) => ({
+        url: '/requests',
+        params: { user, status },
+      }),
+      transformResponse: (response: RelayRequestsResponse) =>
+        response.requests || [],
+    }),
+    getRelayRequestByHash: builder.query<RelayRequest | null, string>({
+      query: (hash) => ({
+        url: '/requests/v2',
+        params: { hash },
+      }),
+      transformResponse: (response: { requests?: RelayRequest[] }) => {
+        const requests = response?.requests || [];
+        return requests.length > 0 ? requests[0] : null;
       },
-      timeout: 5000,
-    });
+    }),
+    getRelayRequestsByUser: builder.query<RelayRequest[], string>({
+      query: (user) => ({
+        url: '/requests/v2',
+        params: { user },
+      }),
+      transformResponse: (
+        response: { requests?: RelayRequest[] } | RelayRequest[]
+      ) => {
+        if (Array.isArray(response)) {
+          return response;
+        }
+        if (
+          response &&
+          'requests' in response &&
+          Array.isArray(response.requests)
+        ) {
+          return response.requests;
+        }
+        return [];
+      },
+    }),
+  }),
+});
 
-    if (response.data && Array.isArray(response.data.requests)) {
-      return response.data.requests;
-    }
-
-    // Fallback if structure is different (e.g. just array)
-    if (Array.isArray(response.data)) {
-      return response.data;
-    }
-
-    return [];
-  } catch (error) {
-    console.error('Error fetching Relay requests by user:', error);
-    return [];
-  }
-};
+export const {
+  useGetRelayRequestsQuery,
+  useGetRelayRequestByHashQuery,
+  useGetRelayRequestsByUserQuery,
+} = relayApi;
