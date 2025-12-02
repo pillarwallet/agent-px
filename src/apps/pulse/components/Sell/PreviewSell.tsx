@@ -42,6 +42,7 @@ interface PreviewSellProps {
   onSellOfferUpdate?: (offer: SellOffer | null) => void;
   setSellFlowPaused?: (paused: boolean) => void;
   userPortfolio?: PortfolioToken[];
+  gasTankBalance?: number; // Gas tank balance to validate transaction
 }
 
 const PreviewSell = (props: PreviewSellProps) => {
@@ -55,6 +56,7 @@ const PreviewSell = (props: PreviewSellProps) => {
     onSellOfferUpdate,
     setSellFlowPaused,
     userPortfolio,
+    gasTankBalance = 0,
   } = props;
   const [isExecuting, setIsExecuting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -80,6 +82,7 @@ const PreviewSell = (props: PreviewSellProps) => {
     gasEstimationError,
     gasCostNative,
     nativeTokenSymbol,
+    gasCostUSD,
     estimateGasFees,
   } = useGasEstimation({
     sellToken,
@@ -292,6 +295,28 @@ const PreviewSell = (props: PreviewSellProps) => {
     isExecuting,
   ]);
 
+  // Immediately check balance when token is selected (for onboarding detection)
+  useEffect(() => {
+    if (
+      sellToken &&
+      tokenAmount &&
+      isInitialized &&
+      onSellOfferUpdate &&
+      !isWaitingForSignature &&
+      !isExecuting
+    ) {
+      refreshPreviewSellData();
+    }
+  }, [
+    sellToken,
+    tokenAmount,
+    isInitialized,
+    onSellOfferUpdate,
+    isWaitingForSignature,
+    isExecuting,
+    refreshPreviewSellData,
+  ]);
+
   // Auto-refresh sell offer every 15 seconds (disabled when waiting for signature)
   useEffect(() => {
     if (!sellToken || !tokenAmount || !isInitialized || !onSellOfferUpdate) {
@@ -371,6 +396,17 @@ const PreviewSell = (props: PreviewSellProps) => {
   const executeSellDirectly = async () => {
     if (!sellToken || !sellOffer || !kit) return;
 
+    // Validate that gas tank balance is greater than gas fee in USD
+    if (gasCostUSD) {
+      const gasFeeValue = parseFloat(gasCostUSD);
+      if (gasTankBalance <= gasFeeValue) {
+        console.error('Insufficient gas tank balance to cover gas fee in sell');
+        setIsWaitingForSignature(false);
+        setIsExecuting(false);
+        return;
+      }
+    }
+
     // Clear any existing errors and states
     if (error) {
       clearError();
@@ -402,8 +438,14 @@ const PreviewSell = (props: PreviewSellProps) => {
         const batchSend = await kit.sendBatches({
           onlyBatchNames: [batchName],
           authorization: authorization || undefined,
+          paymasterDetails: {
+            url: `${
+              import.meta.env.VITE_PAYMASTER_URL
+            }/gasTankPaymaster?chainId=${sellToken.chainId}`,
+          },
         });
         const sentBatch = batchSend.batches[batchName];
+
         if (batchSend.isSentSuccessfully && !sentBatch?.errorMessage) {
           // In PillarX we only batch transactions per chainId, this is why sendBatch should only
           // have one chainGroup per batch
@@ -731,6 +773,9 @@ const PreviewSell = (props: PreviewSellProps) => {
         {detailsEntry(
           'Gas fee',
           (() => {
+            if (gasCostUSD) {
+              return `≈ $${parseFloat(gasCostUSD).toFixed(6)} USDC`;
+            }
             const gasFeeDisplay = gasCostNative
               ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
               : '≈ 0.00';

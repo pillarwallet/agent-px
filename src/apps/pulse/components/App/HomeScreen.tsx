@@ -93,6 +93,7 @@ interface HomeScreenProps {
   setIsBuy: Dispatch<SetStateAction<boolean>>;
   refetchWalletPortfolio: () => void;
   setBuyToken: Dispatch<SetStateAction<SelectedToken | null>>;
+  setSellToken: Dispatch<SetStateAction<SelectedToken | null>>;
   setChains: Dispatch<SetStateAction<MobulaChainNames>>;
   onboardingScreen: 'welcome' | 'topup' | null;
   setOnboardingScreen: Dispatch<SetStateAction<'welcome' | 'topup' | null>>;
@@ -110,6 +111,7 @@ export default function HomeScreen(props: HomeScreenProps) {
     setSearching,
     refetchWalletPortfolio,
     setBuyToken,
+    setSellToken,
     setChains,
     onboardingScreen,
     setOnboardingScreen,
@@ -232,18 +234,32 @@ export default function HomeScreen(props: HomeScreenProps) {
     );
 
   // Hooks for onboarding data
-  const { totalBalance: gasTankBalance, isLoading: isGasTankLoading } =
-    useGasTankBalance(accountAddress || null);
+  const {
+    totalBalance: gasTankBalance,
+    isLoading: isGasTankLoading,
+    refetch: refetchGasTankBalance,
+  } = useGasTankBalance(accountAddress || null);
   const { totalUsdcBalance } = useTotalUsdcBalance(walletPortfolioData);
+
+  // Immediately hide onboarding when a token is selected or preview opens
+  useEffect(() => {
+    if (buyToken || sellToken || previewBuy || previewSell) {
+      setOnboardingScreen(null);
+    }
+  }, [buyToken, sellToken, previewBuy, previewSell, setOnboardingScreen]);
 
   // Determine if onboarding should be shown based on gas tank balance
   useEffect(() => {
     if (
       !isGasTankLoading &&
       walletPortfolioData &&
-      portfolioTokens.length > 0
+      portfolioTokens.length > 0 &&
+      !previewBuy &&
+      !previewSell &&
+      !buyToken &&
+      !sellToken
     ) {
-      // Show onboarding if gas tank balance is less than 2
+      // Show onboarding if gas tank balance is less than 2 (only when not in any transaction flow)
       if (gasTankBalance < 2 && onboardingScreen === null) {
         setOnboardingScreen('welcome');
       } else if (gasTankBalance >= 2) {
@@ -258,6 +274,10 @@ export default function HomeScreen(props: HomeScreenProps) {
     gasTankBalance,
     onboardingScreen,
     setOnboardingScreen,
+    previewBuy,
+    previewSell,
+    buyToken,
+    sellToken,
   ]);
 
   // Preselect max USDC token when topup screen is shown and totalUsdcBalance > 0
@@ -578,6 +598,22 @@ export default function HomeScreen(props: HomeScreenProps) {
 
     if (isFinalStatus) {
       stopTransactionPolling();
+
+      // Reset token after successful transaction completion
+      if (currentTransactionStatus === 'Transaction Complete') {
+        if (transactionData?.isBuy) {
+          // Reset buyToken only if Relay Buy is enabled
+          if (USE_RELAY_BUY) {
+            setBuyToken(null);
+          }
+        } else {
+          // Always reset sellToken after successful sell
+          setSellToken(null);
+        }
+
+        // Refetch gas tank balance after successful transaction
+        refetchGasTankBalance();
+      }
     } else {
       setIsBackgroundPolling(true);
       setShouldAutoReopen(true);
@@ -1074,9 +1110,13 @@ export default function HomeScreen(props: HomeScreenProps) {
       if (
         onboardingScreen === null &&
         gasTankBalance < 2 &&
-        !hasCompletedOnboardingRef.current
+        !hasCompletedOnboardingRef.current &&
+        !buyToken &&
+        !sellToken &&
+        !previewBuy &&
+        !previewSell
       ) {
-        // Show onboarding welcome with loading state
+        // Show onboarding welcome with loading state (only when not in transaction flow)
         return (
           <OnboardingWelcome
             onComplete={handleShowTopUp}
@@ -1140,6 +1180,7 @@ export default function HomeScreen(props: HomeScreenProps) {
             onBuyOfferUpdate={handleBuyOfferUpdate}
             setBuyFlowPaused={setIsBuyFlowPaused}
             userPortfolio={portfolioTokens}
+            gasTankBalance={gasTankBalance}
           />
         </div>
       );
@@ -1158,6 +1199,7 @@ export default function HomeScreen(props: HomeScreenProps) {
             onSellOfferUpdate={setSellOffer}
             setSellFlowPaused={setIsSellFlowPaused}
             userPortfolio={portfolioTokens}
+            gasTankBalance={gasTankBalance}
           />
         </div>
       );
@@ -1310,7 +1352,6 @@ export default function HomeScreen(props: HomeScreenProps) {
                   setSearching={setSearching}
                   token={sellToken}
                   walletPortfolioData={walletPortfolioData}
-                  portfolioTokens={portfolioTokens}
                   customSellAmounts={[...customSellAmounts, 'MAX']}
                   selectedChainIdForSettlement={selectedChainIdForSettlement}
                   setPreviewSell={setPreviewSell}

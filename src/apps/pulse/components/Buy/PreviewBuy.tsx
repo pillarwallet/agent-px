@@ -67,6 +67,7 @@ interface PreviewBuyProps {
   onBuyOfferUpdate?: (offer: BuyOffer | null) => void; // For Relay Buy: callback to update offer
   setBuyFlowPaused?: (paused: boolean) => void; // For Relay Buy: pause background refresh
   userPortfolio?: Token[]; // For Relay Buy: user's token portfolio
+  gasTankBalance?: number; // For Relay Buy: gas tank balance to validate transaction
 }
 
 export default function PreviewBuy(props: PreviewBuyProps) {
@@ -83,6 +84,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     onBuyOfferUpdate,
     setBuyFlowPaused,
     userPortfolio,
+    gasTankBalance = 0,
   } = props;
 
   const [isLoading, setIsLoading] = useState(false);
@@ -129,15 +131,20 @@ export default function PreviewBuy(props: PreviewBuyProps) {
   const clearError = USE_RELAY_BUY ? clearRelayError : clearIntentError;
 
   // Gas estimation for Relay Buy
-  const { isEstimatingGas, gasCostNative, nativeTokenSymbol, estimateGasFees } =
-    useGasEstimationBuy({
-      buyToken: buyToken || null,
-      buyOffer,
-      tokenAmount: usdAmount,
-      fromChainId: fromChainId || 1,
-      isPaused: isWaitingForSignature || isExecuting,
-      userPortfolio,
-    });
+  const {
+    isEstimatingGas,
+    gasCostNative,
+    nativeTokenSymbol,
+    gasCostUSD,
+    estimateGasFees,
+  } = useGasEstimationBuy({
+    buyToken: buyToken || null,
+    buyOffer,
+    tokenAmount: usdAmount,
+    fromChainId: fromChainId || 1,
+    isPaused: isWaitingForSignature || isExecuting,
+    userPortfolio,
+  });
 
   useEffect(() => {
     if (isCopied) {
@@ -368,6 +375,25 @@ export default function PreviewBuy(props: PreviewBuyProps) {
       return;
     }
 
+    // Validate that gas tank balance is greater than gas fee in USD
+    if (gasCostUSD) {
+      const gasFeeValue = parseFloat(gasCostUSD);
+      if (gasTankBalance <= gasFeeValue) {
+        logPulseError(
+          new Error('Insufficient gas tank balance to cover gas fee'),
+          {
+            operation: 'execute_relay_buy_insufficient_gas_balance',
+            gasTankBalance,
+            gasFeeUSD: gasFeeValue,
+          },
+          { operation_type: 'validation_error' }
+        );
+        setIsWaitingForSignature(false);
+        setIsExecuting(false);
+        return;
+      }
+    }
+
     // Clear any existing errors and states
     if (error) {
       clearError();
@@ -402,6 +428,11 @@ export default function PreviewBuy(props: PreviewBuyProps) {
         const batchSend = await kit.sendBatches({
           onlyBatchNames: [batchName],
           authorization: authorization || undefined,
+          paymasterDetails: {
+            url: `${
+              import.meta.env.VITE_PAYMASTER_URL
+            }/gasTankPaymaster?chainId=${fromChainId}`,
+          },
         });
 
         const sentBatch = batchSend.batches[batchName];
@@ -626,6 +657,46 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     USE_RELAY_BUY,
   ]);
 
+  // Immediately check balance when token is selected (for onboarding detection)
+  useEffect(() => {
+    if (USE_RELAY_BUY) {
+      if (
+        buyToken &&
+        usdAmount &&
+        isRelayInitialized &&
+        onBuyOfferUpdate &&
+        fromChainId &&
+        !isWaitingForSignature &&
+        !isExecuting
+      ) {
+        refreshPreviewBuyData();
+      }
+    } else if (
+      buyToken &&
+      usdAmount &&
+      intentSdk &&
+      accountAddress &&
+      dispensableAssets.length > 0 &&
+      !isWaitingForSignature &&
+      !isExecuting
+    ) {
+      refreshPreviewBuyData();
+    }
+  }, [
+    buyToken,
+    usdAmount,
+    USE_RELAY_BUY,
+    isRelayInitialized,
+    onBuyOfferUpdate,
+    fromChainId,
+    isWaitingForSignature,
+    isExecuting,
+    intentSdk,
+    accountAddress,
+    dispensableAssets,
+    refreshPreviewBuyData,
+  ]);
+
   // Auto-refresh buy offer every 15 seconds (disabled when waiting for signature or executing)
   useEffect(() => {
     if (USE_RELAY_BUY) {
@@ -736,6 +807,16 @@ export default function PreviewBuy(props: PreviewBuyProps) {
       ((totalReceivedValue - totalPaidValue) / totalPaidValue) * 100;
   } else {
     priceImpact = 0;
+  }
+
+  // Calculate gas fee display string
+  let gasFeeDisplay = '≈ $0.00';
+  if (USE_RELAY_BUY && gasCostNative && nativeTokenSymbol) {
+    if (gasCostUSD) {
+      gasFeeDisplay = `≈ $${parseFloat(gasCostUSD).toFixed(6)} USDC`;
+    } else {
+      gasFeeDisplay = `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`;
+    }
   }
 
   return (
@@ -924,9 +1005,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
         )}
         {detailsEntry(
           'Gas fee',
-          USE_RELAY_BUY && gasCostNative && nativeTokenSymbol
-            ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-            : '≈ $0.00',
+          gasFeeDisplay,
           false,
           '',
           USE_RELAY_BUY ? isEstimatingGas : false,

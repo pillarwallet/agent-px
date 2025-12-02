@@ -88,6 +88,7 @@ export default function AppWrapper() {
       setIsBuy={setIsBuy}
       refetchWalletPortfolio={refetchWalletPortfolio}
       setBuyToken={setBuyToken}
+      setSellToken={setSellToken}
       setChains={setChains}
       onboardingScreen={onboardingScreen}
       setOnboardingScreen={setOnboardingScreen}

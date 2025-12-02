@@ -2,6 +2,7 @@ import { ExpressIntentResponse } from '@etherspot/intent-sdk/dist/cjs/sdk/types/
 import { TailSpin } from 'react-loader-spinner';
 import { PayingToken, SelectedToken } from '../../types/tokens';
 import { getChainName } from '../../utils/constants';
+import { BuyOffer } from '../../hooks/useRelayBuy';
 
 // components
 import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsFormatted/HighDecimalsFormatted';
@@ -85,7 +86,11 @@ export interface BuyButtonProps {
   debouncedUsdAmount: string;
   payingTokens: PayingToken[];
   handleBuySubmit: () => Promise<void>;
-  expressIntentResponse: ExpressIntentResponse | null | { error: string };
+  expressIntentResponse:
+    | ExpressIntentResponse
+    | BuyOffer
+    | null
+    | { error: string };
   usdAmount: string;
   notEnoughLiquidity: boolean;
 }
