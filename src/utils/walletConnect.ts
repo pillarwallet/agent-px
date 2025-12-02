@@ -10,6 +10,9 @@ export const ETH_SIGN_TYPED_DATA_V4 = 'eth_signTypedData_v4';
 export const ETH_SEND_RAW_TRANSACTION = 'eth_sendRawTransaction';
 export const ETH_ACCOUNTS = 'eth_accounts';
 export const WALLET_SWITCH_CHAIN = 'wallet_switchEthereumChain';
+export const WALLET_GET_CAPABILITIES = 'wallet_getCapabilities';
+export const WALLET_SEND_CALLS = 'wallet_sendCalls';
+export const WALLET_GET_CALLS_STATUS = 'wallet_getCallsStatus';
 
 export const WALLETCONNECT_EVENT = {
   SESSION_DELETE: 'session_delete',
