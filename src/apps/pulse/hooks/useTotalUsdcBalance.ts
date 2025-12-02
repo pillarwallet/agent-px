@@ -4,7 +4,7 @@ import { getStableCurrencyBalanceOnEachChain } from '../utils/utils';
 
 interface UseTotalUsdcBalanceReturn {
   totalUsdcBalance: number;
-  balanceByChain: { [chainId: number]: number };
+  balanceByChain: { [chainId: number]: { balance: number; price?: number } };
 }
 
 export function useTotalUsdcBalance(
@@ -21,7 +21,7 @@ export function useTotalUsdcBalance(
     const balanceByChain =
       getStableCurrencyBalanceOnEachChain(walletPortfolioData);
     const totalUsdcBalance = Object.values(balanceByChain).reduce(
-      (sum, balance) => sum + balance,
+      (sum, balanceObj) => sum + balanceObj.balance,
       0
     );
 
