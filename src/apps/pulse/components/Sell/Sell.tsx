@@ -636,7 +636,7 @@ const Sell = (props: SellProps) => {
           <div className="w-full px-2.5 mb-2">
             <PnLStats
               metrics={pnl}
-              isLoading={isPnLLoading || isTransactionsLoading}
+              isLoading={isPnLLoading || isTransactionsLoading || isRefreshing}
             />
           </div>
         )}

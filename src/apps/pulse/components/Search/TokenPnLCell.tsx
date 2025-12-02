@@ -50,7 +50,8 @@ export const TokenPnLCell = ({
     }
   }, [isRefreshing, refetch]);
 
-  if (isLoading) {
+  // Show loading immediately when refreshing, or when hook is loading
+  if (isRefreshing || isLoading) {
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="h-3 w-16 bg-white/10 rounded animate-pulse" />

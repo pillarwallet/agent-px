@@ -323,9 +323,10 @@ describe('<Search />', () => {
   });
 
   it('handles close button click', () => {
-    renderWithProviders(<Search {...defaultProps} />);
+    // Close button (ESC) only appears in sell mode (!isBuy)
+    renderWithProviders(<Search {...defaultProps} isBuy={false} />);
 
-    const closeButton = screen.getByRole('button', { name: /close/i });
+    const closeButton = screen.getByTestId('pulse-search-esc-button');
     fireEvent.click(closeButton);
 
     expect(mockSetSearching).toHaveBeenCalledWith(false);

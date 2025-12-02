@@ -83,6 +83,7 @@ interface BuyProps {
   setBuyToken?: Dispatch<SetStateAction<SelectedToken | null>>;
   setChains: Dispatch<SetStateAction<MobulaChainNames>>;
   usdcPrice?: number; // For Relay Buy: USDC price from portfolio (passed from HomeScreen)
+  isRefreshing?: boolean;
 }
 
 export default function Buy(props: BuyProps) {
@@ -103,6 +104,7 @@ export default function Buy(props: BuyProps) {
     maxStableCoinBalance,
     customBuyAmounts,
     usdcPrice,
+    isRefreshing = false,
   } = props;
   const [usdAmount, setUsdAmount] = useState<string>('');
   const [debouncedUsdAmount, setDebouncedUsdAmount] = useState<string>('');
@@ -865,7 +867,7 @@ export default function Buy(props: BuyProps) {
           <div className="w-full px-2.5 mb-2">
             <PnLStats
               metrics={pnl}
-              isLoading={isPnLLoading || isTransactionsLoading}
+              isLoading={isPnLLoading || isTransactionsLoading || isRefreshing}
             />
           </div>
         )}

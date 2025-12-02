@@ -854,6 +854,7 @@ export default function Search({
                 isError={walletPortfolioError}
                 searchText={searchText}
                 hideSmallBalances={hideSmallBalances}
+                isFetching={walletPortfolioFetching}
               />
             </div>
           )}
