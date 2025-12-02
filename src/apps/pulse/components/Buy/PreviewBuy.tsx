@@ -68,6 +68,7 @@ interface PreviewBuyProps {
   setBuyFlowPaused?: (paused: boolean) => void; // For Relay Buy: pause background refresh
   userPortfolio?: Token[]; // For Relay Buy: user's token portfolio
   gasTankBalance?: number; // For Relay Buy: gas tank balance to validate transaction
+  usdcPrice?: number; // For Relay Buy: USDC price in USD (e.g., 0.9998)
 }
 
 export default function PreviewBuy(props: PreviewBuyProps) {
@@ -85,6 +86,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     setBuyFlowPaused,
     userPortfolio,
     gasTankBalance = 0,
+    usdcPrice,
   } = props;
 
   const [isLoading, setIsLoading] = useState(false);
@@ -414,7 +416,8 @@ export default function PreviewBuy(props: PreviewBuyProps) {
         buyToken,
         usdAmount, // Pass USD amount, not token amount
         fromChainId,
-        userPortfolio
+        userPortfolio,
+        usdcPrice
       );
 
       if (result === true) {
@@ -565,6 +568,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
           toTokenAddress: buyToken.address,
           toChainId: buyToken.chainId,
           fromChainId,
+          usdcPrice,
         });
 
         onBuyOfferUpdate(newOffer);
@@ -655,6 +659,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     estimateGasFees,
     cleanupBatch,
     USE_RELAY_BUY,
+    usdcPrice,
   ]);
 
   // Immediately check balance when token is selected (for onboarding detection)

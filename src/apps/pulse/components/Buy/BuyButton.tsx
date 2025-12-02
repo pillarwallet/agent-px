@@ -1,13 +1,18 @@
 import { ExpressIntentResponse } from '@etherspot/intent-sdk/dist/cjs/sdk/types/user-intent-types';
 import { TailSpin } from 'react-loader-spinner';
+
+// types
 import { PayingToken, SelectedToken } from '../../types/tokens';
 import { getChainName } from '../../utils/constants';
+
+// hooks
 import { BuyOffer } from '../../hooks/useRelayBuy';
 
 // components
 import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsFormatted/HighDecimalsFormatted';
 
 // utils
+import { getChainName } from '../../utils/constants';
 import { limitDigitsNumber } from '../../../../utils/number';
 
 function getButtonText(
@@ -17,10 +22,23 @@ function getButtonText(
   areModulesInstalled: boolean | undefined,
   selectedToken: SelectedToken | null,
   debouncedUsdAmount: string,
+  useRelayBuy: boolean,
+  expressIntentResponse:
+    | ExpressIntentResponse
+    | BuyOffer
+    | null
+    | { error: string }
+    | undefined,
   payingToken?: PayingToken,
   isDisabled?: boolean
 ) {
-  if (areModulesInstalled === false && payingToken && !isInstalling) {
+  // Only show "Enable Trading" for Intent SDK, not for Relay Buy
+  if (
+    !useRelayBuy &&
+    areModulesInstalled === false &&
+    payingToken &&
+    !isInstalling
+  ) {
     return (
       <div className="flex text-sm items-center justify-center">{`Enable Trading on ${getChainName(payingToken.chainId)}`}</div>
     );
@@ -45,7 +63,19 @@ function getButtonText(
     usdAmount > 0 &&
     tokenUsdValue > 0
   ) {
-    const tokenAmount = usdAmount / tokenUsdValue;
+    // For Relay Buy, use the actual token amount from the offer
+    let tokenAmount: number;
+    if (
+      useRelayBuy &&
+      expressIntentResponse &&
+      'tokenAmountToReceive' in expressIntentResponse
+    ) {
+      tokenAmount = expressIntentResponse.tokenAmountToReceive;
+    } else {
+      // For Intent SDK or when no offer available, estimate using token price
+      tokenAmount = usdAmount / tokenUsdValue;
+    }
+
     const limitedUsdAmount = limitDigitsNumber(usdAmount);
     const limitedTokenAmount = limitDigitsNumber(tokenAmount);
 
@@ -93,6 +123,7 @@ export interface BuyButtonProps {
     | { error: string };
   usdAmount: string;
   notEnoughLiquidity: boolean;
+  useRelayBuy: boolean;
 }
 
 export default function BuyButton(props: BuyButtonProps) {
@@ -108,6 +139,7 @@ export default function BuyButton(props: BuyButtonProps) {
     token,
     usdAmount,
     notEnoughLiquidity,
+    useRelayBuy,
   } = props;
 
   const isDisabled = () => {
@@ -117,7 +149,8 @@ export default function BuyButton(props: BuyButtonProps) {
     if (notEnoughLiquidity) {
       return true;
     }
-    if (!areModulesInstalled && payingTokens.length > 0) {
+    // Only enable the "Enable Trading" button for Intent SDK (not Relay Buy)
+    if (!useRelayBuy && !areModulesInstalled && payingTokens.length > 0) {
       return false;
     }
     return (
@@ -125,8 +158,9 @@ export default function BuyButton(props: BuyButtonProps) {
       !token ||
       !(parseFloat(usdAmount) > 0) ||
       !expressIntentResponse ||
-      !!(expressIntentResponse as { error: string }).error ||
-      (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0
+      ('error' in expressIntentResponse && !!expressIntentResponse.error) ||
+      ('bids' in expressIntentResponse &&
+        (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0)
     );
   };
 
@@ -150,6 +184,8 @@ export default function BuyButton(props: BuyButtonProps) {
         areModulesInstalled,
         token,
         debouncedUsdAmount,
+        useRelayBuy,
+        expressIntentResponse,
         payingTokens.length > 0 ? payingTokens[0] : undefined,
         isDisabled()
       )}

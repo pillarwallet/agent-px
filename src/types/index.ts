@@ -17,6 +17,7 @@ interface SendModalSingleBatchedTransactionsData extends SendModalDataBase {
   batches: {
     chainId: number;
     transactions: Omit<ITransaction, 'chainId'>[];
+    batchName?: string;
   }[];
 }
 
