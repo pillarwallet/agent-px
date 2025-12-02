@@ -102,7 +102,7 @@ export const reconstructTrades = (
     trades.push({
       side,
       txHash,
-      timestamp,
+      timestamp: timestamp / 1000, // Convert Mobula timestamp (milliseconds) to seconds
       amountToken: absTokenChange,
       amountQuoteUSDC: absUsdcChange,
       execPriceUSD: absUsdcChange / absTokenChange,
