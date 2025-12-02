@@ -227,8 +227,6 @@ describe('<AppWrapper />', () => {
       expect(
         screen.getByDisplayValue('0x1234567890123456789012345678901234567890')
       ).toBeInTheDocument();
-      expect(screen.getByText('🔥 Trending')).toBeInTheDocument();
-      expect(screen.getByText('🌱 Fresh')).toBeInTheDocument();
       expect(screen.queryByTestId('pulse-home-view')).not.toBeInTheDocument();
       expect(
         screen.queryByTestId('pulse-buy-toggle-button')

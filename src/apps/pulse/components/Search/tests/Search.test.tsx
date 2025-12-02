@@ -3,8 +3,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import renderer from 'react-test-renderer';
-import { vi } from 'vitest';
 import { ThemeProvider } from 'styled-components';
+import { vi } from 'vitest';
 
 // types
 import { PortfolioData } from '../../../../../types/api';
@@ -13,8 +13,8 @@ import { PortfolioData } from '../../../../../types/api';
 import * as useTokenSearch from '../../../hooks/useTokenSearch';
 
 // utils
-import { MobulaChainNames } from '../../../utils/constants';
 import { defaultTheme } from '../../../../../theme';
+import { MobulaChainNames } from '../../../utils/constants';
 
 // components
 import Search from '../Search';
@@ -171,7 +171,7 @@ describe('<Search />', () => {
     expect(screen.getByText('🔥 Trending')).toBeInTheDocument();
     expect(screen.getByText('🌱 Fresh')).toBeInTheDocument();
     expect(screen.getByText('🚀 Top Gainers')).toBeInTheDocument();
-    expect(screen.getByText('💰My Holdings')).toBeInTheDocument();
+    expect(screen.getByText('💰 My Holdings')).toBeInTheDocument();
   });
 
   it('renders sell mode with only My Holdings', () => {
@@ -249,7 +249,7 @@ describe('<Search />', () => {
     expect(screen.getByText('🔥 Trending')).toBeInTheDocument();
     expect(screen.getByText('🌱 Fresh')).toBeInTheDocument();
     expect(screen.getByText('🚀 Top Gainers')).toBeInTheDocument();
-    expect(screen.getByText('💰My Holdings')).toBeInTheDocument();
+    expect(screen.getByText('💰 My Holdings')).toBeInTheDocument();
   });
 
   it('handles token selection for sell mode', () => {

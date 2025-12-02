@@ -6,7 +6,7 @@ import svgr from 'vite-plugin-svgr';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
 export default defineConfig({
-  plugins: [react(), svgr({}), dynamicImport(), basicSsl()],
+  plugins: [react(), svgr(), dynamicImport(), basicSsl()],
   build: {
     outDir: 'build',
     commonjsOptions: { transformMixedEsModules: true },
