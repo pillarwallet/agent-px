@@ -1,7 +1,9 @@
+/* eslint-disable no-plusplus */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import React from 'react';
 import styled from 'styled-components';
+import { AlgoInsightsData, Projection } from '../../../../types/api';
 import TileContainer from '../TileContainer/TileContainer';
-import { Projection, AlgoInsightsData } from '../../../../types/api';
 import AlgoInsightsLogo from './AlgoInsightsLogo';
 
 type AlgoInsightsTileProps = {
@@ -9,22 +11,28 @@ type AlgoInsightsTileProps = {
   isDataLoading: boolean;
 };
 
-const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading }) => {
-  const [selectedTimeframe, setSelectedTimeframe] = React.useState<'1w' | '1m' | '3m' | '6m'>('6m');
+const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({
+  data,
+  isDataLoading,
+}) => {
+  const [selectedTimeframe, setSelectedTimeframe] = React.useState<
+    '1w' | '1m' | '3m' | '6m'
+  >('6m');
 
   if (isDataLoading) return null;
 
   // Runtime type guard for AlgoInsightsData
-  const isAlgoInsightsData = (data: any): data is AlgoInsightsData => {
+  const isAlgoInsightsData = (value: unknown): value is AlgoInsightsData => {
     return (
-      data &&
-      typeof data === 'object' &&
-      'cumulative_pnl' in data &&
-      'pnl_1m' in data &&
-      'pnl_3m' in data &&
-      'pnl_6m' in data &&
-      'risk_level' in data &&
-      'pnl_status' in data
+      value !== null &&
+      value !== undefined &&
+      typeof value === 'object' &&
+      'cumulative_pnl' in value &&
+      'pnl_1m' in value &&
+      'pnl_3m' in value &&
+      'pnl_6m' in value &&
+      'risk_level' in value &&
+      'pnl_status' in value
     );
   };
 
@@ -34,7 +42,13 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
   if (!algoData) return null;
 
   // Helper function to generate smooth curve path using Catmull-Rom spline
-  const generateSmoothPath = (points: { timestamp: number; value: number }[], width: number, height: number, minValue: number, maxValue: number): string => {
+  const generateSmoothPath = (
+    points: { timestamp: number; value: number }[],
+    width: number,
+    height: number,
+    minValue: number,
+    maxValue: number
+  ): string => {
     if (points.length === 0) return '';
 
     const range = maxValue - minValue || 1; // Avoid division by zero
@@ -43,7 +57,7 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
     // Convert data points to SVG coordinates
     const coords = points.map((point, index) => ({
       x: index * xStep,
-      y: height - ((point.value - minValue) / range) * height
+      y: height - ((point.value - minValue) / range) * height,
     }));
 
     if (coords.length < 2) return `M${coords[0].x},${coords[0].y}`;
@@ -58,7 +72,7 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
       // Calculate control points for smooth curve
       const cp1x = current.x + (next.x - current.x) / 3;
       const cp1y = current.y;
-      const cp2x = current.x + 2 * (next.x - current.x) / 3;
+      const cp2x = current.x + (2 * (next.x - current.x)) / 3;
       const cp2y = next.y;
 
       path += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${next.x},${next.y}`;
@@ -68,7 +82,11 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
   };
 
   // Generate filled area path (for gradient)
-  const generateFilledPath = (linePath: string, width: number, height: number): string => {
+  const generateFilledPath = (
+    linePath: string,
+    width: number,
+    height: number
+  ): string => {
     return `${linePath} L${width},${height} L0,${height} Z`;
   };
 
@@ -76,14 +94,27 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
   const formatDateLabel = (timestamp: number, timeframe: string): string => {
     const date = new Date(timestamp * 1000);
     if (timeframe === '1w') {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (timeframe === '1m') {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (timeframe === '3m') {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
     }
+    if (timeframe === '1m') {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+    if (timeframe === '3m') {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   // Get current timeframe data
@@ -93,9 +124,10 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
 
   // Calculate min/max for scaling with padding
   // Calculate min/max for scaling with padding
-  const values = currentTimeframeData.history.length > 0
-    ? currentTimeframeData.history.map(p => p.value)
-    : [0]; // Default to [0] if history is empty
+  const values =
+    currentTimeframeData.history.length > 0
+      ? currentTimeframeData.history.map((p) => p.value)
+      : [0]; // Default to [0] if history is empty
 
   const dataMin = Math.min(...values);
   const dataMax = Math.max(...values);
@@ -108,7 +140,13 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
   const maxValue = dataMax + padding;
 
   // Generate paths
-  const linePath = generateSmoothPath(currentTimeframeData.history, graphWidth, graphHeight, minValue, maxValue);
+  const linePath = generateSmoothPath(
+    currentTimeframeData.history,
+    graphWidth,
+    graphHeight,
+    minValue,
+    maxValue
+  );
   const filledPath = generateFilledPath(linePath, graphWidth, graphHeight);
 
   // Get last point for current value indicator
@@ -116,26 +154,31 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
   const lastPoint = currentTimeframeData.history[lastIndex];
   const xStep = graphWidth / (currentTimeframeData.history.length - 1);
   const lastX = lastIndex * xStep; // Use actual position instead of graphWidth
-  const lastY = graphHeight - ((lastPoint.value - minValue) / (maxValue - minValue)) * graphHeight;
+  const lastY =
+    graphHeight -
+    ((lastPoint.value - minValue) / (maxValue - minValue)) * graphHeight;
 
   // Generate Y-axis labels
   const yAxisSteps = 6;
   const yAxisLabels = Array.from({ length: yAxisSteps }, (_, i) => {
-    const value = maxValue - (i * (maxValue - minValue) / (yAxisSteps - 1));
+    const value = maxValue - (i * (maxValue - minValue)) / (yAxisSteps - 1);
     return `${Math.round(value)}%`;
   });
 
   // Generate date labels (show 5 evenly spaced labels)
-  const dateLabels = [0, 0.25, 0.5, 0.75, 1].map(ratio => {
+  const dateLabels = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
     const index = Math.floor(ratio * (currentTimeframeData.history.length - 1));
     return {
       position: ratio * 100,
-      label: formatDateLabel(currentTimeframeData.history[index].timestamp, selectedTimeframe)
+      label: formatDateLabel(
+        currentTimeframeData.history[index].timestamp,
+        selectedTimeframe
+      ),
     };
   });
 
   // Calculate Donut Chart Segments
-  const donutSegments = React.useMemo(() => {
+  const donutSegments = (() => {
     const radius = 80;
     const circumference = 2 * Math.PI * radius;
 
@@ -153,18 +196,18 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
     return {
       winning: {
         strokeDasharray: `${winningLength} ${circumference - winningLength}`,
-        strokeDashoffset: 0
+        strokeDashoffset: 0,
       },
       losing: {
         strokeDasharray: `${losingLength} ${circumference - losingLength}`,
-        strokeDashoffset: -winningLength
+        strokeDashoffset: -winningLength,
       },
       neutral: {
         strokeDasharray: `${neutralLength} ${circumference - neutralLength}`,
-        strokeDashoffset: -(winningLength + losingLength)
-      }
+        strokeDashoffset: -(winningLength + losingLength),
+      },
     };
-  }, [algoData.pnl_status]);
+  })();
 
   return (
     <StyledTileContainer>
@@ -178,7 +221,8 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
         </MobileHeader>
 
         <MobileDescriptionBox>
-          Receive algorithmic event data including indicative entry, stop, and profit thresholds
+          Receive algorithmic event data including indicative entry, stop, and
+          profit thresholds
         </MobileDescriptionBox>
 
         <MobileGrid>
@@ -186,7 +230,12 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
           <MobileMetricCard>
             <MobileMetricTitle>1 Month PnL</MobileMetricTitle>
             <MobileMetricValueBadge>
-              {algoData.pnl_1m}% {algoData.pnl_1m >= 0 ? <SmallArrowUp>▲</SmallArrowUp> : <SmallArrowDown>▼</SmallArrowDown>}
+              {algoData.pnl_1m}%{' '}
+              {algoData.pnl_1m >= 0 ? (
+                <SmallArrowUp>▲</SmallArrowUp>
+              ) : (
+                <SmallArrowDown>▼</SmallArrowDown>
+              )}
             </MobileMetricValueBadge>
           </MobileMetricCard>
 
@@ -194,7 +243,12 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
           <MobileMetricCard>
             <MobileMetricTitle>3 Month PnL</MobileMetricTitle>
             <MobileMetricValueBadge>
-              {algoData.pnl_3m}% {algoData.pnl_3m >= 0 ? <SmallArrowUp>▲</SmallArrowUp> : <SmallArrowDown>▼</SmallArrowDown>}
+              {algoData.pnl_3m}%{' '}
+              {algoData.pnl_3m >= 0 ? (
+                <SmallArrowUp>▲</SmallArrowUp>
+              ) : (
+                <SmallArrowDown>▼</SmallArrowDown>
+              )}
             </MobileMetricValueBadge>
           </MobileMetricCard>
 
@@ -202,7 +256,12 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
           <MobileMetricCard>
             <MobileMetricTitle>6 Month PnL</MobileMetricTitle>
             <MobileMetricValueBadge>
-              {algoData.pnl_6m}% {algoData.pnl_6m >= 0 ? <SmallArrowUp>▲</SmallArrowUp> : <SmallArrowDown>▼</SmallArrowDown>}
+              {algoData.pnl_6m}%{' '}
+              {algoData.pnl_6m >= 0 ? (
+                <SmallArrowUp>▲</SmallArrowUp>
+              ) : (
+                <SmallArrowDown>▼</SmallArrowDown>
+              )}
             </MobileMetricValueBadge>
           </MobileMetricCard>
 
@@ -211,16 +270,60 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
             <RiskGaugeContainer>
               <RiskGaugeSVG viewBox="0 0 120 70">
                 {/* Gauge Segments */}
-                <path d="M10,60 A50,50 0 0,1 25,25" fill="none" stroke="#5CFF93" strokeWidth="12" strokeLinecap="round" />
-                <path d="M28,22 A50,50 0 0,1 60,10" fill="none" stroke="#E3D67F" strokeWidth="12" strokeLinecap="round" />
-                <path d="M64,10 A50,50 0 0,1 92,22" fill="none" stroke="#E89D38" strokeWidth="12" strokeLinecap="round" />
-                <path d="M95,25 A50,50 0 0,1 110,60" fill="none" stroke="#8A77FF" strokeWidth="12" strokeLinecap="round" />
-                <path d="M110,60 A50,50 0 0,1 110,65" fill="none" stroke="#FF366C" strokeWidth="12" strokeLinecap="round" />
+                <path
+                  d="M10,60 A50,50 0 0,1 25,25"
+                  fill="none"
+                  stroke="#5CFF93"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M28,22 A50,50 0 0,1 60,10"
+                  fill="none"
+                  stroke="#E3D67F"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M64,10 A50,50 0 0,1 92,22"
+                  fill="none"
+                  stroke="#E89D38"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M95,25 A50,50 0 0,1 110,60"
+                  fill="none"
+                  stroke="#8A77FF"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M110,60 A50,50 0 0,1 110,65"
+                  fill="none"
+                  stroke="#FF366C"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                />
 
                 {/* Needle Base */}
-                <circle cx="60" cy="60" r="4" fill="#1E1D24" stroke="#5CFF93" strokeWidth="2" />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="4"
+                  fill="#1E1D24"
+                  stroke="#5CFF93"
+                  strokeWidth="2"
+                />
                 {/* Needle Indicator (pointing to low risk/green) */}
-                <circle cx="18" cy="50" r="6" fill="#5CFF93" stroke="#1E1D24" strokeWidth="2" />
+                <circle
+                  cx="18"
+                  cy="50"
+                  r="6"
+                  fill="#5CFF93"
+                  stroke="#1E1D24"
+                  strokeWidth="2"
+                />
               </RiskGaugeSVG>
               <RiskLabel>{algoData.risk_level}</RiskLabel>
             </RiskGaugeContainer>
@@ -230,9 +333,15 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
         <MobileFooter>
           <DisclaimerRow>
             <InfoIcon>!</InfoIcon>
-            <DisclaimerText>For informational use only - not financial advice</DisclaimerText>
+            <DisclaimerText>
+              For informational use only - not financial advice
+            </DisclaimerText>
           </DisclaimerRow>
-          <MobileCTAButton onClick={() => window.location.href = '/insights'}>
+          <MobileCTAButton
+            onClick={() => {
+              window.location.href = '/insights';
+            }}
+          >
             Start free 7 day trial
           </MobileCTAButton>
         </MobileFooter>
@@ -247,11 +356,18 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
             </LogoContainer>
             <HeaderTextContainer>
               <HeaderTitle>PillarX Algorithmic Insights</HeaderTitle>
-              <HeaderSubtitle>Receive algorithmic event data including indicative entry, stop, and profit thresholds</HeaderSubtitle>
+              <HeaderSubtitle>
+                Receive algorithmic event data including indicative entry, stop,
+                and profit thresholds
+              </HeaderSubtitle>
             </HeaderTextContainer>
           </HeaderLeft>
           <BuyButtonContainer>
-            <BuyButton onClick={() => window.location.href = '/insights'}>
+            <BuyButton
+              onClick={() => {
+                window.location.href = '/insights';
+              }}
+            >
               <BuyText>Start free 7 day trial</BuyText>
             </BuyButton>
           </BuyButtonContainer>
@@ -266,7 +382,9 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
                 <PerformanceMetric>
                   <PerformanceMetricTitle>1 Month PnL</PerformanceMetricTitle>
                   <PerformanceMetricValueContainer>
-                    <PerformanceMetricValue>{algoData.pnl_1m}%</PerformanceMetricValue>
+                    <PerformanceMetricValue>
+                      {algoData.pnl_1m}%
+                    </PerformanceMetricValue>
                     <PolygonIcon />
                   </PerformanceMetricValueContainer>
                 </PerformanceMetric>
@@ -275,7 +393,9 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
                 <PerformanceMetric>
                   <PerformanceMetricTitle>3 Month PnL</PerformanceMetricTitle>
                   <PerformanceMetricValueContainer>
-                    <PerformanceMetricValue>{algoData.pnl_3m}%</PerformanceMetricValue>
+                    <PerformanceMetricValue>
+                      {algoData.pnl_3m}%
+                    </PerformanceMetricValue>
                     <PolygonIcon />
                   </PerformanceMetricValueContainer>
                 </PerformanceMetric>
@@ -284,7 +404,9 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
                 <PerformanceMetric>
                   <PerformanceMetricTitle>6 Month PnL</PerformanceMetricTitle>
                   <PerformanceMetricValueContainer>
-                    <PerformanceMetricValue>{algoData.pnl_6m}%</PerformanceMetricValue>
+                    <PerformanceMetricValue>
+                      {algoData.pnl_6m}%
+                    </PerformanceMetricValue>
                     <PolygonIcon />
                   </PerformanceMetricValueContainer>
                 </PerformanceMetric>
@@ -346,15 +468,21 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
               <LegendContainer>
                 <LegendItem>
                   <LegendDot color="#5CFF93" />
-                  <LegendText>Winning: {algoData.pnl_status.winning}% Trades</LegendText>
+                  <LegendText>
+                    Winning: {algoData.pnl_status.winning}% Trades
+                  </LegendText>
                 </LegendItem>
                 <LegendItem>
                   <LegendDot color="#FF366C" />
-                  <LegendText>Losing: {algoData.pnl_status.losing}% Trades</LegendText>
+                  <LegendText>
+                    Losing: {algoData.pnl_status.losing}% Trades
+                  </LegendText>
                 </LegendItem>
                 <LegendItem>
                   <LegendDot color="#8A77FF" />
-                  <LegendText>Neutral: {algoData.pnl_status.neutral}% Trades</LegendText>
+                  <LegendText>
+                    Neutral: {algoData.pnl_status.neutral}% Trades
+                  </LegendText>
                 </LegendItem>
               </LegendContainer>
             </ProfileContainer>
@@ -364,25 +492,25 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
           <CumulativePnLContainer>
             <TimeframeButtonsContainer>
               <TimeframeButton
-                active={selectedTimeframe === '1w'}
+                $active={selectedTimeframe === '1w'}
                 onClick={() => setSelectedTimeframe('1w')}
               >
                 1w
               </TimeframeButton>
               <TimeframeButton
-                active={selectedTimeframe === '1m'}
+                $active={selectedTimeframe === '1m'}
                 onClick={() => setSelectedTimeframe('1m')}
               >
                 1m
               </TimeframeButton>
               <TimeframeButton
-                active={selectedTimeframe === '3m'}
+                $active={selectedTimeframe === '3m'}
                 onClick={() => setSelectedTimeframe('3m')}
               >
                 3m
               </TimeframeButton>
               <TimeframeButton
-                active={selectedTimeframe === '6m'}
+                $active={selectedTimeframe === '6m'}
                 onClick={() => setSelectedTimeframe('6m')}
               >
                 6m
@@ -415,9 +543,18 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
 
               {/* Chart Area */}
               <ChartArea>
-                <svg viewBox={`0 0 ${graphWidth} ${graphHeight}`} preserveAspectRatio="none">
+                <svg
+                  viewBox={`0 0 ${graphWidth} ${graphHeight}`}
+                  preserveAspectRatio="none"
+                >
                   <defs>
-                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient
+                      id="chartGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
                       <stop offset="0%" stopColor="rgba(92, 255, 147, 0.3)" />
                       <stop offset="100%" stopColor="rgba(30, 29, 36, 0)" />
                     </linearGradient>
@@ -427,11 +564,32 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
                   <path d={filledPath} fill="url(#chartGradient)" />
 
                   {/* Line path */}
-                  <path d={linePath} fill="none" stroke="#FFFFFF" strokeWidth="2" />
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="2"
+                  />
 
                   {/* Current Value Dot */}
-                  <circle cx={lastX} cy={lastY} r="4" fill="#FFFFFF" stroke="#1E1D24" strokeWidth="1" />
-                  <line x1={lastX} y1={lastY} x2={lastX} y2={graphHeight} stroke="#FFFFFF" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                  <circle
+                    cx={lastX}
+                    cy={lastY}
+                    r="4"
+                    fill="#FFFFFF"
+                    stroke="#1E1D24"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1={lastX}
+                    y1={lastY}
+                    x2={lastX}
+                    y2={graphHeight}
+                    stroke="#FFFFFF"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                    opacity="0.5"
+                  />
                 </svg>
               </ChartArea>
 
@@ -458,7 +616,7 @@ export default AlgoInsightsTile;
 const StyledTileContainer = styled(TileContainer)`
   width: 100%;
   min-height: 620px;
-  background: linear-gradient(0deg, #1E1D24, #1E1D24), #1E1D24;
+  background: linear-gradient(0deg, #1e1d24, #1e1d24), #1e1d24;
   border-radius: 24px;
   padding: 36px;
   overflow: hidden;
@@ -470,7 +628,7 @@ const StyledTileContainer = styled(TileContainer)`
     padding: 16px;
     gap: 16px;
     min-height: auto;
-    background: #1E1D24; /* Darker background for mobile */
+    background: #1e1d24; /* Darker background for mobile */
   }
 `;
 
@@ -516,7 +674,7 @@ const LogoContainerMobile = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   img {
     width: 48px;
     height: 48px;
@@ -529,7 +687,7 @@ const MobileTitle = styled.h2`
   font-weight: 600;
   font-size: 18px;
   line-height: 24px;
-  color: #FFFFFF;
+  color: #ffffff;
   margin: 0;
 `;
 
@@ -541,7 +699,7 @@ const MobileDescriptionBox = styled.div`
   font-weight: 400;
   font-size: 14px;
   line-height: 20px;
-  color: #FFFFFF;
+  color: #ffffff;
   opacity: 0.8;
 `;
 
@@ -552,7 +710,7 @@ const MobileGrid = styled.div`
 `;
 
 const MobileMetricCard = styled.div`
-  background: #1E1D24;
+  background: #1e1d24;
   border-radius: 16px;
   padding: 16px;
   display: flex;
@@ -565,7 +723,7 @@ const MobileMetricCard = styled.div`
 const MobileMetricTitle = styled.div`
   font-family: 'Poppins';
   font-size: 14px;
-  color: #FFFFFF;
+  color: #ffffff;
   margin-bottom: 8px;
 `;
 
@@ -573,7 +731,7 @@ const MobileMetricValueBadge = styled.div`
   background: rgba(92, 255, 147, 0.1);
   border-radius: 8px;
   padding: 4px 12px;
-  color: #5CFF93;
+  color: #5cff93;
   font-family: 'Poppins';
   font-weight: 500;
   font-size: 16px;
@@ -589,7 +747,7 @@ const SmallArrowUp = styled.span`
 
 const SmallArrowDown = styled.span`
   font-size: 10px;
-  color: #FF366C;
+  color: #ff366c;
 `;
 
 const RiskGaugeContainer = styled.div`
@@ -609,7 +767,7 @@ const RiskGaugeSVG = styled.svg`
 const RiskLabel = styled.div`
   font-family: 'Poppins';
   font-size: 12px;
-  color: #5CFF93;
+  color: #5cff93;
   margin-top: 4px;
 `;
 
@@ -631,30 +789,30 @@ const InfoIcon = styled.div`
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 1px solid #FFFFFF;
+  border: 1px solid #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  color: #FFFFFF;
+  color: #ffffff;
 `;
 
 const DisclaimerText = styled.span`
   font-family: 'Poppins';
   font-size: 12px;
-  color: #FFFFFF;
+  color: #ffffff;
 `;
 
 const MobileCTAButton = styled.button`
   width: 100%;
   height: 48px;
-  background: #8A77FF;
+  background: #8a77ff;
   border-radius: 12px;
   border: none;
   font-family: 'Poppins';
   font-weight: 500;
   font-size: 16px;
-  color: #FFFFFF;
+  color: #ffffff;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -681,9 +839,16 @@ const HeaderLeft = styled.div`
 const LogoContainer = styled.div`
   width: 60px;
   height: 60px;
-  background: radial-gradient(50% 50% at 50% 100%, rgba(92, 255, 147, 0.4) 0%, rgba(92, 255, 147, 0.01) 100%), rgba(18, 17, 22, 0.9);
+  background: radial-gradient(
+      50% 50% at 50% 100%,
+      rgba(92, 255, 147, 0.4) 0%,
+      rgba(92, 255, 147, 0.01) 100%
+    ),
+    rgba(18, 17, 22, 0.9);
   background-blend-mode: plus-lighter, normal;
-  box-shadow: 0px 4.5px 12px rgba(0, 0, 0, 0.3), 0px 0px 0px 0.75px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    0px 4.5px 12px rgba(0, 0, 0, 0.3),
+    0px 0px 0px 0.75px rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(1.23077px);
   border-radius: 12px;
   position: relative;
@@ -691,7 +856,7 @@ const LogoContainer = styled.div`
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  
+
   img {
     width: 60px;
     height: 60px;
@@ -711,7 +876,7 @@ const HeaderTitle = styled.div`
   font-size: 18px;
   line-height: 24px;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: #ffffff;
 `;
 
 const HeaderSubtitle = styled.div`
@@ -720,7 +885,7 @@ const HeaderSubtitle = styled.div`
   font-size: 14px;
   line-height: 20px;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: #ffffff;
   opacity: 0.5;
 `;
 
@@ -737,7 +902,7 @@ const BuyButtonContainer = styled.div`
 
 const BuyButton = styled.div`
   height: 40px;
-  background: #8A77FF;
+  background: #8a77ff;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -752,7 +917,7 @@ const BuyText = styled.span`
   font-size: 16px;
   line-height: 24px;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: #ffffff;
   white-space: nowrap;
 `;
 
@@ -784,7 +949,7 @@ const LeftColumn = styled.div`
 const PerformanceContainer = styled.div`
   width: 100%;
   height: 200px;
-  border: 1px solid #25232D;
+  border: 1px solid #25232d;
   border-radius: 12px;
   padding: 16px 36px;
   display: flex;
@@ -812,7 +977,7 @@ const PerformanceMetricTitle = styled.span`
   font-size: 16px;
   line-height: 24px;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: #ffffff;
 `;
 
 const PerformanceMetricValueContainer = styled.div`
@@ -830,7 +995,7 @@ const PerformanceMetricValue = styled.span`
   font-size: 16px;
   line-height: 24px;
   letter-spacing: -0.02em;
-  color: #5CFF93;
+  color: #5cff93;
 `;
 
 const PolygonIcon = () => (
@@ -851,7 +1016,7 @@ const RiskLevelTitle = styled.span`
   font-size: 14px;
   line-height: 14px;
   letter-spacing: -0.02em;
-  color: #5CFF93;
+  color: #5cff93;
 `;
 
 const RiskLevelIndicatorContainer = styled.div`
@@ -866,7 +1031,7 @@ const RiskLevelIndicator = styled.div`
   height: 8px;
   left: 0px;
   top: 4px;
-  background: #2C2D33;
+  background: #2c2d33;
   border-radius: 4px;
 `;
 
@@ -876,7 +1041,7 @@ const RiskLevelGradient = styled.div`
   height: 8px;
   left: 0px;
   top: 4px;
-  background: linear-gradient(90deg, #5CFF93 0%, #FFEA72 50%, #FF366C 100%);
+  background: linear-gradient(90deg, #5cff93 0%, #ffea72 50%, #ff366c 100%);
   border-radius: 4px;
 `;
 
@@ -886,8 +1051,8 @@ const RiskLevelPointer = styled.div`
   height: 8px;
   left: 20px;
   top: 4px;
-  background: #5CFF93;
-  border: 3px solid #1E1D24;
+  background: #5cff93;
+  border: 3px solid #1e1d24;
   border-radius: 50%;
 `;
 
@@ -895,7 +1060,7 @@ const RiskLevelPointer = styled.div`
 const ProfileContainer = styled.div`
   width: 100%;
   height: 252px;
-  border: 1px solid #25232D;
+  border: 1px solid #25232d;
   border-radius: 12px;
   position: relative;
 `;
@@ -909,7 +1074,7 @@ const ProfileTitle = styled.div`
   font-size: 14px;
   line-height: 14px;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: #ffffff;
 `;
 
 const DonutChartSVG = styled.svg`
@@ -939,9 +1104,11 @@ const LegendItem = styled.div`
 const LegendDot = styled.div<{ color: string }>`
   width: 4px;
   height: 4px;
-  background: ${props => props.color};
+  background: ${(props) => props.color};
   border-radius: 50%;
-  box-shadow: 0 0 0 2px ${props => props.color}40, 0 0 0 4px ${props => props.color}10;
+  box-shadow:
+    0 0 0 2px ${(props) => props.color}40,
+    0 0 0 4px ${(props) => props.color}10;
   margin: 6px;
 `;
 
@@ -951,14 +1118,14 @@ const LegendText = styled.span`
   font-size: 14px;
   line-height: 14px;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: #ffffff;
 `;
 
 // Cumulative PnL Container
 const CumulativePnLContainer = styled.div`
   flex: 1;
   height: 476px;
-  border: 1px solid #25232D;
+  border: 1px solid #25232d;
   border-radius: 12px;
   position: relative;
 
@@ -976,14 +1143,14 @@ const TimeframeButtonsContainer = styled.div`
   gap: 6px;
 `;
 
-const TimeframeButton = styled.div<{ active?: boolean }>`
+const TimeframeButton = styled.div<{ $active?: boolean }>`
   padding: 4px 12px;
-  background: ${props => props.active ? '#2E2A4A' : '#1E1D24'};
+  background: ${(props) => (props.$active ? '#2E2A4A' : '#1E1D24')};
   border-radius: 5px;
   font-family: 'Poppins';
   font-size: 14px;
-  color: #FFFFFF;
-  opacity: ${props => props.active ? 1 : 0.5};
+  color: #ffffff;
+  opacity: ${(props) => (props.$active ? 1 : 0.5)};
   cursor: pointer;
 `;
 
@@ -996,7 +1163,7 @@ const GraphHeader = styled.div`
 const GraphTitle = styled.div`
   font-family: 'Poppins';
   font-size: 16px;
-  color: #FFFFFF;
+  color: #ffffff;
   opacity: 0.5;
   margin-bottom: 4px;
 `;
@@ -1011,7 +1178,7 @@ const GraphValue = styled.div`
   font-family: 'Poppins';
   font-weight: 500;
   font-size: 30px;
-  color: #5CFF93;
+  color: #5cff93;
 `;
 
 const PolygonIconLarge = () => (
@@ -1056,7 +1223,7 @@ const YAxisLabels = styled.div`
 const YAxisLabel = styled.div`
   font-family: 'Poppins';
   font-size: 10px;
-  color: #FFFFFF;
+  color: #ffffff;
   opacity: 0.3;
   text-align: right;
 `;
@@ -1068,7 +1235,7 @@ const ChartArea = styled.div`
   right: 0;
   bottom: 0;
   overflow: hidden;
-  
+
   svg {
     width: 100%;
     height: 100%;
@@ -1089,7 +1256,7 @@ const DateLabel = styled.div`
   transform: translateX(-50%);
   font-family: 'Poppins';
   font-size: 10px;
-  color: #FFFFFF;
+  color: #ffffff;
   opacity: 0.3;
   white-space: nowrap;
 `;

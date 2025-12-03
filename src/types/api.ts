@@ -224,12 +224,12 @@ export type Projection = {
     display?: GenericBannerDisplay | EditorialDisplay | TileTitle;
   };
   data?:
-  | TokenData[]
-  | Advertisement
-  | MediaGridData
-  | Points
-  | TokensMarketData
-  | AlgoInsightsData;
+    | TokenData[]
+    | Advertisement
+    | MediaGridData
+    | Points
+    | TokensMarketData
+    | AlgoInsightsData;
   layout: ApiLayout;
   id: string;
 };
