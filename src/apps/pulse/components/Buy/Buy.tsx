@@ -172,10 +172,7 @@ export default function Buy(props: BuyProps) {
     }
 
     setSumOfStableBalance(maxStableCoinBalance.balance);
-
-    // For Relay Buy, skip the minimum USDC balance check since paymaster handles gas
-    // For Intent SDK, require minimum $2 USDC
-    if (!USE_RELAY_BUY && maxStableCoinBalance.balance < 2) {
+    if (maxStableCoinBalance.balance < 2) {
       setMinimumStableBalance(true);
       return;
     }
