@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TailSpin } from 'react-loader-spinner';
 
 // types
@@ -57,10 +57,19 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
 
   const { walletAddress } = useTransactionKit();
 
-  const { data: transactionsData } = useGetWalletTransactionsQuery(
-    { wallet: walletAddress || '' },
-    { skip: !walletAddress }
-  );
+  const { data: transactionsData, refetch: refetchTransactions } =
+    useGetWalletTransactionsQuery(
+      { wallet: walletAddress || '' },
+      { skip: !walletAddress }
+    );
+
+  // Refetch transactions when parent triggers refresh
+  // If transactionsData changes, useTokenPnL will automatically recalculate for visible tokens
+  useEffect(() => {
+    if (isFetching && refetchTransactions) {
+      refetchTransactions();
+    }
+  }, [isFetching, refetchTransactions]);
 
   const isStableCurrency = (token: Token) => {
     const chainId = chainNameToChainIdTokensData(token.blockchain);

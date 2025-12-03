@@ -34,7 +34,9 @@ export const fetchRelayRequestByHash = async (
 ): Promise<RelayRequest | null> => {
   try {
     const result = await store.dispatch(
-      relayApi.endpoints.getRelayRequestByHash.initiate(txHash)
+      relayApi.endpoints.getRelayRequestByHash.initiate(txHash, {
+        subscribe: false,
+      })
     );
     // RTK Query returns result with error property on failure
     // 404 means transaction not found in Relay, which is expected - return null

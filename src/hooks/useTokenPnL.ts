@@ -51,7 +51,8 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const tokenDecimals = props?.token?.decimals;
   const tokenBalance = props?.token?.balance;
   const tokenPrice = props?.token?.price;
-  const transactions = props?.transactionsData?.data?.transactions;
+  const transactionsData = props?.transactionsData;
+  const transactions = transactionsData?.data?.transactions;
   const walletAddress = props?.walletAddress;
   const chainId = props?.chainId;
 
@@ -249,13 +250,39 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
             return;
           }
 
+          // Override balanceToken with actual wallet balance if available
+          // This ensures the displayed balance matches the actual wallet balance
+          // even if trades haven't been fully captured or processed yet
+          const actualBalanceToken =
+            tokenBalance !== undefined ? tokenBalance : pnlMetrics.balanceToken;
+          const actualBalanceUSDC = actualBalanceToken * (tokenPrice || 0);
+
+          // Recalculate unrealised PnL using actual balance and cost basis from trades
+          // The cost basis is calculated from trades: costBasis = currentValue - unrealisedPnL
+          // We keep the cost basis the same (based on trades) and only adjust the current value
+          const costBasisUSDC =
+            pnlMetrics.balanceUSDC - pnlMetrics.unrealisedPnLUSDC;
+          const actualUnrealisedPnLUSDC = actualBalanceUSDC - costBasisUSDC;
+          const actualUnrealisedPnLPct =
+            costBasisUSDC > 0
+              ? (actualUnrealisedPnLUSDC / costBasisUSDC) * 100
+              : 0;
+
+          const adjustedPnLMetrics = {
+            ...pnlMetrics,
+            balanceToken: actualBalanceToken,
+            balanceUSDC: actualBalanceUSDC,
+            unrealisedPnLUSDC: actualUnrealisedPnLUSDC,
+            unrealisedPnLPct: actualUnrealisedPnLPct,
+          };
+
           await waitMinDuration();
 
           if (isMounted) {
             // PnL calculation complete
             setResult((prev) => ({
               ...prev,
-              pnl: pnlMetrics,
+              pnl: adjustedPnLMetrics,
               isLoading: false,
               debug: { ...prev.debug, status: 'Complete' },
             }));
@@ -287,7 +314,9 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
     tokenDecimals,
     tokenBalance,
     tokenPrice,
-    transactions,
+    // Use transactionsData instead of transactions to ensure we detect changes
+    // even if RTK Query returns the same array reference
+    transactionsData,
     walletAddress,
     chainId,
     refreshTrigger,

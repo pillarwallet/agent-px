@@ -82,11 +82,14 @@ const Sell = (props: SellProps) => {
   const { walletAddress: accountAddress } = useTransactionKit();
 
   // Fetch transactions for PnL
-  const { data: transactionsData, isLoading: isTransactionsLoading } =
-    useGetWalletTransactionsQuery(
-      { wallet: accountAddress || '' },
-      { skip: !accountAddress }
-    );
+  const {
+    data: transactionsData,
+    isLoading: isTransactionsLoading,
+    refetch: refetchTransactions,
+  } = useGetWalletTransactionsQuery(
+    { wallet: accountAddress || '' },
+    { skip: !accountAddress }
+  );
 
   // Find matching portfolio token to get balance and price
   const portfolioToken = useMemo(() => {
@@ -100,11 +103,7 @@ const Sell = (props: SellProps) => {
   }, [token, portfolioTokens]);
 
   // Calculate PnL for selected token with proper balance and price
-  const {
-    pnl,
-    isLoading: isPnLLoading,
-    refetch: refetchPnL,
-  } = useTokenPnL(
+  const { pnl, isLoading: isPnLLoading } = useTokenPnL(
     token && accountAddress && portfolioToken
       ? {
           token: {
@@ -121,12 +120,13 @@ const Sell = (props: SellProps) => {
       : null
   );
 
-  // Refetch PnL when parent triggers refresh
+  // Refetch transactions when parent triggers refresh
+  // If transactionsData changes, useTokenPnL will automatically recalculate
   useEffect(() => {
-    if (isRefreshing && refetchPnL) {
-      refetchPnL();
+    if (isRefreshing && refetchTransactions) {
+      refetchTransactions();
     }
-  }, [isRefreshing, refetchPnL]);
+  }, [isRefreshing, refetchTransactions]);
 
   const {
     getBestSellOffer,

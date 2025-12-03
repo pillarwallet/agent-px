@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useTokenPnL } from '../../../../hooks/useTokenPnL';
 import { PortfolioToken } from '../../../../services/tokensData';
 import { WalletTransactionsMobulaResponse } from '../../../../types/api';
@@ -23,12 +22,8 @@ export const TokenPnLCell = ({
   chainId,
   isRefreshing, // Destructured isRefreshing
 }: TokenPnLCellProps) => {
-  const {
-    pnl,
-    isLoading,
-    refetch, // Added refetch
-  } = useTokenPnL(
-    token && walletAddress // Conditional hook call
+  const { pnl, isLoading } = useTokenPnL(
+    token && walletAddress
       ? {
           token: {
             contract: token.contract,
@@ -43,12 +38,6 @@ export const TokenPnLCell = ({
         }
       : null
   );
-
-  useEffect(() => {
-    if (isRefreshing && refetch) {
-      refetch();
-    }
-  }, [isRefreshing, refetch]);
 
   // Show loading immediately when refreshing, or when hook is loading
   if (isRefreshing || isLoading) {

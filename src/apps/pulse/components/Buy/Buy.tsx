@@ -172,11 +172,14 @@ export default function Buy(props: BuyProps) {
   const [sumOfStableBalance, setSumOfStableBalance] = useState<number>(0);
 
   // Fetch transactions for PnL
-  const { data: transactionsData, isLoading: isTransactionsLoading } =
-    useGetWalletTransactionsQuery(
-      { wallet: accountAddress || '' },
-      { skip: !accountAddress }
-    );
+  const {
+    data: transactionsData,
+    isLoading: isTransactionsLoading,
+    refetch: refetchTransactions,
+  } = useGetWalletTransactionsQuery(
+    { wallet: accountAddress || '' },
+    { skip: !accountAddress }
+  );
 
   // Find matching portfolio token to get balance and price
   const portfolioToken = useMemo(() => {
@@ -210,6 +213,14 @@ export default function Buy(props: BuyProps) {
         }
       : null
   );
+
+  // Refetch transactions when parent triggers refresh
+  // If transactionsData changes, useTokenPnL will automatically recalculate
+  useEffect(() => {
+    if (isRefreshing && refetchTransactions) {
+      refetchTransactions();
+    }
+  }, [isRefreshing, refetchTransactions]);
 
   useEffect(() => {
     if (!portfolioTokens || portfolioTokens.length === 0) {
