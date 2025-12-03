@@ -57,20 +57,23 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
           </div>
 
           {/* Gas Tank Card */}
-          <div className="flex items-center w-full max-w-[250px] h-[34px] rounded-lg py-2 px-3 gap-0.5 bg-[#8A77FF1A]">
-            <div className="w-6 h-6 flex items-center justify-center rounded">
-              <img
-                src={GasTankIcon}
-                alt="Gas Tank"
-                className="w-5 h-[18px] text-[#8A77FF]"
-              />
-            </div>
-            <span className="text-sm font-normal text-white">
-              Universal Gas Tank: $
-              {gasTankBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+          <div className="flex items-center w-full max-w-[250px] rounded-lg py-2 px-3 gap-0.5 bg-[#8A77FF1A]">
+            <img src={GasTankIcon} alt="Gas Tank" className="w-5" />
+            <span className="text-sm font-normal text-white flex-1 flex items-center gap-1">
+              Universal Gas Tank:{' '}
+              {isGasTankLoading ? (
+                <span className="inline-flex">
+                  <TailSpin color="#FFFFFF" height={16} width={16} />
+                </span>
+              ) : (
+                <>
+                  $
+                  {gasTankBalance.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -81,15 +84,17 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
             onClick={onComplete}
             type="button"
             className={`flex items-center justify-center w-full rounded-lg h-12 text-white font-medium text-base disabled:opacity-50 ${
-              isGasTankLoading ? 'bg-[#29292F]' : 'bg-[#8A77FF]'
+              isGasTankLoading || gasTankBalance >= 2
+                ? 'bg-[#29292F]'
+                : 'bg-[#8A77FF]'
             }`}
-            disabled={isGasTankLoading}
+            disabled={isGasTankLoading || gasTankBalance >= 2}
             data-testid="pulse-onboarding-top-up-button"
           >
-            {isGasTankLoading ? (
+            {isGasTankLoading || gasTankBalance >= 2 ? (
               <div className="flex items-center justify-center gap-2">
                 <TailSpin color="#FFFFFF" height={20} width={20} />
-                <span>Loading...</span>
+                <span>{gasTankBalance >= 2 ? 'Funded' : 'Loading...'}</span>
               </div>
             ) : (
               'Top up'

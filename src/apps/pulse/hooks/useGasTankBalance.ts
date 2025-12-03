@@ -33,6 +33,7 @@ export function useGasTankBalance(
     if (!walletAddress || !paymasterUrl) {
       setTotalBalance(0);
       setChainBalances([]);
+      setIsLoading(false);
       return;
     }
 

@@ -226,6 +226,12 @@ export default function HomeScreen(props: HomeScreenProps) {
     localStorage.getItem('hasCompletedOnboarding') === 'true'
   );
 
+  // Reset onboarding flag on page refresh or account change
+  useEffect(() => {
+    hasCompletedOnboardingRef.current = false;
+    localStorage.removeItem('hasCompletedOnboarding');
+  }, [accountAddress]);
+
   const { data: walletPortfolioData, isLoading: isPortfolioLoading } =
     useGetWalletPortfolioQuery(
       { wallet: accountAddress || '', isPnl: false },
@@ -244,43 +250,68 @@ export default function HomeScreen(props: HomeScreenProps) {
   const { totalUsdcBalance } = useTotalUsdcBalance(walletPortfolioData);
 
   // Immediately hide onboarding when a token is selected or preview opens
+  // But only if not in an active onboarding flow (welcome or topup screen)
   useEffect(() => {
-    if (buyToken || sellToken || previewBuy || previewSell) {
+    if (
+      (buyToken || sellToken || previewBuy || previewSell) &&
+      onboardingScreen === null
+    ) {
       setOnboardingScreen(null);
     }
-  }, [buyToken, sellToken, previewBuy, previewSell, setOnboardingScreen]);
+  }, [
+    buyToken,
+    sellToken,
+    previewBuy,
+    previewSell,
+    onboardingScreen,
+    setOnboardingScreen,
+  ]);
 
   // Determine if onboarding should be shown based on gas tank balance
   useEffect(() => {
+    // Show welcome screen if onboarding not completed and screen not yet shown
     if (
       !isGasTankLoading &&
       walletPortfolioData &&
       portfolioTokens.length > 0 &&
-      !previewBuy &&
-      !previewSell &&
-      !buyToken &&
-      !sellToken
+      !hasCompletedOnboardingRef.current &&
+      onboardingScreen === null
     ) {
-      // Show onboarding if gas tank balance is less than 2 (only when not in any transaction flow)
-      if (gasTankBalance < 2 && onboardingScreen === null) {
-        setOnboardingScreen('welcome');
-      } else if (gasTankBalance >= 2) {
-        // Hide onboarding when balance is 2 or more
-        setOnboardingScreen(null);
-      }
+      setOnboardingScreen('welcome');
     }
   }, [
     isGasTankLoading,
     walletPortfolioData,
     portfolioTokens.length,
-    gasTankBalance,
     onboardingScreen,
     setOnboardingScreen,
-    previewBuy,
-    previewSell,
-    buyToken,
-    sellToken,
   ]);
+
+  // Auto-dismiss onboarding when balance >= 2 while on welcome screen
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+
+    if (gasTankBalance >= 2 && onboardingScreen === 'welcome') {
+      timer = setTimeout(() => {
+        hasCompletedOnboardingRef.current = true;
+        localStorage.setItem('hasCompletedOnboarding', 'true');
+        setOnboardingScreen(null);
+      }, 3000);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [gasTankBalance, onboardingScreen, setOnboardingScreen]);
+
+  // Reset onboarding after transaction completes
+  useEffect(() => {
+    if (transactionStatus) {
+      // Transaction is complete, reset onboarding for next transaction
+      hasCompletedOnboardingRef.current = false;
+      localStorage.removeItem('hasCompletedOnboarding');
+    }
+  }, [transactionStatus]);
 
   // Preselect max USDC token when topup screen is shown and totalUsdcBalance > 0
   useEffect(() => {
