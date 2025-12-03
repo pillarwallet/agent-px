@@ -275,7 +275,8 @@ export default function HomeScreen(props: HomeScreenProps) {
       walletPortfolioData &&
       portfolioTokens.length > 0 &&
       !hasCompletedOnboardingRef.current &&
-      onboardingScreen === null
+      onboardingScreen === null &&
+      (gasTankBalance == null || gasTankBalance < 2)
     ) {
       setOnboardingScreen('welcome');
     }
@@ -285,6 +286,7 @@ export default function HomeScreen(props: HomeScreenProps) {
     portfolioTokens.length,
     onboardingScreen,
     setOnboardingScreen,
+    gasTankBalance,
   ]);
 
   // Auto-dismiss onboarding when balance >= 2 while on welcome screen

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { TailSpin } from 'react-loader-spinner';
 
 // hooks
@@ -115,20 +115,25 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     useState<NodeJS.Timeout | null>(null);
 
   // Convert selectedToken to PayingToken format for useIntentSdk
-  const payingTokens = selectedToken
-    ? [
-        {
-          name: selectedToken.name,
-          symbol: selectedToken.symbol,
-          logo: selectedToken.logo,
-          actualBal: '0', // Balance is managed in parent component
-          totalUsd: parseFloat(amount) || 0,
-          totalRaw: '0',
-          chainId: selectedToken.chainId,
-          address: selectedToken.address,
-        },
-      ]
-    : [];
+  // Memoize to prevent infinite loop when checking if modules are installed
+  const payingTokens = useMemo(
+    () =>
+      selectedToken
+        ? [
+            {
+              name: selectedToken.name,
+              symbol: selectedToken.symbol,
+              logo: selectedToken.logo,
+              actualBal: '0', // Balance is managed in parent component
+              totalUsd: parseFloat(amount) || 0,
+              totalRaw: '0',
+              chainId: selectedToken.chainId,
+              address: selectedToken.address,
+            },
+          ]
+        : [],
+    [selectedToken, amount]
+  );
 
   const { areModulesInstalled, getEnablePulseTradingTransactions } =
     useIntentSdk({
