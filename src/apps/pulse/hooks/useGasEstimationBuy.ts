@@ -127,7 +127,10 @@ export default function useGasEstimationBuy({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
         paymasterDetails: {
-          url: isUsingRelayBuy && paymasterUrl ? `${paymasterUrl}/gasTankPaymaster?chainId=${fromChainId}` : '',
+          url:
+            isUsingRelayBuy && paymasterUrl
+              ? `${paymasterUrl}/gasTankPaymaster?chainId=${fromChainId}`
+              : '',
         },
       });
 

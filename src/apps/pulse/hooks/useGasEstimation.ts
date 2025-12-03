@@ -129,7 +129,9 @@ export default function useGasEstimation({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
         paymasterDetails: {
-          url: paymasterUrl ? `${paymasterUrl}/gasTankPaymaster?chainId=${sellToken.chainId}` : '',
+          url: paymasterUrl
+            ? `${paymasterUrl}/gasTankPaymaster?chainId=${sellToken.chainId}`
+            : '',
         },
       });
 
