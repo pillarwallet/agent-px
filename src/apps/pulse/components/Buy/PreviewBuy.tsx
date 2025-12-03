@@ -146,6 +146,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     fromChainId: fromChainId || 1,
     isPaused: isWaitingForSignature || isExecuting,
     userPortfolio,
+    isUsingRelayBuy: USE_RELAY_BUY,
   });
 
   useEffect(() => {

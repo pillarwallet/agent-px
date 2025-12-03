@@ -20,6 +20,7 @@ interface UseGasEstimationBuyProps {
   fromChainId: number;
   isPaused?: boolean;
   userPortfolio?: Token[];
+  isUsingRelayBuy?: boolean;
 }
 
 export default function useGasEstimationBuy({
@@ -29,6 +30,7 @@ export default function useGasEstimationBuy({
   fromChainId,
   isPaused = false,
   userPortfolio,
+  isUsingRelayBuy = false,
 }: UseGasEstimationBuyProps) {
   const [isEstimatingGas, setIsEstimatingGas] = useState(false);
   const [gasEstimationError, setGasEstimationError] = useState<string | null>(
@@ -118,9 +120,15 @@ export default function useGasEstimationBuy({
         kit,
         buyToken.chainId
       );
+
+      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+
       const estimation = await kit.estimateBatches({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
+        paymasterDetails: {
+          url: isUsingRelayBuy && paymasterUrl ? `${paymasterUrl}/gasTankPaymaster?chainId=${fromChainId}` : '',
+        },
       });
 
       const batchEst = estimation.batches[batchName];
@@ -200,6 +208,7 @@ export default function useGasEstimationBuy({
     fromChainId,
     isInitialized,
     userPortfolio,
+    isUsingRelayBuy,
   ]);
 
   // Store the latest function in ref to avoid infinite loops

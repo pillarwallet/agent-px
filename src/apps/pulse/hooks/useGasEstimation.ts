@@ -122,9 +122,15 @@ export default function useGasEstimation({
         kit,
         sellToken.chainId
       );
+
+      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+
       const estimation = await kit.estimateBatches({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
+        paymasterDetails: {
+          url: paymasterUrl ? `${paymasterUrl}/gasTankPaymaster?chainId=${sellToken.chainId}` : '',
+        },
       });
 
       const batchEst = estimation.batches[batchName];
