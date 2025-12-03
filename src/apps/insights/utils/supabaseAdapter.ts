@@ -56,24 +56,23 @@ export const createSupabaseAdapter = () => {
     from: (table: string) => ({
       select: (columns = '*') => ({
         order: (column: string, options?: { ascending?: boolean }) => {
-          const runQuery = (
+          const runQuery = async (
             filter?: (item: any) => boolean
-          ): Promise<{ data: any; error: any }> =>
-            new Promise(async (resolve, reject) => {
-              try {
-                const result = await getTradingSignals();
-                let data = result.data || [];
+          ): Promise<{ data: any; error: any }> => {
+            try {
+              const result = await getTradingSignals();
+              let data = result.data || [];
 
-                if (filter) {
-                  data = data.filter(filter);
-                }
-
-                sortByColumn(data, column, options);
-                resolve({ data, error: null });
-              } catch (error: any) {
-                reject({ data: null, error });
+              if (filter) {
+                data = data.filter(filter);
               }
-            });
+
+              sortByColumn(data, column, options);
+              return { data, error: null };
+            } catch (error: any) {
+              return { data: null, error };
+            }
+          };
 
           return {
           eq: (filterColumn: string, value: any) =>
