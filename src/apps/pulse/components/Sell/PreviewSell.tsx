@@ -486,7 +486,8 @@ const PreviewSell = (props: PreviewSellProps) => {
                 const nativePriceData = await nativePriceResponse.json();
 
                 if (nativePriceData?.priceUSD) {
-                  const gasCostInUSD = parseFloat(gasCostInNative) * nativePriceData.priceUSD;
+                  const gasCostInUSD =
+                    parseFloat(gasCostInNative) * nativePriceData.priceUSD;
                   gasFeeString = `≈ $${gasCostInUSD.toFixed(6)}`;
                 }
               } catch (err) {

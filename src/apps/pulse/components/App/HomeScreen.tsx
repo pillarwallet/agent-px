@@ -132,8 +132,6 @@ export default function HomeScreen(props: HomeScreenProps) {
     balance: number;
     price?: number;
   }>();
-  const [isMaxStableCoinBalanceLoading, setIsMaxStableCoinBalanceLoading] =
-    useState(true);
   const [transactionData, setTransactionData] = useState<{
     sellToken: SelectedToken | null;
     buyToken: SelectedToken | null;
@@ -427,7 +425,6 @@ export default function HomeScreen(props: HomeScreenProps) {
       chainId: chainIdOfMaxStableBalance,
       balance: maxStableBalance,
     });
-    setIsMaxStableCoinBalanceLoading(false);
   }, [portfolioTokens, walletPortfolioData]);
 
   // Sync selectedChainId with maxStableCoinBalance.chainId on first load or when no preference is stored

@@ -7,7 +7,10 @@ import OnboardingWelcome from '../OnboardingWelcome';
 describe('<OnboardingWelcome />', () => {
   const mockProps = {
     onComplete: vi.fn(),
-    totalUsdcBalance: 150.5,
+    maxStableCoinBalance: {
+      chainId: 1,
+      balance: 150.5,
+    },
     gasTankBalance: 0,
     isGasTankLoading: false,
   };
@@ -30,8 +33,8 @@ describe('<OnboardingWelcome />', () => {
     it('displays wallet and gas tank balances', () => {
       render(<OnboardingWelcome {...mockProps} />);
 
-      // Check for "All Networks" label
-      expect(screen.getByText(/All Networks/)).toBeInTheDocument();
+      // Check for "Ethereum" label (chain name from ChainNames mapping)
+      expect(screen.getByText(/Ethereum:/)).toBeInTheDocument();
       // Check for USDC balance formatting
       expect(screen.getByText(/150\.50/)).toBeInTheDocument();
       // Check for USDC currency label
@@ -46,7 +49,7 @@ describe('<OnboardingWelcome />', () => {
 
       expect(
         screen.getByText(
-          /To start trading, fund your account with USDC, top up your gas tank and enable trading/
+          /To start trading, you need \$2 USDC on a network and \$2 in your gas tank and enable trading/
         )
       ).toBeInTheDocument();
     });
@@ -65,7 +68,12 @@ describe('<OnboardingWelcome />', () => {
 
   describe('balance display', () => {
     it('formats USDC balance with 2 decimal places', () => {
-      render(<OnboardingWelcome {...mockProps} totalUsdcBalance={1234.567} />);
+      render(
+        <OnboardingWelcome
+          {...mockProps}
+          maxStableCoinBalance={{ chainId: 1, balance: 1234.567 }}
+        />
+      );
 
       expect(screen.getByText(/1,234\.57/)).toBeInTheDocument();
     });
@@ -80,7 +88,7 @@ describe('<OnboardingWelcome />', () => {
       render(
         <OnboardingWelcome
           {...mockProps}
-          totalUsdcBalance={0}
+          maxStableCoinBalance={{ chainId: 1, balance: 0 }}
           gasTankBalance={0}
         />
       );
@@ -93,7 +101,7 @@ describe('<OnboardingWelcome />', () => {
       render(
         <OnboardingWelcome
           {...mockProps}
-          totalUsdcBalance={1000000.99}
+          maxStableCoinBalance={{ chainId: 1, balance: 1000000.99 }}
           gasTankBalance={50000.5}
         />
       );
