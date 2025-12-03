@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 
 // Styles
 import './styles/insights.css';
@@ -91,7 +92,17 @@ const App = () => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const eoaAddress = useMemo(() => getStoredValue('EOA_ADDRESS'), []);
+  const storedEoaAddress = useMemo(() => getStoredValue('EOA_ADDRESS'), []);
+  const { user } = usePrivy();
+  const { wallets } = useWallets();
+  const privyWalletAddress = user?.wallet?.address;
+  const privyWallets = wallets || [];
+  const fallbackWalletAddress =
+    privyWallets.length > 0 ? privyWallets[0]?.address : undefined;
+
+  const eoaAddress = useMemo(() => {
+    return storedEoaAddress || privyWalletAddress || fallbackWalletAddress || null;
+  }, [storedEoaAddress, privyWalletAddress, fallbackWalletAddress]);
   const devicePlatform = useMemo(() => getInitialDevicePlatform(), []);
   const isNativeApp =
     devicePlatform === 'ios' || devicePlatform === 'android';
@@ -378,7 +389,11 @@ const App = () => {
 
   const missingEoaAddress = !eoaAddress;
   const showSubscriptionLoading =
-    Boolean(eoaAddress) && subscriptionLoading && !hasActiveSubscription;
+    Boolean(eoaAddress) &&
+    subscriptionLoading &&
+    !hasActiveSubscription &&
+    !isAwaitingSubscription &&
+    !isSubscriptionPolling;
   const subscriptionInactive =
     Boolean(eoaAddress) &&
     !subscriptionLoading &&
@@ -478,7 +493,6 @@ const App = () => {
               <button
                 type="button"
                 onClick={handleSubscribeClick}
-                disabled={!eoaAddress || isAwaitingSubscription}
                 className="w-full rounded-2xl bg-white py-3 font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Subscribe with Stripe
