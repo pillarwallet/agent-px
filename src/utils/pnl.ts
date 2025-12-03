@@ -403,10 +403,7 @@ export const calculatePnLFromRelay = (
       // This is important because metadata might show a bridge (e.g., USDC→USDC)
       // while state changes reveal the actual token swap (e.g., LINK→USDC)
       const userAddress = req.user?.toLowerCase();
-      const allTxs = [
-        ...(req.data?.inTxs || []),
-        ...(req.data?.outTxs || []),
-      ];
+      const allTxs = [...(req.data?.inTxs || []), ...(req.data?.outTxs || [])];
 
       const { tokenChange, usdcChange, latestTimestamp } = allTxs.reduce(
         (acc, tx) => {
@@ -420,8 +417,7 @@ export const calculatePnLFromRelay = (
           if (tx.stateChanges) {
             tx.stateChanges.forEach((sc) => {
               if (sc.address?.toLowerCase() === userAddress) {
-                const tokenAddr =
-                  sc.change?.data?.tokenAddress?.toLowerCase();
+                const tokenAddr = sc.change?.data?.tokenAddress?.toLowerCase();
                 const balanceDiff = parseFloat(sc.change?.balanceDiff || '0');
 
                 if (tokenAddr === tokenContract) {
@@ -497,7 +493,6 @@ export const calculatePnLFromRelay = (
           `[calculatePnLFromRelay] No metadata or state changes for request ${req.id}`
         );
       }
-
 
       if (!side || amountToken === 0) return null;
 
