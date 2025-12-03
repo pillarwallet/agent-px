@@ -1,5 +1,35 @@
 @config '../tailwind.insights.config.js';
 
+@font-face {
+  font-family: 'Formular';
+  src:
+    url('../../assets/landing-fonts/Formular-Regular.woff2') format('woff2'),
+    url('../../assets/landing-fonts/Formular-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Formular';
+  src:
+    url('../../assets/landing-fonts/Formular-Medium.woff2') format('woff2'),
+    url('../../assets/landing-fonts/Formular-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Formular';
+  src:
+    url('../../assets/landing-fonts/Formular-Bold.woff2') format('woff2'),
+    url('../../assets/landing-fonts/Formular-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

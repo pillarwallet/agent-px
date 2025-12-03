@@ -66,7 +66,7 @@ export const useTradingSignals = (options: UseTradingSignalsOptions = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [enabled, isInitialLoad]);
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) {

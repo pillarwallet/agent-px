@@ -37,9 +37,12 @@ export const SparklineChart = ({
     const chartWidth = 100 - RIGHT_PADDING_PCT; // Leave space on right
     const height = 100; // percentage
 
+    const safePointDivisor = data.length > 1 ? data.length - 1 : 1;
+    const safePriceRange = priceRange === 0 ? 1 : priceRange;
+
     const points = data.map((d, i) => {
-      const x = (i / (data.length - 1)) * chartWidth;
-      const y = height - ((d.price - minPrice) / priceRange) * height;
+      const x = (i / safePointDivisor) * chartWidth;
+      const y = height - ((d.price - minPrice) / safePriceRange) * height;
       return `${x},${y}`;
     });
 
@@ -47,14 +50,14 @@ export const SparklineChart = ({
 
     // Calculate positions for horizontal lines (as percentage from top)
     // Clamp values between 5% and 95% to ensure visibility
-    const slPosition = Math.max(5, Math.min(95, ((maxPrice - stopLoss) / priceRange) * 100));
-    const tpPosition = Math.max(5, Math.min(95, ((maxPrice - nextTP) / priceRange) * 100));
-    const currentPricePosition = Math.max(5, Math.min(95, ((maxPrice - currentPrice) / priceRange) * 100));
+    const slPosition = Math.max(5, Math.min(95, ((maxPrice - stopLoss) / safePriceRange) * 100));
+    const tpPosition = Math.max(5, Math.min(95, ((maxPrice - nextTP) / safePriceRange) * 100));
+    const currentPricePosition = Math.max(5, Math.min(95, ((maxPrice - currentPrice) / safePriceRange) * 100));
 
     // Calculate the Y position of the last data point on the blue line
     // This ensures the blue dot sits exactly on the line's endpoint
     const lastDataPoint = data[data.length - 1];
-    const lastPointYPosition = Math.max(5, Math.min(95, ((maxPrice - lastDataPoint.price) / priceRange) * 100));
+    const lastPointYPosition = Math.max(5, Math.min(95, ((maxPrice - lastDataPoint.price) / safePriceRange) * 100));
 
     console.log('Sparkline positions:', { 
       slPosition, 

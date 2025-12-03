@@ -109,17 +109,23 @@ export const useSubscriptionStatus = (
       return false;
     }
 
-    if (
-      subscription.currentPeriodEnd &&
-      subscription.currentPeriodEnd < Date.now()
-    ) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const periodEndSeconds =
+      typeof subscription.currentPeriodEnd === 'number'
+        ? subscription.currentPeriodEnd
+        : null;
+
+    if (periodEndSeconds && periodEndSeconds < nowSeconds) {
       return false;
     }
 
+    const trialEndSeconds =
+      typeof subscription.trialEnd === 'number' ? subscription.trialEnd : null;
+
     if (
       normalizedStatus === 'trialing' &&
-      subscription.trialEnd &&
-      subscription.trialEnd < Date.now()
+      trialEndSeconds &&
+      trialEndSeconds < nowSeconds
     ) {
       return false;
     }

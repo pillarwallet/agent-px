@@ -91,6 +91,10 @@ module.exports = {
             boxShadow: '0 0 40px hsl(262, 83%, 68% / 0.7)',
           },
         },
+        'caret-blink': {
+          '0%,50%,100%': { opacity: '1' },
+          '25%,75%': { opacity: '0' },
+        },
         'slide-in-right': {
           '0%': {
             transform: 'translateX(100%)',
@@ -106,6 +110,7 @@ module.exports = {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+        'caret-blink': 'caret-blink 1.25s ease-in-out infinite',
         'slide-in-right': 'slide-in-right 0.3s ease-out',
       },
     },

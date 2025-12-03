@@ -12,72 +12,75 @@ import { fetchSparklineData, getTradingSignals, updateSignalPrices } from '../ap
  * Mock Supabase client that translates calls to Firebase API
  */
 export const createSupabaseAdapter = () => {
+  const sortByColumn = (
+    data: any[],
+    column: string | undefined,
+    options?: { ascending?: boolean }
+  ) => {
+    if (!column) {
+      return data;
+    }
+
+    const ascending = options?.ascending !== false;
+    const sentinel = ascending ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+    return data.sort((a: any, b: any) => {
+      const aRaw = a?.[column];
+      const bRaw = b?.[column];
+
+      const aVal =
+        aRaw === null || aRaw === undefined
+          ? sentinel
+          : typeof aRaw === 'string'
+            ? aRaw
+            : Number(aRaw);
+      const bVal =
+        bRaw === null || bRaw === undefined
+          ? sentinel
+          : typeof bRaw === 'string'
+            ? bRaw
+            : Number(bRaw);
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        if (aVal < bVal) return ascending ? -1 : 1;
+        if (aVal > bVal) return ascending ? 1 : -1;
+        return 0;
+      }
+
+      const result = String(aVal).localeCompare(String(bVal));
+      return ascending ? result : -result;
+    });
+  };
+
   return {
     from: (table: string) => ({
       select: (columns = '*') => ({
-        order: (column: string, options?: { ascending?: boolean }) => ({
-          eq: (filterColumn: string, value: any) => ({
-            // This is a simplified adapter - for now just return a promise
-            // that calls the Firebase API
-            then: async (onResolve?: any, onReject?: any) => {
+        order: (column: string, options?: { ascending?: boolean }) => {
+          const runQuery = (
+            filter?: (item: any) => boolean
+          ): Promise<{ data: any; error: any }> =>
+            new Promise(async (resolve, reject) => {
               try {
                 const result = await getTradingSignals();
-                // Apply filtering if needed
                 let data = result.data || [];
-                
-                // Simple filtering (can be enhanced)
-                if (filterColumn && value !== undefined) {
-                  data = data.filter((item: any) => item[filterColumn] === value);
+
+                if (filter) {
+                  data = data.filter(filter);
                 }
-                
-                // Simple sorting (can be enhanced)
-                if (column) {
-                  data.sort((a: any, b: any) => {
-                    const aVal = a[column];
-                    const bVal = b[column];
-                    const ascending = options?.ascending !== false;
-                    
-                    if (aVal < bVal) return ascending ? -1 : 1;
-                    if (aVal > bVal) return ascending ? 1 : -1;
-                    return 0;
-                  });
-                }
-                
-                const response = { data, error: null };
-                return onResolve ? onResolve(response) : response;
+
+                sortByColumn(data, column, options);
+                resolve({ data, error: null });
               } catch (error: any) {
-                const response = { data: null, error };
-                return onReject ? onReject(response) : response;
+                reject({ data: null, error });
               }
-            },
-          }),
-          // For queries without eq filter
-          then: async (onResolve?: any, onReject?: any) => {
-            try {
-              const result = await getTradingSignals();
-              let data = result.data || [];
-              
-              // Simple sorting
-              if (column) {
-                data.sort((a: any, b: any) => {
-                  const aVal = a[column];
-                  const bVal = b[column];
-                  const ascending = options?.ascending !== false;
-                  
-                  if (aVal < bVal) return ascending ? -1 : 1;
-                  if (aVal > bVal) return ascending ? 1 : -1;
-                  return 0;
-                });
-              }
-              
-              const response = { data, error: null };
-              return onResolve ? onResolve(response) : response;
-            } catch (error: any) {
-              const response = { data: null, error };
-              return onReject ? onReject(response) : response;
-            }
-          },
-        }),
+            });
+
+          return {
+          eq: (filterColumn: string, value: any) =>
+              runQuery((item) => item[filterColumn] === value),
+            exec: () => runQuery(),
+          };
+        },
       }),
     }),
     functions: {

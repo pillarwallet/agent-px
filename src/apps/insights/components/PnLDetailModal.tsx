@@ -24,6 +24,7 @@ export const PnLDetailModal = ({ open, onOpenChange, view, signals }: PnLDetailM
   const isMobile = useIsMobile();
 
   const filteredSignals = useMemo(() => {
+    if (!view) return [];
     switch (view) {
       case 'floating':
         return signals.filter(s => s.status === 'active');
@@ -39,6 +40,7 @@ export const PnLDetailModal = ({ open, onOpenChange, view, signals }: PnLDetailM
   }, [view, signals]);
 
   const chartData = useMemo(() => {
+    if (!view) return [];
     if (view === 'open') {
       const openSignals = filteredSignals
         .filter(s => typeof s.profit_loss_percent === 'number')
@@ -83,6 +85,9 @@ export const PnLDetailModal = ({ open, onOpenChange, view, signals }: PnLDetailM
       });
     }
   }, [view, filteredSignals]);
+
+  if (!view) return null;
+
   const totalPnL = chartData.length > 0 ? chartData[chartData.length - 1].value : 0;
   const isPositive = totalPnL >= 0;
 

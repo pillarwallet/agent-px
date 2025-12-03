@@ -76,7 +76,9 @@ const formatDate = (value?: number | null) => {
     return null;
   }
 
-  return new Date(value).toLocaleDateString(undefined, {
+  const millis = value > 1e12 ? value : value * 1000;
+
+  return new Date(millis).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

@@ -3,12 +3,13 @@
  */
 
 import { Badge } from '../ui/badge';
+import type { LeverageType, TabType } from '../../types';
 
 interface FiltersProps {
-  activeTab: 'open' | 'closed' | 'feed' | 'all';
-  onTabChange: (tab: 'open' | 'closed' | 'feed' | 'all') => void;
-  leverage: 1 | 3 | 5 | 10;
-  onLeverageChange: (leverage: 1 | 3 | 5 | 10) => void;
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
+  leverage: LeverageType;
+  onLeverageChange: (leverage: LeverageType) => void;
 }
 
 export const Filters = ({ 
