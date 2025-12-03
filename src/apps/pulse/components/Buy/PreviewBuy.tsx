@@ -688,6 +688,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     ) {
       refreshPreviewBuyData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     buyToken,
     usdAmount,
@@ -700,7 +701,6 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     intentSdk,
     accountAddress,
     dispensableAssets,
-    refreshPreviewBuyData,
   ]);
 
   // Auto-refresh buy offer every 15 seconds (disabled when waiting for signature or executing)
