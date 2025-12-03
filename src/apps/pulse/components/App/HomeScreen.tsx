@@ -275,8 +275,7 @@ export default function HomeScreen(props: HomeScreenProps) {
       walletPortfolioData &&
       portfolioTokens.length > 0 &&
       !hasCompletedOnboardingRef.current &&
-      onboardingScreen === null &&
-      (gasTankBalance == null || gasTankBalance < 2)
+      onboardingScreen === null
     ) {
       setOnboardingScreen('welcome');
     }
