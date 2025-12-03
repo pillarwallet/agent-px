@@ -27,7 +27,7 @@ export const ConsentModalLayout = React.memo(({
   };
 
   const content = (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className={`flex flex-col h-full overflow-hidden ${isMobile ? "pb-16" : ""}`}>
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between p-4 sm:p-6 border-b border-border">
         <div className="flex items-center gap-3">
