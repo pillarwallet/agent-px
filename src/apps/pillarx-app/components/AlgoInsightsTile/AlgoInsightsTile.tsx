@@ -14,9 +14,23 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
 
   if (isDataLoading) return null;
 
-  const algoData = data.data as AlgoInsightsData;
+  // Runtime type guard for AlgoInsightsData
+  const isAlgoInsightsData = (data: any): data is AlgoInsightsData => {
+    return (
+      data &&
+      typeof data === 'object' &&
+      'cumulative_pnl' in data &&
+      'pnl_1m' in data &&
+      'pnl_3m' in data &&
+      'pnl_6m' in data &&
+      'risk_level' in data &&
+      'pnl_status' in data
+    );
+  };
 
-  // Fallback if data is missing (shouldn't happen with correct mock/API)
+  const algoData = isAlgoInsightsData(data.data) ? data.data : null;
+
+  // Fallback if data is missing or invalid
   if (!algoData) return null;
 
   // Helper function to generate smooth curve path using Catmull-Rom spline
@@ -78,10 +92,18 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
   const graphHeight = 260; // Reduced from 272 to account for bottom margin
 
   // Calculate min/max for scaling with padding
-  const values = currentTimeframeData.history.map(p => p.value);
+  // Calculate min/max for scaling with padding
+  const values = currentTimeframeData.history.length > 0
+    ? currentTimeframeData.history.map(p => p.value)
+    : [0]; // Default to [0] if history is empty
+
   const dataMin = Math.min(...values);
   const dataMax = Math.max(...values);
-  const padding = (dataMax - dataMin) * 0.1; // 10% padding
+
+  // Ensure we have a range even if min == max
+  const range = dataMax - dataMin || 1;
+  const padding = range * 0.1; // 10% padding
+
   const minValue = dataMin - padding;
   const maxValue = dataMax + padding;
 
@@ -112,6 +134,38 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
     };
   });
 
+  // Calculate Donut Chart Segments
+  const donutSegments = React.useMemo(() => {
+    const radius = 80;
+    const circumference = 2 * Math.PI * radius;
+
+    const winningPercent = algoData.pnl_status.winning || 0;
+    const losingPercent = algoData.pnl_status.losing || 0;
+    const neutralPercent = algoData.pnl_status.neutral || 0;
+
+    // Normalize percentages to ensure they sum to 100 (optional but good for safety)
+    const total = winningPercent + losingPercent + neutralPercent || 1;
+
+    const winningLength = (winningPercent / total) * circumference;
+    const losingLength = (losingPercent / total) * circumference;
+    const neutralLength = (neutralPercent / total) * circumference;
+
+    return {
+      winning: {
+        strokeDasharray: `${winningLength} ${circumference - winningLength}`,
+        strokeDashoffset: 0
+      },
+      losing: {
+        strokeDasharray: `${losingLength} ${circumference - losingLength}`,
+        strokeDashoffset: -winningLength
+      },
+      neutral: {
+        strokeDasharray: `${neutralLength} ${circumference - neutralLength}`,
+        strokeDashoffset: -(winningLength + losingLength)
+      }
+    };
+  }, [algoData.pnl_status]);
+
   return (
     <StyledTileContainer>
       {/* ================= MOBILE VIEW ================= */}
@@ -132,7 +186,7 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
           <MobileMetricCard>
             <MobileMetricTitle>1 Month PnL</MobileMetricTitle>
             <MobileMetricValueBadge>
-              {algoData.pnl_1m}% <SmallArrowUp>▲</SmallArrowUp>
+              {algoData.pnl_1m}% {algoData.pnl_1m >= 0 ? <SmallArrowUp>▲</SmallArrowUp> : <SmallArrowDown>▼</SmallArrowDown>}
             </MobileMetricValueBadge>
           </MobileMetricCard>
 
@@ -140,7 +194,7 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
           <MobileMetricCard>
             <MobileMetricTitle>3 Month PnL</MobileMetricTitle>
             <MobileMetricValueBadge>
-              {algoData.pnl_3m}% <SmallArrowUp>▲</SmallArrowUp>
+              {algoData.pnl_3m}% {algoData.pnl_3m >= 0 ? <SmallArrowUp>▲</SmallArrowUp> : <SmallArrowDown>▼</SmallArrowDown>}
             </MobileMetricValueBadge>
           </MobileMetricCard>
 
@@ -148,7 +202,7 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
           <MobileMetricCard>
             <MobileMetricTitle>6 Month PnL</MobileMetricTitle>
             <MobileMetricValueBadge>
-              {algoData.pnl_6m}% <SmallArrowUp>▲</SmallArrowUp>
+              {algoData.pnl_6m}% {algoData.pnl_6m >= 0 ? <SmallArrowUp>▲</SmallArrowUp> : <SmallArrowDown>▼</SmallArrowDown>}
             </MobileMetricValueBadge>
           </MobileMetricCard>
 
@@ -251,12 +305,42 @@ const AlgoInsightsTile: React.FC<AlgoInsightsTileProps> = ({ data, isDataLoading
             <ProfileContainer>
               <ProfileTitle>PnL status</ProfileTitle>
               <DonutChartSVG viewBox="0 0 190 190">
-                {/* Winning: 54% (Green) */}
-                <circle cx="95" cy="95" r="80" fill="none" stroke="#5CFF93" strokeWidth="20" strokeDasharray="271.4 502.6" strokeDashoffset="0" transform="rotate(-90 95 95)" />
-                {/* Losing: 27.4% (Red) */}
-                <circle cx="95" cy="95" r="80" fill="none" stroke="#FF366C" strokeWidth="20" strokeDasharray="137.7 502.6" strokeDashoffset="-271.4" transform="rotate(-90 95 95)" />
-                {/* Neutral: 18.6% (Purple) */}
-                <circle cx="95" cy="95" r="80" fill="none" stroke="#8A77FF" strokeWidth="20" strokeDasharray="93.5 502.6" strokeDashoffset="-409.1" transform="rotate(-90 95 95)" />
+                {/* Winning (Green) */}
+                <circle
+                  cx="95"
+                  cy="95"
+                  r="80"
+                  fill="none"
+                  stroke="#5CFF93"
+                  strokeWidth="20"
+                  strokeDasharray={donutSegments.winning.strokeDasharray}
+                  strokeDashoffset={donutSegments.winning.strokeDashoffset}
+                  transform="rotate(-90 95 95)"
+                />
+                {/* Losing (Red) */}
+                <circle
+                  cx="95"
+                  cy="95"
+                  r="80"
+                  fill="none"
+                  stroke="#FF366C"
+                  strokeWidth="20"
+                  strokeDasharray={donutSegments.losing.strokeDasharray}
+                  strokeDashoffset={donutSegments.losing.strokeDashoffset}
+                  transform="rotate(-90 95 95)"
+                />
+                {/* Neutral (Purple) */}
+                <circle
+                  cx="95"
+                  cy="95"
+                  r="80"
+                  fill="none"
+                  stroke="#8A77FF"
+                  strokeWidth="20"
+                  strokeDasharray={donutSegments.neutral.strokeDasharray}
+                  strokeDashoffset={donutSegments.neutral.strokeDashoffset}
+                  transform="rotate(-90 95 95)"
+                />
               </DonutChartSVG>
 
               <LegendContainer>
@@ -501,6 +585,11 @@ const MobileMetricValueBadge = styled.div`
 
 const SmallArrowUp = styled.span`
   font-size: 10px;
+`;
+
+const SmallArrowDown = styled.span`
+  font-size: 10px;
+  color: #FF366C;
 `;
 
 const RiskGaugeContainer = styled.div`
