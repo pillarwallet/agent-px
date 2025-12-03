@@ -285,7 +285,6 @@ export default function HomeScreen(props: HomeScreenProps) {
     portfolioTokens.length,
     onboardingScreen,
     setOnboardingScreen,
-    gasTankBalance,
   ]);
 
   // Auto-dismiss onboarding when balance >= 2 while on welcome screen
