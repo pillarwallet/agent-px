@@ -132,6 +132,8 @@ export default function HomeScreen(props: HomeScreenProps) {
     balance: number;
     price?: number;
   }>();
+  const [isMaxStableCoinBalanceLoading, setIsMaxStableCoinBalanceLoading] =
+    useState(true);
   const [transactionData, setTransactionData] = useState<{
     sellToken: SelectedToken | null;
     buyToken: SelectedToken | null;
@@ -226,12 +228,6 @@ export default function HomeScreen(props: HomeScreenProps) {
     localStorage.getItem('hasCompletedOnboarding') === 'true'
   );
 
-  // Reset onboarding flag on page refresh or account change
-  useEffect(() => {
-    hasCompletedOnboardingRef.current = false;
-    localStorage.removeItem('hasCompletedOnboarding');
-  }, [accountAddress]);
-
   const { data: walletPortfolioData, isLoading: isPortfolioLoading } =
     useGetWalletPortfolioQuery(
       { wallet: accountAddress || '', isPnl: false },
@@ -269,12 +265,12 @@ export default function HomeScreen(props: HomeScreenProps) {
 
   // Determine if onboarding should be shown based on gas tank balance
   useEffect(() => {
-    // Show welcome screen if onboarding not completed and screen not yet shown
+    // Show welcome screen only if gas tank balance is insufficient
     if (
       !isGasTankLoading &&
       walletPortfolioData &&
       portfolioTokens.length > 0 &&
-      !hasCompletedOnboardingRef.current &&
+      gasTankBalance < 2 &&
       onboardingScreen === null
     ) {
       setOnboardingScreen('welcome');
@@ -283,6 +279,7 @@ export default function HomeScreen(props: HomeScreenProps) {
     isGasTankLoading,
     walletPortfolioData,
     portfolioTokens.length,
+    gasTankBalance,
     onboardingScreen,
     setOnboardingScreen,
   ]);
@@ -290,8 +287,14 @@ export default function HomeScreen(props: HomeScreenProps) {
   // Auto-dismiss onboarding when balance >= 2 while on welcome screen
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
+    // DEBUG: Disable auto-dismiss during debugging
+    const DEBUG_DISABLE_AUTO_DISMISS = true;
 
-    if (gasTankBalance >= 2 && onboardingScreen === 'welcome') {
+    if (
+      !DEBUG_DISABLE_AUTO_DISMISS &&
+      gasTankBalance >= 2 &&
+      onboardingScreen === 'welcome'
+    ) {
       timer = setTimeout(() => {
         hasCompletedOnboardingRef.current = true;
         localStorage.setItem('hasCompletedOnboarding', 'true');
@@ -304,14 +307,28 @@ export default function HomeScreen(props: HomeScreenProps) {
     };
   }, [gasTankBalance, onboardingScreen, setOnboardingScreen]);
 
-  // Reset onboarding after transaction completes
+  // Monitor balance conditions and dynamically update onboarding state
+  // If either balance drops below 2, force user back to onboarding
   useEffect(() => {
-    if (transactionStatus) {
-      // Transaction is complete, reset onboarding for next transaction
-      hasCompletedOnboardingRef.current = false;
-      localStorage.removeItem('hasCompletedOnboarding');
+    // DEBUG: Disable dynamic balance monitoring during debugging
+    const DEBUG_DISABLE_BALANCE_MONITORING = true;
+
+    if (DEBUG_DISABLE_BALANCE_MONITORING) {
+      return;
     }
-  }, [transactionStatus]);
+
+    const hasInsufficientBalance =
+      gasTankBalance < 2 ||
+      (maxStableCoinBalance && maxStableCoinBalance.balance < 2);
+
+    if (hasInsufficientBalance) {
+      // If balance drops below threshold, reset onboarding flag to force re-onboarding
+      if (hasCompletedOnboardingRef.current) {
+        hasCompletedOnboardingRef.current = false;
+        localStorage.removeItem('hasCompletedOnboarding');
+      }
+    }
+  }, [gasTankBalance, maxStableCoinBalance]);
 
   // Preselect max USDC token when topup screen is shown and totalUsdcBalance > 0
   useEffect(() => {
@@ -339,17 +356,19 @@ export default function HomeScreen(props: HomeScreenProps) {
           return currentBalance > maxBalance ? token : max;
         });
 
-        // Convert to SelectedToken format
-        setTopupToken({
-          name: maxUsdcToken.name,
-          symbol: maxUsdcToken.symbol,
-          logo: maxUsdcToken.logo,
-          usdValue: String(maxUsdcToken.price || 0),
-          dailyPriceChange: 0,
-          chainId: chainNameToChainIdTokensData(maxUsdcToken.blockchain),
-          decimals: maxUsdcToken.decimals,
-          address: maxUsdcToken.contract,
-        });
+        if ((maxUsdcToken.balance ?? 0) > 2) {
+          // Convert to SelectedToken format
+          setTopupToken({
+            name: maxUsdcToken.name,
+            symbol: maxUsdcToken.symbol,
+            logo: maxUsdcToken.logo,
+            usdValue: String(maxUsdcToken.price || 0),
+            dailyPriceChange: 0,
+            chainId: chainNameToChainIdTokensData(maxUsdcToken.blockchain),
+            decimals: maxUsdcToken.decimals,
+            address: maxUsdcToken.contract,
+          });
+        }
       }
     }
   }, [
@@ -408,6 +427,7 @@ export default function HomeScreen(props: HomeScreenProps) {
       chainId: chainIdOfMaxStableBalance,
       balance: maxStableBalance,
     });
+    setIsMaxStableCoinBalanceLoading(false);
   }, [portfolioTokens, walletPortfolioData]);
 
   // Sync selectedChainId with maxStableCoinBalance.chainId on first load or when no preference is stored
@@ -1143,42 +1163,14 @@ export default function HomeScreen(props: HomeScreenProps) {
   }, [isBuy, buyRefreshCallback, previewBuy, handleRefresh]);
 
   const renderPreview = () => {
-    // Show loading state while determining onboarding vs normal flow
-    // This prevents flashing the buy component before onboarding decision is made
-    if (
-      isGasTankLoading ||
-      !walletPortfolioData ||
-      portfolioTokens.length === 0
-    ) {
-      if (
-        onboardingScreen === null &&
-        gasTankBalance < 2 &&
-        !hasCompletedOnboardingRef.current &&
-        !buyToken &&
-        !sellToken &&
-        !previewBuy &&
-        !previewSell
-      ) {
-        // Show onboarding welcome with loading state (only when not in transaction flow)
-        return (
-          <OnboardingWelcome
-            onComplete={handleShowTopUp}
-            totalUsdcBalance={totalUsdcBalance}
-            gasTankBalance={gasTankBalance}
-            isGasTankLoading={isGasTankLoading}
-          />
-        );
-      }
-    }
-
     // Show onboarding screens
     if (onboardingScreen === 'welcome') {
       return (
         <OnboardingWelcome
           onComplete={handleShowTopUp}
-          totalUsdcBalance={totalUsdcBalance}
           gasTankBalance={gasTankBalance}
           isGasTankLoading={isGasTankLoading}
+          maxStableCoinBalance={maxStableCoinBalance}
         />
       );
     }

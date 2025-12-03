@@ -3,20 +3,29 @@ import { TailSpin } from 'react-loader-spinner';
 import WalletIcon from '../../assets/wallet.svg';
 import GasTankIcon from '../../assets/gas-tank-icon.svg';
 
+// utils
+import { ChainNames } from '../../utils/blockchain';
+
 interface OnboardingWelcomeProps {
   onComplete: () => void;
-  totalUsdcBalance: number;
   gasTankBalance: number;
   isGasTankLoading?: boolean;
+  maxStableCoinBalance?: {
+    chainId: number;
+    balance: number;
+    price?: number;
+  };
 }
 
 export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
   const {
     onComplete,
-    totalUsdcBalance,
     gasTankBalance,
     isGasTankLoading = false,
+    maxStableCoinBalance,
   } = props;
+
+  const maxStableCoinBalanceValue = maxStableCoinBalance?.balance ?? 0;
 
   return (
     <div className="w-full max-w-[446px]">
@@ -40,15 +49,16 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
         {/* Description and Balance Cards */}
         <div className="p-3 flex flex-col gap-3 items-center">
           <p className="text-white text-center text-sm leading-4 tracking-tight opacity-50 font-normal">
-            To start trading, fund your account with USDC, top up your gas tank
-            and enable trading.
+            To start trading, you need $2 USDC on a network and $2 in your gas
+            tank and enable trading.
           </p>
-          {/* All Networks Card */}
+          {/* Chain Balance Card */}
           <div className="flex items-center w-full max-w-[250px] h-[34px] rounded-lg py-2 px-3 gap-0.5 bg-[#8A77FF1A]">
             <img src={WalletIcon} alt="Wallet" className="w-6 h-[18px]" />
             <span className="text-sm font-normal text-white">
-              All Networks:{' '}
-              {totalUsdcBalance.toLocaleString('en-US', {
+              {ChainNames[maxStableCoinBalance?.chainId ?? 1] || 'All Networks'}
+              :{' '}
+              {maxStableCoinBalanceValue.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}{' '}
@@ -84,17 +94,26 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
             onClick={onComplete}
             type="button"
             className={`flex items-center justify-center w-full rounded-lg h-12 text-white font-medium text-base disabled:opacity-50 ${
-              isGasTankLoading || gasTankBalance >= 2
+              isGasTankLoading ||
+              (gasTankBalance >= 2 && maxStableCoinBalanceValue >= 2)
                 ? 'bg-[#29292F]'
                 : 'bg-[#8A77FF]'
             }`}
-            disabled={isGasTankLoading || gasTankBalance >= 2}
+            disabled={
+              isGasTankLoading ||
+              (gasTankBalance >= 2 && maxStableCoinBalanceValue >= 2)
+            }
             data-testid="pulse-onboarding-top-up-button"
           >
-            {isGasTankLoading || gasTankBalance >= 2 ? (
+            {isGasTankLoading ||
+            (gasTankBalance >= 2 && maxStableCoinBalanceValue >= 2) ? (
               <div className="flex items-center justify-center gap-2">
                 <TailSpin color="#FFFFFF" height={20} width={20} />
-                <span>{gasTankBalance >= 2 ? 'Funded' : 'Loading...'}</span>
+                <span>
+                  {gasTankBalance >= 2 && maxStableCoinBalanceValue >= 2
+                    ? 'Funded'
+                    : 'Loading...'}
+                </span>
               </div>
             ) : (
               'Top up'

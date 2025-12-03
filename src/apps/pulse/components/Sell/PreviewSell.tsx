@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
 import { MdCheck } from 'react-icons/md';
 import { TailSpin } from 'react-loader-spinner';
+import { formatUnits } from 'viem';
 
 // utils
 import { getLogoForChainId } from '../../../../utils/blockchain';
@@ -92,6 +93,15 @@ const PreviewSell = (props: PreviewSellProps) => {
     toChainId: selectedChainIdForSettlement,
     userPortfolio,
   });
+
+  // Use fee from relay offer (with 20% markup) instead of gas estimation hook
+  // Sell always uses relay, so no feature flag check needed
+  const relayOfferGasFeeUSD = sellOffer?.offer.fees?.gas?.amountUsd
+    ? (parseFloat(sellOffer.offer.fees.gas.amountUsd) * 1.2).toString()
+    : null;
+
+  // Use relay offer fee if available, otherwise fall back to gas estimation
+  const finalGasCostUSD = relayOfferGasFeeUSD || gasCostUSD;
 
   useEffect(() => {
     if (isCopied) {
@@ -397,8 +407,8 @@ const PreviewSell = (props: PreviewSellProps) => {
     if (!sellToken || !sellOffer || !kit) return;
 
     // Validate that gas tank balance is greater than gas fee in USD
-    if (gasCostUSD) {
-      const gasFeeValue = parseFloat(gasCostUSD);
+    if (finalGasCostUSD) {
+      const gasFeeValue = parseFloat(finalGasCostUSD);
       if (gasTankBalance <= gasFeeValue) {
         console.error('Insufficient gas tank balance to cover gas fee in sell');
         setIsWaitingForSignature(false);
@@ -461,11 +471,28 @@ const PreviewSell = (props: PreviewSellProps) => {
             // Clean up the batch from kit after successful execution
             cleanupBatch(sellToken.chainId, 'success');
 
-            // Ensure we have a valid gas fee string for the transaction status
-            const gasFeeString =
-              gasCostNative && nativeTokenSymbol
-                ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-                : '≈ 0.00';
+            // Format gas fee from sentBatch.totalCost to USD (sell always uses relay)
+            let gasFeeString = '≈ $0.00';
+            if (sentBatch?.totalCost) {
+              try {
+                // Convert totalCost from wei to native token amount (18 decimals)
+                const gasCostInNative = formatUnits(sentBatch.totalCost, 18);
+
+                // Fetch native price to convert to USD
+                const nativePriceUrl = `${
+                  import.meta.env.VITE_PAYMASTER_URL
+                }/getNativePriceUSD?chainId=${sellToken.chainId}`;
+                const nativePriceResponse = await fetch(nativePriceUrl);
+                const nativePriceData = await nativePriceResponse.json();
+
+                if (nativePriceData?.priceUSD) {
+                  const gasCostInUSD = parseFloat(gasCostInNative) * nativePriceData.priceUSD;
+                  gasFeeString = `≈ $${gasCostInUSD.toFixed(6)}`;
+                }
+              } catch (err) {
+                console.error('Failed to fetch native price for gas fee:', err);
+              }
+            }
 
             showTransactionStatus(userOpHash, gasFeeString);
             return;
@@ -773,8 +800,8 @@ const PreviewSell = (props: PreviewSellProps) => {
         {detailsEntry(
           'Gas fee',
           (() => {
-            if (gasCostUSD) {
-              return `≈ $${parseFloat(gasCostUSD).toFixed(6)} USDC`;
+            if (finalGasCostUSD) {
+              return `≈ $${parseFloat(finalGasCostUSD).toFixed(6)}`;
             }
             const gasFeeDisplay = gasCostNative
               ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
