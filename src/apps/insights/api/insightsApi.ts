@@ -2,6 +2,7 @@
  * Insights App API Service
  * Handles all API calls to Firebase Functions for the Insights app
  */
+import type { SubscriptionApiResponse } from '../types';
 
 // TODO: Get Firebase Functions base URL from environment/config
 const getBaseUrl = () => {
@@ -137,5 +138,40 @@ export const webhookReceiver = async (signalData: any) => {
     console.error('Error in webhook receiver:', error);
     throw error;
   }
+};
+
+/**
+ * Fetch subscription status for an EOA address
+ */
+export const getSubscriptionStatus = async (
+  eoaAddress: string
+): Promise<SubscriptionApiResponse> => {
+  const normalizedAddress = eoaAddress?.trim().toLowerCase();
+  if (!normalizedAddress) {
+    throw new Error('An eoaAddress is required to load subscription status.');
+  }
+
+  const response = await fetch(
+    `${getBaseUrl()}/subscriptions/${normalizedAddress}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  if (response.status === 404) {
+    return { subscription: null };
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      errorText || `Failed to load subscription status (${response.status})`
+    );
+  }
+
+  return (await response.json()) as SubscriptionApiResponse;
 };
 

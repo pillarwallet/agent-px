@@ -2,17 +2,26 @@
  * Hook for fetching and managing trading signals
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getTradingSignals } from '../api/insightsApi';
 import type { TradingSignal } from '../types';
 
-export const useTradingSignals = () => {
+interface UseTradingSignalsOptions {
+  enabled?: boolean;
+}
+
+export const useTradingSignals = (options: UseTradingSignalsOptions = {}) => {
+  const { enabled = true } = options;
   const [signals, setSignals] = useState<TradingSignal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const fetchSignals = async (isRefresh = false) => {
+  const fetchSignals = useCallback(async (isRefresh = false) => {
+    if (!enabled) {
+      return;
+    }
+
     try {
       // Only set loading to true on initial load, not on refreshes
       if (!isRefresh) {
@@ -57,9 +66,16 @@ export const useTradingSignals = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enabled, isInitialLoad]);
 
   useEffect(() => {
+    if (!enabled) {
+      setSignals([]);
+      setLoading(false);
+      setError(null);
+      return undefined;
+    }
+
     fetchSignals(false); // Initial load
 
     // Poll for updates every 30 seconds instead of realtime subscription
@@ -68,7 +84,7 @@ export const useTradingSignals = () => {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [enabled, fetchSignals]);
 
   return {
     signals,

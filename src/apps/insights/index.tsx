@@ -3,7 +3,7 @@
  * Main entry point for the Insights application
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Styles
@@ -20,6 +20,8 @@ import { ConsentModal } from './components/consent';
 import { useTradingSignals } from './hooks/useTradingSignals';
 import { useSparklineData } from './hooks/useSparklineData';
 import { useLogoMap } from './hooks/useLogoMap';
+import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
+import { isTestnet } from '../../utils/blockchain';
 
 // Utils
 import { generateFeedEvents, generateOverallPnLSparkline, generateOpenPnLSparkline, generateClosedPnLSparkline } from './utils/signalUtils';
@@ -27,6 +29,58 @@ import { updateSignalPrices } from './api/insightsApi';
 
 // Types
 import type { TradingSignal, TabType, LeverageType, PnLViewType } from './types';
+
+const STRIPE_CHECKOUT_URL_TESTNET =
+  import.meta.env.VITE_STRIPE_CHECKOUT_URL_TESTNET ||
+  'https://buy.stripe.com/test_fZubJ28Ky2eP8LK0sE0gw03';
+const STRIPE_CHECKOUT_URL_MAINNET =
+  import.meta.env.VITE_STRIPE_CHECKOUT_URL_MAINNET ||
+  STRIPE_CHECKOUT_URL_TESTNET;
+const STRIPE_CHECKOUT_URL = isTestnet
+  ? STRIPE_CHECKOUT_URL_TESTNET
+  : STRIPE_CHECKOUT_URL_MAINNET;
+const SUBSCRIPTION_POLL_INTERVAL = 10000;
+
+const getStoredValue = (key: string): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return localStorage.getItem(key);
+};
+
+const getInitialDevicePlatform = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const stored = localStorage.getItem('DEVICE_PLATFORM');
+  if (stored) {
+    return stored;
+  }
+
+  return new URLSearchParams(window.location.search).get('devicePlatform');
+};
+
+const shortenAddress = (address: string) => {
+  if (!address) {
+    return '';
+  }
+
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+};
+
+const formatDate = (value?: number | null) => {
+  if (!value) {
+    return null;
+  }
+
+  return new Date(value).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
 
 const App = () => {
   // State
@@ -37,9 +91,30 @@ const App = () => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const eoaAddress = useMemo(() => getStoredValue('EOA_ADDRESS'), []);
+  const devicePlatform = useMemo(() => getInitialDevicePlatform(), []);
+  const isNativeApp =
+    devicePlatform === 'ios' || devicePlatform === 'android';
+
+  const {
+    subscription,
+    loading: subscriptionLoading,
+    error: subscriptionError,
+    isActive: hasActiveSubscription,
+    refetch: refetchSubscription,
+    polling: isSubscriptionPolling,
+    startPolling,
+    stopPolling,
+  } = useSubscriptionStatus(eoaAddress, {
+    enabled: Boolean(eoaAddress),
+    pollIntervalMs: SUBSCRIPTION_POLL_INTERVAL,
+  });
+  const [isAwaitingSubscription, setIsAwaitingSubscription] = useState(false);
 
   // Hooks
-  const { signals, loading, setSignals } = useTradingSignals();
+  const { signals, loading, setSignals } = useTradingSignals({
+    enabled: consentGiven && hasActiveSubscription,
+  });
   const { sparklineDataMap, fetchSparkline, fetchSparklines, loading: sparklineLoading } = useSparklineData();
   const logoMap = useLogoMap(signals);
 
@@ -50,6 +125,13 @@ const App = () => {
       setIsInitialLoad(false);
     }
   }, [loading, signals.length, isInitialLoad]);
+
+  useEffect(() => {
+    if (hasActiveSubscription) {
+      setIsAwaitingSubscription(false);
+      stopPolling();
+    }
+  }, [hasActiveSubscription, stopPolling]);
 
   // Check consent status on mount
   useEffect(() => {
@@ -80,6 +162,10 @@ const App = () => {
   // Fetch sparklines for open signals only when new active signals are detected
   // This effect should only run once after signals are initially loaded, not on every update
   useEffect(() => {
+    if (!hasActiveSubscription) {
+      return;
+    }
+
     if (signals.length > 0 && !loading) {
       const openSignals = signals.filter(s => s.status === 'active');
       
@@ -105,7 +191,7 @@ const App = () => {
     }
     // Only depend on signal count and loading state, not the signals array itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signals.length, loading]);
+  }, [signals.length, loading, hasActiveSubscription]);
 
   // Helper functions
   const applyLeverage = (pnl: number) => pnl * leverage;
@@ -199,9 +285,61 @@ const App = () => {
     }
   };
 
+  const handleRefreshSubscription = useCallback(() => {
+    refetchSubscription().catch(() => {});
+  }, [refetchSubscription]);
+
+  const handleSubscribeClick = useCallback(() => {
+    if (!eoaAddress) {
+      alert('No wallet detected. Please re-open PillarX from the mobile app.');
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const checkoutUrl = `${STRIPE_CHECKOUT_URL}?client_reference_id=${encodeURIComponent(
+      eoaAddress
+    )}`;
+
+    setIsAwaitingSubscription(true);
+    startPolling();
+    refetchSubscription().catch(() => {});
+
+    if (isNativeApp && window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'pillarXNavigationRequest',
+          value: 'openExternalUrl',
+          data: { url: checkoutUrl },
+        })
+      );
+      return;
+    }
+
+    const popup = window.open('', '_blank');
+    if (popup) {
+      try {
+        popup.opener = null;
+      } catch (error) {
+        console.warn('[insights] Unable to clear popup opener', error);
+      }
+      popup.location.href = checkoutUrl;
+      return;
+    }
+
+    console.error('[insights] Popup blocked while opening Stripe checkout.');
+    alert(
+      'We could not open Stripe in a new tab. Please allow pop-ups for PillarX and try again.'
+    );
+    setIsAwaitingSubscription(false);
+    stopPolling();
+  }, [eoaAddress, isNativeApp, refetchSubscription, startPolling, stopPolling]);
+
   // Poll for price updates every 30 seconds
   useEffect(() => {
-    if (!consentGiven) return;
+    if (!consentGiven || !hasActiveSubscription) return;
 
     handleUpdatePrices();
     const interval = setInterval(() => {
@@ -215,7 +353,7 @@ const App = () => {
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [consentGiven]);
+  }, [consentGiven, hasActiveSubscription]);
 
   // Consent handlers
   const handleConsentAccepted = (payload: any) => {
@@ -228,16 +366,33 @@ const App = () => {
     alert('You must accept the terms to access PillarX Algorithmic Insights.');
   };
 
+  const consentModalElement = (
+    <ConsentModal
+      open={showConsentModal}
+      onConsentAccepted={handleConsentAccepted}
+      onConsentDeclined={handleConsentDeclined}
+      userRegion="Other"
+      immediateAccess={true}
+    />
+  );
+
+  const missingEoaAddress = !eoaAddress;
+  const showSubscriptionLoading =
+    Boolean(eoaAddress) && subscriptionLoading && !hasActiveSubscription;
+  const subscriptionInactive =
+    Boolean(eoaAddress) &&
+    !subscriptionLoading &&
+    !hasActiveSubscription;
+  const subscriptionStatusLabel = subscription?.status
+    ? subscription.status.replace(/_/g, ' ')
+    : 'No active subscription';
+  const nextRenewalText =
+    formatDate(subscription?.currentPeriodEnd) ?? 'Not scheduled';
+
   if (!consentGiven) {
     return (
       <>
-        <ConsentModal
-          open={showConsentModal}
-          onConsentAccepted={handleConsentAccepted}
-          onConsentDeclined={handleConsentDeclined}
-          userRegion="Other"
-          immediateAccess={true}
-        />
+        {consentModalElement}
         <div className="min-h-screen bg-parallax-glow flex items-center justify-center">
           <div className="text-muted-foreground">Please accept the terms to continue...</div>
         </div>
@@ -245,15 +400,129 @@ const App = () => {
     );
   }
 
+  if (missingEoaAddress) {
+    return (
+      <>
+        {consentModalElement}
+        <div className="min-h-screen bg-parallax-glow flex items-center justify-center px-4">
+          <div className="max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur">
+            <h1 className="text-3xl font-semibold text-white mb-4">
+              Connect your Pillar wallet
+            </h1>
+            <p className="text-muted-foreground mb-2">
+              We couldn&apos;t detect an EOA address for this session.
+            </p>
+            <p className="text-muted-foreground">
+              Please open PillarX from the Pillar Wallet app on iOS or Android,
+              or sign in again to continue.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (showSubscriptionLoading) {
+    return (
+      <>
+        {consentModalElement}
+        <div className="min-h-screen bg-parallax-glow flex items-center justify-center px-4">
+          <div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur">
+            <h1 className="text-3xl font-semibold text-white mb-6">
+              Checking your subscription
+            </h1>
+            <div className="flex flex-col items-center gap-4 text-muted-foreground">
+              <div className="h-12 w-12 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+              <p className="text-sm">
+                Hold tight while we confirm your PillarX Insights access.
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (subscriptionInactive) {
+    return (
+      <>
+        {consentModalElement}
+        <div className="min-h-screen bg-parallax-glow flex items-center justify-center px-4">
+          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur">
+            <h1 className="text-3xl font-semibold text-white mb-4">
+              Unlock PillarX Algorithmic Insights
+            </h1>
+            <p className="text-muted-foreground mb-6">
+              Insights now requires an active subscription. Subscribe via
+              Stripe to continue.
+            </p>
+
+            <div className="space-y-2 text-sm text-muted-foreground mb-8">
+              <div className="flex items-center justify-between">
+                <span className="text-white/70">Connected wallet</span>
+                <span className="font-mono text-white">
+                  {shortenAddress(eoaAddress as string)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/70">Status</span>
+                <span className="capitalize">{subscriptionStatusLabel}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/70">Next renewal</span>
+                <span>{nextRenewalText}</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleSubscribeClick}
+                disabled={!eoaAddress || isAwaitingSubscription}
+                className="w-full rounded-2xl bg-white py-3 font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Subscribe with Stripe
+              </button>
+              <button
+                type="button"
+                onClick={handleRefreshSubscription}
+                disabled={subscriptionLoading}
+                className="w-full rounded-2xl border border-white/20 py-3 font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Refresh status
+              </button>
+            </div>
+
+            <p className="mt-4 text-xs text-muted-foreground">
+              {isNativeApp
+                ? 'We will open your default browser to finish checkout.'
+                : 'Checkout opens in a new browser tab.'}
+            </p>
+
+            {subscriptionError && (
+              <p className="mt-4 text-sm text-red-400">
+                {subscriptionError.message}
+              </p>
+            )}
+
+            {(isAwaitingSubscription || isSubscriptionPolling) && (
+              <div className="mt-6 flex flex-col items-center gap-3 text-sm text-muted-foreground">
+                <div className="h-10 w-10 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <span>Waiting to hear about your subscription...</span>
+                <span className="text-xs text-muted-foreground">
+                  We&apos;ll keep checking every 10 seconds.
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
-      <ConsentModal
-        open={showConsentModal}
-        onConsentAccepted={handleConsentAccepted}
-        onConsentDeclined={handleConsentDeclined}
-        userRegion="Other"
-        immediateAccess={true}
-      />
+      {consentModalElement}
 
       <div className="min-h-screen bg-parallax-glow">
         <div className="container mx-auto px-4 py-8">
