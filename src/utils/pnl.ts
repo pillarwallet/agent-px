@@ -399,8 +399,66 @@ export const calculatePnLFromRelay = (
       // Check both req.metadata and req.data.metadata (different API versions)
       const metadata = req.metadata || req.data?.metadata;
 
-      // Strategy 1: Use Metadata (Preferred)
-      if (metadata && metadata.currencyIn && metadata.currencyOut) {
+      // ALWAYS check state changes for the target token first
+      // This is important because metadata might show a bridge (e.g., USDC→USDC)
+      // while state changes reveal the actual token swap (e.g., LINK→USDC)
+      const userAddress = req.user?.toLowerCase();
+      const allTxs = [
+        ...(req.data?.inTxs || []),
+        ...(req.data?.outTxs || []),
+      ];
+
+      const { tokenChange, usdcChange, latestTimestamp } = allTxs.reduce(
+        (acc, tx) => {
+          if (tx.timestamp) {
+            // Normalize Relay tx timestamp to seconds to match other producers
+            acc.latestTimestamp =
+              tx.timestamp > 1e12
+                ? Math.floor(tx.timestamp / 1000)
+                : tx.timestamp;
+          }
+          if (tx.stateChanges) {
+            tx.stateChanges.forEach((sc) => {
+              if (sc.address?.toLowerCase() === userAddress) {
+                const tokenAddr =
+                  sc.change?.data?.tokenAddress?.toLowerCase();
+                const balanceDiff = parseFloat(sc.change?.balanceDiff || '0');
+
+                if (tokenAddr === tokenContract) {
+                  acc.tokenChange += balanceDiff;
+                } else if (tokenAddr && USDC_ADDRESSES.includes(tokenAddr)) {
+                  acc.usdcChange += balanceDiff;
+                }
+              }
+            });
+          }
+          return acc;
+        },
+        { tokenChange: 0, usdcChange: 0, latestTimestamp: timestamp }
+      );
+
+      timestamp = latestTimestamp;
+
+      // If state changes show token movement, use that
+      if (tokenChange !== 0) {
+        const tokenDivisor = 10 ** token.decimals;
+        const usdcDivisor = 1e6;
+
+        const tokenAmountRaw = Math.abs(tokenChange) / tokenDivisor;
+        const usdcAmountRaw = Math.abs(usdcChange) / usdcDivisor;
+
+        if (tokenChange > 0) {
+          side = 'BUY';
+          amountToken = tokenAmountRaw;
+          amountUSDC = usdcAmountRaw;
+        } else {
+          side = 'SELL';
+          amountToken = tokenAmountRaw;
+          amountUSDC = usdcAmountRaw;
+        }
+      }
+      // Fallback to metadata if no state changes found
+      else if (metadata && metadata.currencyIn && metadata.currencyOut) {
         const { currencyIn, currencyOut } = metadata;
         const inAddress = currencyIn.currency?.address?.toLowerCase();
         const outAddress = currencyOut.currency?.address?.toLowerCase();
@@ -433,69 +491,13 @@ export const calculatePnLFromRelay = (
             amountUSDC = parseFloat(currencyOut.amountUsd || '0');
           }
         }
-      }
-      // Strategy 2: Use State Changes (Fallback)
-      else if (req.data?.inTxs || req.data?.outTxs) {
-        const userAddress = req.user?.toLowerCase();
-        const allTxs = [
-          ...(req.data?.inTxs || []),
-          ...(req.data?.outTxs || []),
-        ];
-
-        const { tokenChange, usdcChange, latestTimestamp } = allTxs.reduce(
-          (acc, tx) => {
-            if (tx.timestamp) {
-              // Normalize Relay tx timestamp to seconds to match other producers
-              acc.latestTimestamp =
-                tx.timestamp > 1e12
-                  ? Math.floor(tx.timestamp / 1000)
-                  : tx.timestamp;
-            }
-            if (tx.stateChanges) {
-              tx.stateChanges.forEach((sc) => {
-                if (sc.address?.toLowerCase() === userAddress) {
-                  const tokenAddr =
-                    sc.change?.data?.tokenAddress?.toLowerCase();
-                  const balanceDiff = parseFloat(sc.change?.balanceDiff || '0');
-
-                  if (tokenAddr === tokenContract) {
-                    acc.tokenChange += balanceDiff;
-                  } else if (tokenAddr && USDC_ADDRESSES.includes(tokenAddr)) {
-                    acc.usdcChange += balanceDiff;
-                  }
-                }
-              });
-            }
-            return acc;
-          },
-          { tokenChange: 0, usdcChange: 0, latestTimestamp: timestamp }
-        );
-
-        timestamp = latestTimestamp;
-
-        if (tokenChange !== 0) {
-          const tokenDivisor = 10 ** token.decimals;
-          const usdcDivisor = 1e6;
-
-          const tokenAmountRaw = Math.abs(tokenChange) / tokenDivisor;
-          const usdcAmountRaw = Math.abs(usdcChange) / usdcDivisor;
-
-          if (tokenChange > 0) {
-            side = 'BUY';
-            amountToken = tokenAmountRaw;
-            amountUSDC = usdcAmountRaw;
-          } else {
-            side = 'SELL';
-            amountToken = tokenAmountRaw;
-            amountUSDC = usdcAmountRaw;
-          }
-        }
       } else {
         // No metadata and no state changes - log warning
         console.warn(
           `[calculatePnLFromRelay] No metadata or state changes for request ${req.id}`
         );
       }
+
 
       if (!side || amountToken === 0) return null;
 
