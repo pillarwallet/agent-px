@@ -7,6 +7,7 @@ export enum ApiLayout {
   MEDIA_GRID_HIGHLIGHTED = 'MEDIA_GRID_HIGHLIGHTED',
   PXPOINTS = 'PXPOINTS',
   TOKENS_WITH_MARKET_DATA = 'TOKENS_WITH_MARKET_DATA',
+  ALGO_INSIGHTS = 'ALGO_INSIGHTS',
 }
 
 export enum LeaderboardRankChange {
@@ -176,16 +177,59 @@ export type TokensMarketData = {
   rows?: TokensMarketDataRow[];
 };
 
+export type AlgoInsightsData = {
+  pnl_1m: number;
+  pnl_3m: number;
+  pnl_6m: number;
+  risk_level: 'Low Risk' | 'Medium Risk' | 'High Risk';
+  pnl_status: {
+    winning: number;
+    losing: number;
+    neutral: number;
+  };
+  cumulative_pnl: {
+    '1w': {
+      value: number;
+      history: {
+        timestamp: number;
+        value: number;
+      }[];
+    };
+    '1m': {
+      value: number;
+      history: {
+        timestamp: number;
+        value: number;
+      }[];
+    };
+    '3m': {
+      value: number;
+      history: {
+        timestamp: number;
+        value: number;
+      }[];
+    };
+    '6m': {
+      value: number;
+      history: {
+        timestamp: number;
+        value: number;
+      }[];
+    };
+  };
+};
+
 export type Projection = {
   meta: {
     display?: GenericBannerDisplay | EditorialDisplay | TileTitle;
   };
   data?:
-    | TokenData[]
-    | Advertisement
-    | MediaGridData
-    | Points
-    | TokensMarketData;
+  | TokenData[]
+  | Advertisement
+  | MediaGridData
+  | Points
+  | TokensMarketData
+  | AlgoInsightsData;
   layout: ApiLayout;
   id: string;
 };
