@@ -373,13 +373,11 @@ export default function HomeScreen(props: HomeScreenProps) {
   }, [onboardingScreen, sellToken, setTopupToken, setIsSearchingFromTopup]);
 
   const handleShowTopUp = (fromSettings = false) => {
-    console.log('[HomeScreen] handleShowTopUp called with fromSettings:', fromSettings);
     setIsTopUpFromSettings(fromSettings);
     setOnboardingScreen('topup');
   };
 
   const handleBackToWelcome = () => {
-    console.log('[HomeScreen] handleBackToWelcome called - resetting isTopUpFromSettings to false');
     setIsTopUpFromSettings(false);
     setOnboardingScreen('welcome');
   };
@@ -1162,7 +1160,6 @@ export default function HomeScreen(props: HomeScreenProps) {
     }
 
     if (onboardingScreen === 'topup') {
-      console.log('[HomeScreen] Rendering TopUpScreen with isTopUpFromSettings:', isTopUpFromSettings);
       return (
         <TopUpScreen
           onBack={handleBackToWelcome}
