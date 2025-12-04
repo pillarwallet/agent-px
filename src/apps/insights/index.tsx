@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { Settings } from 'lucide-react';
 
 // Styles
 import './styles/insights.css';
@@ -123,6 +124,10 @@ const App = () => {
     pollIntervalMs: SUBSCRIPTION_POLL_INTERVAL,
   });
   const [isAwaitingSubscription, setIsAwaitingSubscription] = useState(false);
+  const [showManageMenu, setShowManageMenu] = useState(false);
+  const manageMenuRef = useRef<HTMLDivElement | null>(null);
+  const manageSubscriptionUrl = import.meta.env.VITE_STRIPE_CUSTOMER_PORTAL_URL;
+  const trimmedManageSubscriptionUrl = manageSubscriptionUrl?.trim() || '';
 
   // Hooks
   const { signals, loading, setSignals } = useTradingSignals({
@@ -359,6 +364,15 @@ const App = () => {
     stopPolling();
   }, [eoaAddress, isNativeApp, refetchSubscription, startPolling, stopPolling]);
 
+  const handleManageSubscription = useCallback(() => {
+    if (!trimmedManageSubscriptionUrl) {
+      alert('Subscription portal is currently unavailable.');
+      return;
+    }
+    window.open(trimmedManageSubscriptionUrl, '_blank', 'noopener,noreferrer');
+    setShowManageMenu(false);
+  }, [trimmedManageSubscriptionUrl]);
+
   // Poll for price updates every 30 seconds
   useEffect(() => {
     if (!consentGiven || !hasActiveSubscription) return;
@@ -376,6 +390,24 @@ const App = () => {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consentGiven, hasActiveSubscription]);
+
+  useEffect(() => {
+    if (!showManageMenu) {
+      return undefined;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        manageMenuRef.current &&
+        !manageMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowManageMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showManageMenu]);
 
   // Consent handlers
   const handleConsentAccepted = (payload: any) => {
@@ -414,6 +446,10 @@ const App = () => {
     : 'No active subscription';
   const nextRenewalText =
     formatDate(subscription?.currentPeriodEnd) ?? 'Not scheduled';
+  const shouldShowManageSubscriptionButton =
+    Boolean(trimmedManageSubscriptionUrl) &&
+    !subscriptionInactive &&
+    !showSubscriptionLoading;
 
   if (!consentGiven) {
     return (
@@ -555,6 +591,33 @@ const App = () => {
 
       <div className="min-h-screen bg-parallax-glow">
         <div className="container mx-auto px-4 py-8">
+          {shouldShowManageSubscriptionButton && (
+            <div className="flex justify-end mb-4">
+              <div className="relative" ref={manageMenuRef}>
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={showManageMenu}
+                  onClick={() => setShowManageMenu((prev) => !prev)}
+                  className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20"
+                >
+                  <Settings size={16} />
+                  Manage subscription
+                </button>
+                {showManageMenu && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-[#0c0b13]/95 p-2 shadow-lg backdrop-blur">
+                    <button
+                      type="button"
+                      onClick={handleManageSubscription}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-white hover:bg-white/10"
+                    >
+                      Manage subscription
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {/* Header */}
           <Header
             openSignals={openSignals}
