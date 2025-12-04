@@ -320,6 +320,8 @@ const App = () => {
     startPolling();
     refetchSubscription().catch(() => {});
 
+    alert('The subscription checkout will open in a new browser tab - once complete, return here to access Insights');
+
     if (isNativeApp && window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(
         JSON.stringify({
@@ -474,7 +476,7 @@ const App = () => {
               Stripe to continue.
             </p>
 
-            <div className="space-y-2 text-sm text-muted-foreground mb-8">
+            <div className="space-y-2 text-sm text-muted-foreground mb-6">
               <div className="flex items-center justify-between">
                 <span className="text-white/70">Connected wallet</span>
                 <span className="font-mono text-white">
@@ -490,6 +492,10 @@ const App = () => {
                 <span>{nextRenewalText}</span>
               </div>
             </div>
+
+            <p className="text-sm text-muted-foreground mb-8">
+              Every subscription starts with a 7-day free trial. You won&apos;t be charged until the trial ends, and you can cancel anytime.
+            </p>
 
             <div className="space-y-3">
               <button
