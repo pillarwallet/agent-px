@@ -1180,6 +1180,8 @@ export default function HomeScreen(props: HomeScreenProps) {
           markOnboardingComplete={() => {
             hasCompletedOnboardingRef.current = true;
             localStorage.setItem('hasCompletedOnboarding', 'true');
+            // Refresh gas tank balance after successful top-up
+            refetchGasTankBalance();
           }}
           isPortfolioLoading={isPortfolioLoading}
           showCloseButton={isTopUpFromSettings}
