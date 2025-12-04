@@ -32,6 +32,8 @@ vi.mock('../../../../../services/pillarXApiWalletPortfolio', () => ({
 
 vi.mock('../../../hooks/useGasTankBalance', () => ({
   useGasTankBalance: vi.fn(),
+}));
+
 vi.mock('../../../../../hooks/useTokenPnL', () => ({
   useTokenPnL: vi.fn(() => ({
     pnl: null,
@@ -83,6 +85,7 @@ const mockProps = {
   sellToken: null,
   refetchWalletPortfolio: vi.fn(),
   setBuyToken: vi.fn(),
+  setSellToken: vi.fn(),
   chains: 'Ethereum',
   setChains: vi.fn(),
   onboardingScreen: null,

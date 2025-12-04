@@ -92,9 +92,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
         const balanceUSDA = (a.price || 0) * (a.balance || 0);
         const balanceUSDB = (b.price || 0) * (b.balance || 0);
         return balanceUSDB - balanceUSDA; // Sort by highest USD value first
-    let tokens = convertPortfolioAPIResponseToToken(walletPortfolioData).filter(
-      (token) => !isStableCurrency(token)
-    );
+      });
 
     // Filter small balances if toggle is enabled
     if (hideSmallBalances) {
@@ -151,7 +149,13 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
     }
 
     return tokens;
-  }, [walletPortfolioData, hideSmallBalances, sortConfig, searchText]);
+  }, [
+    walletPortfolioData,
+    hideSmallBalances,
+    sortConfig,
+    searchText,
+    includeStableCoins,
+  ]);
 
   const portfolioTokens = useMemo(() => {
     return getFilteredPortfolioTokens();

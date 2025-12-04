@@ -36,6 +36,7 @@ import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 // services
 import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
 import { PortfolioToken } from '../../../../services/tokensData';
+import { getChainId, MobulaChainNames } from '../../utils/constants';
 
 interface SellProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
@@ -45,6 +46,7 @@ interface SellProps {
   setSellOffer: Dispatch<SetStateAction<SellOffer | null>>;
   setTokenAmount: Dispatch<SetStateAction<string>>;
   isRefreshing?: boolean;
+  portfolioTokens: PortfolioToken[];
   customSellAmounts: string[];
   selectedChainIdForSettlement: number;
 }
@@ -58,6 +60,7 @@ const Sell = (props: SellProps) => {
     setSellOffer,
     setTokenAmount: setParentTokenAmount,
     isRefreshing = false,
+    portfolioTokens = [],
     customSellAmounts,
     selectedChainIdForSettlement,
   } = props;
@@ -234,7 +237,6 @@ const Sell = (props: SellProps) => {
       return 0;
     }
   };
-
 
   // Calculate token balance (must be after getTokenBalance function)
   const tokenBalance = getTokenBalance();

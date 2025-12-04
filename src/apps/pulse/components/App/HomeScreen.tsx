@@ -305,9 +305,11 @@ export default function HomeScreen(props: HomeScreenProps) {
   // This ensures the flag is only set when the top-up deposit is confirmed
   useEffect(() => {
     if (gasTankBalance >= 2 && !hasCompletedOnboardingRef.current) {
+      // Balance is sufficient and not yet marked complete - mark it now
       hasCompletedOnboardingRef.current = true;
       localStorage.setItem('hasCompletedOnboarding', 'true');
-    } else {
+    } else if (gasTankBalance < 2 && hasCompletedOnboardingRef.current) {
+      // Balance dropped below threshold - reset the flag
       hasCompletedOnboardingRef.current = false;
       localStorage.setItem('hasCompletedOnboarding', 'false');
     }
@@ -1378,6 +1380,7 @@ export default function HomeScreen(props: HomeScreenProps) {
                   setSearching={setSearching}
                   token={sellToken}
                   walletPortfolioData={walletPortfolioData}
+                  portfolioTokens={portfolioTokens}
                   customSellAmounts={[...customSellAmounts, 'MAX']}
                   selectedChainIdForSettlement={selectedChainIdForSettlement}
                   setPreviewSell={setPreviewSell}

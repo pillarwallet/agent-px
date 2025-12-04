@@ -36,6 +36,8 @@ vi.mock('../../../../../services/pillarXApiSearchTokens', () => ({
 
 vi.mock('../../../hooks/useGasTankBalance', () => ({
   useGasTankBalance: vi.fn(),
+}));
+
 vi.mock('../../../../../hooks/useTokenPnL', () => ({
   useTokenPnL: vi.fn(() => ({
     pnl: null,
