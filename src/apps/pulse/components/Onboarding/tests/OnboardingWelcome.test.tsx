@@ -49,7 +49,7 @@ describe('<OnboardingWelcome />', () => {
 
       expect(
         screen.getByText(
-          /To start trading, you need \$2 USDC on a network and \$2 in your gas tank and enable trading/
+          /To start trading, you need \$2 USDC on a network and \$2 in your gas tank\./
         )
       ).toBeInTheDocument();
     });

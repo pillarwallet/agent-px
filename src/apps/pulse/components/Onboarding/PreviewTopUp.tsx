@@ -525,9 +525,12 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     // Only mark onboarding as completed if transaction was successful
     if (currentTransactionStatus === 'Transaction Complete') {
       markOnboardingComplete();
+      // Close the entire onboarding flow on success
+      setOnboardingScreen(null);
+    } else {
+      // For failures, go back to preview to allow retry
+      onBack();
     }
-
-    setOnboardingScreen(null);
   };
 
   // Calculate the steps to show
