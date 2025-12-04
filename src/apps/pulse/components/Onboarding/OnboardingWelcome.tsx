@@ -30,7 +30,10 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
   return (
     <div className="w-full max-w-[446px]">
       <div
-        className="w-full rounded-2xl bg-[#1E1D24] pt-9 px-3 pb-3 flex flex-col gap-9"
+        className="w-full rounded-2xl bg-[#16151A] pt-9 px-3 pb-3 flex flex-col gap-9"
+        style={{
+          boxShadow: '0px 2px 15px 0px rgba(18, 17, 22, 0.5)',
+        }}
         data-testid="pulse-onboarding-welcome"
       >
         {/* Header */}
@@ -39,8 +42,13 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
             <span className="text-xl">👋 Welcome to</span>
           </div>
           <h2
-            className="font-bold italic text-white text-center text-xl leading-5 tracking-tight"
-            style={{ fontFamily: 'Druk Text Wide' }}
+            className="font-bold italic text-white text-center"
+            style={{
+              fontFamily: 'Druk Text Wide',
+              fontSize: '32px',
+              lineHeight: '24px',
+              letterSpacing: '-0.02em',
+            }}
           >
             PULSE APP
           </h2>
@@ -48,12 +56,12 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
 
         {/* Description and Balance Cards */}
         <div className="p-3 flex flex-col gap-3 items-center">
-          <p className="text-white text-center text-sm leading-4 tracking-tight opacity-50 font-normal">
+          <p className="text-white text-center text-sm leading-4 tracking-tight opacity-50 font-normal max-w-[280px]">
             To start trading, you need $2 USDC on a network and $2 in your gas
-            tank and enable trading.
+            tank.
           </p>
           {/* Chain Balance Card */}
-          <div className="flex items-center w-full max-w-[250px] h-[34px] rounded-lg py-2 px-3 gap-0.5 bg-[#8A77FF1A]">
+          <div className="flex items-center max-w-[250px] h-[34px] rounded-lg py-2 px-3 gap-0.5 bg-[#8A77FF1A]">
             <img src={WalletIcon} alt="Wallet" className="w-6 h-[18px]" />
             <span className="text-sm font-normal text-white">
               {ChainNames[maxStableCoinBalance?.chainId ?? 1] || 'All Networks'}
@@ -67,7 +75,7 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
           </div>
 
           {/* Gas Tank Card */}
-          <div className="flex items-center w-full max-w-[250px] rounded-lg py-2 px-3 gap-0.5 bg-[#8A77FF1A]">
+          <div className="flex items-center max-w-[250px] rounded-lg py-2 px-3 gap-0.5 bg-[#8A77FF1A]">
             <img src={GasTankIcon} alt="Gas Tank" className="w-5" />
             <span className="text-sm font-normal text-white flex-1 flex items-center gap-1">
               Universal Gas Tank:{' '}

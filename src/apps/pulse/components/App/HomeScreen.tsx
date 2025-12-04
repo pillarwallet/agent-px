@@ -220,6 +220,8 @@ export default function HomeScreen(props: HomeScreenProps) {
   const blockchainTxHashRef = useRef<string | undefined>(undefined);
   const failureGraceExpiryRef = useRef<number | null>(null);
   const hasInitializedChainIdRef = useRef<boolean>(false);
+  const [isTopUpFromSettings, setIsTopUpFromSettings] =
+    useState<boolean>(false);
 
   // Track onboarding completion in localStorage to persist across rerenders
   const hasCompletedOnboardingRef = useRef<boolean>(
@@ -374,7 +376,8 @@ export default function HomeScreen(props: HomeScreenProps) {
     }
   }, [onboardingScreen, sellToken, setTopupToken, setIsSearchingFromTopup]);
 
-  const handleShowTopUp = () => {
+  const handleShowTopUp = (fromSettings = false) => {
+    setIsTopUpFromSettings(fromSettings);
     setOnboardingScreen('topup');
   };
 
@@ -1179,6 +1182,7 @@ export default function HomeScreen(props: HomeScreenProps) {
             localStorage.setItem('hasCompletedOnboarding', 'true');
           }}
           isPortfolioLoading={isPortfolioLoading}
+          showCloseButton={isTopUpFromSettings}
         />
       );
     }
@@ -1274,6 +1278,8 @@ export default function HomeScreen(props: HomeScreenProps) {
             customSellAmounts={customSellAmounts}
             selectedChainId={selectedChainIdForSettlement}
             setSelectedChainId={setSelectedChainIdForSettlement}
+            onTopUp={() => handleShowTopUp(true)}
+            gasTankBalance={gasTankBalance}
           />
         ) : (
           <>
