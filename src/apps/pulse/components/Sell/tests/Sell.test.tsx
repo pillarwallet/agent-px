@@ -9,13 +9,45 @@ import { SelectedToken } from '../../../types/tokens';
 
 // hooks
 import useRelaySell from '../../../hooks/useRelaySell';
+import { useTokenPnL } from '../../../../../hooks/useTokenPnL';
 
 // components
 import Sell from '../Sell';
 
+// test utils
+import { TestWrapper } from '../../../../../test-utils/testUtils';
+
 // Mock dependencies
 vi.mock('../../../hooks/useRelaySell', () => ({
   default: vi.fn(),
+}));
+
+vi.mock('../../../../../hooks/useTokenPnL', () => ({
+  useTokenPnL: vi.fn(() => ({
+    pnl: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  })),
+}));
+
+vi.mock('../../../../../services/pillarXApiWalletTransactions', () => ({
+  useGetWalletTransactionsQuery: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  })),
+  pillarXApiWalletTransactions: {
+    reducerPath: 'pillarXApiWalletTransactions',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../../../../hooks/useRemoteConfig', () => ({
+  useRemoteConfig: vi.fn(() => ({
+    isInitialized: true,
+    useRelayBuy: false,
+  })),
 }));
 
 const mockToken: SelectedToken = {
@@ -97,7 +129,11 @@ const defaultMocks = () => {
 };
 
 const renderWithProviders = (props = {}) => {
-  return render(<Sell {...mockProps} {...props} />);
+  return render(
+    <TestWrapper>
+      <Sell {...mockProps} {...props} />
+    </TestWrapper>
+  );
 };
 
 describe('<Sell />', () => {
@@ -230,6 +266,60 @@ describe('<Sell />', () => {
       expect(screen.getByTestId('pulse-sell-token-balance')).toHaveTextContent(
         '0 TEST($0.00)'
       );
+    });
+
+    it('shows loading skeleton when PnL is loading', () => {
+      // Mock useTokenPnL to return loading state
+      vi.mocked(useTokenPnL).mockReturnValue({
+        pnl: null,
+        isLoading: true,
+        refetch: vi.fn(),
+        debug: {
+          mobulaTxCount: 0,
+          relayRequestCount: 0,
+          relayResponseCount: 0,
+          status: 'Loading',
+        },
+      });
+
+      renderWithProviders();
+
+      // Should show skeleton (which has animate-pulse class)
+      // We can look for the container with animate-pulse
+      const skeleton = document.querySelector('.animate-pulse');
+      expect(skeleton).toBeInTheDocument();
+    });
+
+    it('shows PnL stats when loaded', () => {
+      // Mock useTokenPnL to return loaded state with data
+      vi.mocked(useTokenPnL).mockReturnValue({
+        pnl: {
+          balanceUSDC: 100,
+          balanceToken: 10,
+          totalBoughtUSDC: 50,
+          avgBuyPrice: 5,
+          totalSoldUSDC: 0,
+          avgSellPrice: 0,
+          realisedPnLUSDC: 0,
+          realisedPnLPct: 0,
+          unrealisedPnLUSDC: 50,
+          unrealisedPnLPct: 100,
+        },
+        isLoading: false,
+        refetch: vi.fn(),
+        debug: {
+          mobulaTxCount: 0,
+          relayRequestCount: 0,
+          relayResponseCount: 0,
+          status: 'Complete',
+        },
+      });
+
+      renderWithProviders();
+
+      // Should show PnL stats
+      expect(screen.getByText('Floating PnL')).toBeInTheDocument();
+      expect(screen.getByText('+$50.00 (+100.00%)')).toBeInTheDocument();
     });
   });
 });

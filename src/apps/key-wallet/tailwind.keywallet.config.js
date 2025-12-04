@@ -1,9 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 // eslint-disable-next-line no-undef
 module.exports = {
-  content: [
-    './src/apps/key-wallet/**/**/*.{js,ts,jsx,tsx,html,mdx}',
-  ],
+  content: ['./src/apps/key-wallet/**/**/*.{js,ts,jsx,tsx,html,mdx}'],
   darkMode: 'class',
   theme: {
     screens: {
@@ -27,4 +25,3 @@ module.exports = {
   },
   plugins: [],
 };
-

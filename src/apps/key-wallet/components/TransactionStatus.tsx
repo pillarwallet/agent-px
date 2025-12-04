@@ -87,4 +87,3 @@ const TransactionStatus = ({
 };
 
 export default TransactionStatus;
-

@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { PortfolioData } from '../../../../types/api';
 import {
-  transformPortfolioToAssets,
   getTotalPortfolioValue,
   groupAssetsByChain,
+  transformPortfolioToAssets,
 } from '../portfolio';
-import { PortfolioData } from '../../../../types/api';
 
 describe('portfolio utils', () => {
   describe('transformPortfolioToAssets', () => {
@@ -22,7 +22,7 @@ describe('portfolio utils', () => {
     it('returns empty array when portfolioData.assets is empty', () => {
       const portfolioData: PortfolioData = {
         assets: [],
-      } as PortfolioData;
+      } as unknown as PortfolioData;
       const result = transformPortfolioToAssets(portfolioData);
       expect(result).toEqual([]);
     });

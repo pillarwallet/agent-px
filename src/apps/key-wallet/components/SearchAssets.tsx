@@ -1,5 +1,5 @@
 // Core
-import { useState, useMemo, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 // Vendors
 import Fuse from 'fuse.js';
@@ -12,7 +12,10 @@ interface SearchAssetsProps {
   onFilteredAssetsChange: (filteredAssets: Asset[]) => void;
 }
 
-const SearchAssets = ({ assets, onFilteredAssetsChange }: SearchAssetsProps) => {
+const SearchAssets = ({
+  assets,
+  onFilteredAssetsChange,
+}: SearchAssetsProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Configure Fuse.js for fuzzy search
@@ -103,4 +106,3 @@ const SearchAssets = ({ assets, onFilteredAssetsChange }: SearchAssetsProps) => 
 };
 
 export default SearchAssets;
-

@@ -24,4 +24,3 @@ export interface TransactionStatus {
   status: 'pending' | 'success' | 'failed';
   timestamp: number;
 }
-

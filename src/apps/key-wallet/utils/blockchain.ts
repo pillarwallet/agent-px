@@ -55,7 +55,8 @@ export const getChainById = (chainId: number) => {
 export const isNativeAsset = (contractAddress: string): boolean => {
   return (
     contractAddress === '0x0000000000000000000000000000000000000000' ||
-    contractAddress.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+    contractAddress.toLowerCase() ===
+      '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
   );
 };
 
@@ -136,7 +137,10 @@ export const getCurrentChainId = async (
       return walletProvider.chain.id;
     }
 
-    const eip1193Provider = walletProvider as Eip1193LikeProvider | null | undefined;
+    const eip1193Provider = walletProvider as
+      | Eip1193LikeProvider
+      | null
+      | undefined;
 
     if (!eip1193Provider || typeof eip1193Provider.request !== 'function') {
       return null;
@@ -177,7 +181,7 @@ export const sendTransaction = async (
 
   // Convert asset balance to wei for comparison
   const balanceInWei = parseUnits(asset.balance.toString(), asset.decimals);
-  
+
   // Ensure amount doesn't exceed balance
   if (amountInWei > balanceInWei) {
     throw new Error('Insufficient balance');
@@ -284,12 +288,18 @@ export const sendTransaction = async (
 };
 
 // After: reuse shared utility
-export const getBlockExplorerUrl = (chainId: number, txHash: string): string => {
+export const getBlockExplorerUrl = (
+  chainId: number,
+  txHash: string
+): string => {
   const baseUrl = getBlockScan(chainId, false);
   return baseUrl ? `${baseUrl}${txHash}` : '';
 };
 
-export const formatBalance = (balance: number, decimals: number = 4): string => {
+export const formatBalance = (
+  balance: number,
+  decimals: number = 4
+): string => {
   if (balance === 0) return '0';
   if (balance < 0.0001) return '<0.0001';
   return balance.toFixed(decimals);
@@ -304,4 +314,3 @@ export const formatUsdValue = (value: number): string => {
 export const shortenAddress = (address: string, chars: number = 4): string => {
   return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
 };
-

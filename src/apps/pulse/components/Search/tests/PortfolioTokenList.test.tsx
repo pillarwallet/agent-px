@@ -13,6 +13,26 @@ import PortfolioTokenList from '../PortfolioTokenList';
 
 const mockHandleTokenSelect = vi.fn();
 
+// Mock hooks
+vi.mock('../../../../../hooks/useTransactionKit', () => ({
+  default: () => ({
+    walletAddress: '0x1234567890123456789012345678901234567890',
+  }),
+}));
+
+vi.mock('../../../../../services/pillarXApiWalletTransactions', () => ({
+  useGetWalletTransactionsQuery: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
+  pillarXApiWalletTransactions: {
+    reducerPath: 'pillarXApiWalletTransactions',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
 const mockPortfolioData: PortfolioData = {
   assets: [
     {
@@ -81,6 +101,7 @@ const defaultProps = {
   isLoading: false,
   isError: false,
   searchText: '',
+  hideSmallBalances: true,
 };
 
 describe('<PortfolioTokenList />', () => {
@@ -337,6 +358,7 @@ describe('<PortfolioTokenList />', () => {
       <PortfolioTokenList
         {...defaultProps}
         walletPortfolioData={portfolioWithNullPrice}
+        hideSmallBalances={false}
       />
     );
 

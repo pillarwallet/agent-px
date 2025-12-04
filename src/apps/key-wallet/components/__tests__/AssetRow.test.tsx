@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import renderer from 'react-test-renderer';
-import AssetRow from '../AssetRow';
+import { describe, expect, it, vi } from 'vitest';
 import { Asset } from '../../types';
+import AssetRow from '../AssetRow';
 
 const mockAsset: Asset = {
   id: 1,
@@ -43,7 +43,10 @@ describe('<AssetRow />', () => {
     // Asset name is in a paragraph element with class 'text-sm text-white/60 truncate'
     const assetNames = screen.getAllByText('Ethereum');
     const assetName = assetNames.find(
-      (el) => el.tagName === 'P' && el.className.includes('text-sm') && el.className.includes('truncate')
+      (el) =>
+        el.tagName === 'P' &&
+        el.className.includes('text-sm') &&
+        el.className.includes('truncate')
     );
     expect(assetName).toBeInTheDocument();
     expect(assetName).toHaveClass('text-sm');
@@ -52,9 +55,9 @@ describe('<AssetRow />', () => {
   it('displays chain name', () => {
     render(<AssetRow asset={mockAsset} onClick={mockOnClick} />);
     // Chain name is in a span element
-    const chainName = screen.getAllByText('Ethereum').find(
-      (el) => el.tagName === 'SPAN' && el.className.includes('text-xs')
-    );
+    const chainName = screen
+      .getAllByText('Ethereum')
+      .find((el) => el.tagName === 'SPAN' && el.className.includes('text-xs'));
     expect(chainName).toBeInTheDocument();
   });
 

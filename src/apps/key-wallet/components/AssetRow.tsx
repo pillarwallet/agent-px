@@ -76,4 +76,3 @@ const AssetRow = ({ asset, onClick }: AssetRowProps) => {
 };
 
 export default AssetRow;
-
