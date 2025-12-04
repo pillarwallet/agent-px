@@ -30,10 +30,7 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
   return (
     <div className="w-full max-w-[446px]">
       <div
-        className="w-full rounded-2xl bg-[#16151A] pt-9 px-3 pb-3 flex flex-col gap-9"
-        style={{
-          boxShadow: '0px 2px 15px 0px rgba(18, 17, 22, 0.5)',
-        }}
+        className="w-full rounded-2xl bg-[#16151A] pt-9 px-3 pb-3 flex flex-col gap-9 shadow-[0px_2px_15px_0px_rgba(18,_17,_22,_0.5)]"
         data-testid="pulse-onboarding-welcome"
       >
         {/* Header */}
@@ -42,12 +39,9 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
             <span className="text-xl">👋 Welcome to</span>
           </div>
           <h2
-            className="font-bold italic text-white text-center"
+            className="font-bold italic text-white text-center text-[32px] leading-6 tracking-[-0.02em]"
             style={{
               fontFamily: 'Druk Text Wide',
-              fontSize: '32px',
-              lineHeight: '24px',
-              letterSpacing: '-0.02em',
             }}
           >
             PULSE APP

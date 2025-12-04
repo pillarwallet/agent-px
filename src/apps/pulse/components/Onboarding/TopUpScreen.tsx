@@ -463,14 +463,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
                   <img src={BackArrow} alt="Back" className="w-3 h-3" />
                 </button>
               )}
-              <h1
-                className="text-white font-medium"
-                style={{
-                  fontSize: '20px',
-                  lineHeight: '20px',
-                  letterSpacing: '-0.02em',
-                }}
-              >
+              <h1 className="text-white font-medium text-[20px] leading-5 tracking-[-0.02em]">
                 Top up Gas Tank
               </h1>
             </div>
@@ -489,15 +482,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
             )}
           </div>
 
-          <p
-            className="text-white font-normal"
-            style={{
-              fontSize: '14px',
-              lineHeight: '14px',
-              letterSpacing: '-0.02em',
-              opacity: 0.5,
-            }}
-          >
+          <p className="text-white font-normal text-sm leading-[14px] tracking-[-0.02em] opacity-50">
             Select Fee Tokens and Input Amount
           </p>
         </div>
@@ -507,12 +492,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
           <div className="flex justify-between p-3">
             <button
               type="button"
-              className="flex items-center bg-[#1E1D24] rounded-md h-[42px]"
-              style={{
-                padding: '8px 12px 8px 8px',
-                gap: '12px',
-                minWidth: '140px',
-              }}
+              className="flex items-center bg-[#1E1D24] rounded-md h-[42px] p-[8px_12px_8px_8px] gap-3 min-w-[140px]"
               onClick={handleTokenSelectorClick}
               data-testid="pulse-topup-token-selector"
             >
@@ -616,8 +596,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
             return (
               <button
                 key={item}
-                className="flex items-center justify-center bg-[#121116] rounded-lg h-[30px] flex-1 min-w-0"
-                style={{ padding: '2px 2px 4px 2px' }}
+                className="flex items-center justify-center bg-[#121116] rounded-lg h-[30px] flex-1 min-w-0 p-[2px_2px_4px_2px]"
                 onClick={() => handleQuickAmountClick(item)}
                 type="button"
                 data-testid={`pulse-topup-amount-button-${item.toLowerCase()}`}
