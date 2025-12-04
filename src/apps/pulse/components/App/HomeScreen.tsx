@@ -301,21 +301,17 @@ export default function HomeScreen(props: HomeScreenProps) {
     };
   }, [gasTankBalance, onboardingScreen, setOnboardingScreen]);
 
-  // Monitor balance conditions and dynamically update onboarding state
-  // If either balance drops below 2, force user back to onboarding
+  // Mark onboarding as complete only after gas tank balance is verified to be >= 2
+  // This ensures the flag is only set when the top-up deposit is confirmed
   useEffect(() => {
-    const hasInsufficientBalance =
-      gasTankBalance < 2 ||
-      (maxStableCoinBalance && maxStableCoinBalance.balance < 2);
-
-    if (hasInsufficientBalance) {
-      // If balance drops below threshold, reset onboarding flag to force re-onboarding
-      if (hasCompletedOnboardingRef.current) {
-        hasCompletedOnboardingRef.current = false;
-        localStorage.removeItem('hasCompletedOnboarding');
-      }
+    if (gasTankBalance >= 2 && !hasCompletedOnboardingRef.current) {
+      hasCompletedOnboardingRef.current = true;
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+    } else {
+      hasCompletedOnboardingRef.current = false;
+      localStorage.setItem('hasCompletedOnboarding', 'false');
     }
-  }, [gasTankBalance, maxStableCoinBalance]);
+  }, [gasTankBalance]);
 
   // Preselect max USDC token when topup screen is shown and totalUsdcBalance > 0
   useEffect(() => {
@@ -377,11 +373,14 @@ export default function HomeScreen(props: HomeScreenProps) {
   }, [onboardingScreen, sellToken, setTopupToken, setIsSearchingFromTopup]);
 
   const handleShowTopUp = (fromSettings = false) => {
+    console.log('[HomeScreen] handleShowTopUp called with fromSettings:', fromSettings);
     setIsTopUpFromSettings(fromSettings);
     setOnboardingScreen('topup');
   };
 
   const handleBackToWelcome = () => {
+    console.log('[HomeScreen] handleBackToWelcome called - resetting isTopUpFromSettings to false');
+    setIsTopUpFromSettings(false);
     setOnboardingScreen('welcome');
   };
 
@@ -1163,6 +1162,7 @@ export default function HomeScreen(props: HomeScreenProps) {
     }
 
     if (onboardingScreen === 'topup') {
+      console.log('[HomeScreen] Rendering TopUpScreen with isTopUpFromSettings:', isTopUpFromSettings);
       return (
         <TopUpScreen
           onBack={handleBackToWelcome}
@@ -1177,11 +1177,10 @@ export default function HomeScreen(props: HomeScreenProps) {
           selectedToken={topupToken}
           portfolioTokens={portfolioTokens}
           setOnboardingScreen={setOnboardingScreen}
-          markOnboardingComplete={() => {
-            hasCompletedOnboardingRef.current = true;
-            localStorage.setItem('hasCompletedOnboarding', 'true');
+          markOnboardingComplete={async () => {
             // Refresh gas tank balance after successful top-up
-            refetchGasTankBalance();
+            // Don't mark as complete yet - let the balance validation logic verify the balance first
+            await refetchGasTankBalance();
           }}
           isPortfolioLoading={isPortfolioLoading}
           showCloseButton={isTopUpFromSettings}

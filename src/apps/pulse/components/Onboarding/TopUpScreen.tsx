@@ -62,6 +62,11 @@ export default function TopUpScreen(props: TopUpScreenProps) {
     error: relayError,
   } = useRelaySell();
 
+  // Debug: Log showCloseButton value
+  useEffect(() => {
+    console.log('[TopUpScreen] showCloseButton:', showCloseButton);
+  }, [showCloseButton]);
+
   // Check if selected token is USDC
   const isSelectedTokenUSDC = (): boolean => {
     if (!selectedToken) return false;

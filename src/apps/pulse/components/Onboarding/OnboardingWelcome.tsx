@@ -93,7 +93,7 @@ export default function OnboardingWelcome(props: OnboardingWelcomeProps) {
         {/* Top Up Button */}
         <div className="w-full rounded-[10px] bg-black p-[2px_2px_6px_2px]">
           <button
-            onClick={onComplete}
+            onClick={() => onComplete()}
             type="button"
             className={`flex items-center justify-center w-full rounded-lg h-12 text-white font-medium text-base disabled:opacity-50 ${
               isGasTankLoading ||
