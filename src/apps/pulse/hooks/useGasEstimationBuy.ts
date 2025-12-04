@@ -121,15 +121,18 @@ export default function useGasEstimationBuy({
         buyToken.chainId
       );
 
-      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
+      const safePaymasterUrl = paymasterUrl?.endsWith('/')
+        ? paymasterUrl.slice(0, -1)
+        : paymasterUrl;
 
       const estimation = await kit.estimateBatches({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
         paymasterDetails: {
           url:
-            isUsingRelayBuy && paymasterUrl
-              ? `${paymasterUrl}/gasTankPaymaster?chainId=${fromChainId}`
+            isUsingRelayBuy && safePaymasterUrl
+              ? `${safePaymasterUrl}/gasTankPaymaster?chainId=${fromChainId}`
               : '',
         },
       });
@@ -158,17 +161,21 @@ export default function useGasEstimationBuy({
 
           // Fetch native price USD from REST API to calculate USD cost
           try {
-            const nativePriceUrl = `${
-              import.meta.env.VITE_PAYMASTER_URL
-            }/getNativePriceUSD?chainId=${fromChainId}`;
-            const nativePriceResponse = await fetch(nativePriceUrl);
-            const nativePriceData = await nativePriceResponse.json();
+            if (!safePaymasterUrl) {
+              console.warn(
+                'VITE_PAYMASTER_URL is not configured, skipping native price fetch'
+              );
+            } else {
+              const nativePriceUrl = `${safePaymasterUrl}/getNativePriceUSD?chainId=${fromChainId}`;
+              const nativePriceResponse = await fetch(nativePriceUrl);
+              const nativePriceData = await nativePriceResponse.json();
 
-            if (nativePriceData?.priceUSD) {
-              const totalCostInUSD =
-                parseFloat(estimatedCostInNativeToken) *
-                nativePriceData.priceUSD;
-              setGasCostUSD(totalCostInUSD.toString());
+              if (nativePriceData?.priceUSD) {
+                const totalCostInUSD =
+                  parseFloat(estimatedCostInNativeToken) *
+                  nativePriceData.priceUSD;
+                setGasCostUSD(totalCostInUSD.toString());
+              }
             }
           } catch (fetchErr) {
             console.error(

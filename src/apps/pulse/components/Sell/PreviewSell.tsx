@@ -317,6 +317,7 @@ const PreviewSell = (props: PreviewSellProps) => {
     ) {
       refreshPreviewSellData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     sellToken,
     tokenAmount,
@@ -324,7 +325,6 @@ const PreviewSell = (props: PreviewSellProps) => {
     onSellOfferUpdate,
     isWaitingForSignature,
     isExecuting,
-    refreshPreviewSellData,
   ]);
 
   // Auto-refresh sell offer every 15 seconds (disabled when waiting for signature)
@@ -427,6 +427,16 @@ const PreviewSell = (props: PreviewSellProps) => {
     setIsExecuting(true);
     if (setSellFlowPaused) setSellFlowPaused(true);
 
+    // Validate and prepare paymaster URL
+    const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
+    if (!paymasterUrl) {
+      console.error('VITE_PAYMASTER_URL environment variable is not set');
+      setIsWaitingForSignature(false);
+      setIsExecuting(false);
+      if (setSellFlowPaused) setSellFlowPaused(false);
+      return;
+    }
+
     try {
       // First, prepare the batch using the existing executeSell logic (without showing batch modal)
       const result = await executeSell(
@@ -445,13 +455,14 @@ const PreviewSell = (props: PreviewSellProps) => {
           kit,
           sellToken.chainId
         );
+        const safePaymasterUrl = paymasterUrl.endsWith('/')
+          ? paymasterUrl.slice(0, -1)
+          : paymasterUrl;
         const batchSend = await kit.sendBatches({
           onlyBatchNames: [batchName],
           authorization: authorization || undefined,
           paymasterDetails: {
-            url: `${
-              import.meta.env.VITE_PAYMASTER_URL
-            }/gasTankPaymaster?chainId=${sellToken.chainId}`,
+            url: `${safePaymasterUrl}/gasTankPaymaster?chainId=${sellToken.chainId}`,
           },
         });
         const sentBatch = batchSend.batches[batchName];
@@ -479,9 +490,7 @@ const PreviewSell = (props: PreviewSellProps) => {
                 const gasCostInNative = formatUnits(sentBatch.totalCost, 18);
 
                 // Fetch native price to convert to USD
-                const nativePriceUrl = `${
-                  import.meta.env.VITE_PAYMASTER_URL
-                }/getNativePriceUSD?chainId=${sellToken.chainId}`;
+                const nativePriceUrl = `${safePaymasterUrl}/getNativePriceUSD?chainId=${sellToken.chainId}`;
                 const nativePriceResponse = await fetch(nativePriceUrl);
                 const nativePriceData = await nativePriceResponse.json();
 

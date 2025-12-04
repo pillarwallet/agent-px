@@ -424,6 +424,17 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     setIsLoading(true);
     if (setBuyFlowPaused) setBuyFlowPaused(true);
 
+    // Validate and prepare paymaster URL
+    const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
+    if (!paymasterUrl) {
+      console.error('VITE_PAYMASTER_URL environment variable is not set');
+      setIsWaitingForSignature(false);
+      setIsExecuting(false);
+      setIsLoading(false);
+      if (setBuyFlowPaused) setBuyFlowPaused(false);
+      return;
+    }
+
     try {
       // For Relay Buy EXACT_INPUT, we use the USD amount directly (not token amount)
       // The executeBuy function will get a fresh quote with the USD amount
@@ -445,13 +456,14 @@ export default function PreviewBuy(props: PreviewBuyProps) {
           kit,
           fromChainId
         );
+        const safePaymasterUrl = paymasterUrl.endsWith('/')
+          ? paymasterUrl.slice(0, -1)
+          : paymasterUrl;
         const batchSend = await kit.sendBatches({
           onlyBatchNames: [batchName],
           authorization: authorization || undefined,
           paymasterDetails: {
-            url: `${
-              import.meta.env.VITE_PAYMASTER_URL
-            }/gasTankPaymaster?chainId=${fromChainId}`,
+            url: `${safePaymasterUrl}/gasTankPaymaster?chainId=${fromChainId}`,
           },
         });
 
@@ -480,9 +492,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
                 const gasCostInNative = formatUnits(sentBatch.totalCost, 18);
 
                 // Fetch native price to convert to USD
-                const nativePriceUrl = `${
-                  import.meta.env.VITE_PAYMASTER_URL
-                }/getNativePriceUSD?chainId=${fromChainId}`;
+                const nativePriceUrl = `${safePaymasterUrl}/getNativePriceUSD?chainId=${fromChainId}`;
                 const nativePriceResponse = await fetch(nativePriceUrl);
                 const nativePriceData = await nativePriceResponse.json();
 

@@ -153,7 +153,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setShowBatchSendModal,
     setWalletConnectPayload,
   } = useBottomMenuModal();
-  const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+  const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
   const [isPaymaster, setIsPaymaster] = React.useState<boolean>(false);
   const [paymasterContext, setPaymasterContext] = React.useState<{
     mode: string;
@@ -970,10 +970,16 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setSafetyWarningMessage('');
 
     // Compute paymasterDetails only for user-driven flows
+    const safePaymasterUrl = paymasterUrl?.endsWith('/')
+      ? paymasterUrl.slice(0, -1)
+      : paymasterUrl;
     const paymasterDetails =
-      !isPayloadTransaction && isPaymaster && paymasterContext
+      !isPayloadTransaction &&
+      isPaymaster &&
+      paymasterContext &&
+      safePaymasterUrl
         ? {
-            url: `${paymasterUrl}${queryString}`,
+            url: `${safePaymasterUrl}${queryString}`,
             context: paymasterContext,
           }
         : undefined;

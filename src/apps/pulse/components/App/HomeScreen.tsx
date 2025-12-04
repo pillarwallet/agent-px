@@ -285,14 +285,8 @@ export default function HomeScreen(props: HomeScreenProps) {
   // Auto-dismiss onboarding when balance >= 2 while on welcome screen
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    // DEBUG: Disable auto-dismiss during debugging
-    const DEBUG_DISABLE_AUTO_DISMISS = true;
 
-    if (
-      !DEBUG_DISABLE_AUTO_DISMISS &&
-      gasTankBalance >= 2 &&
-      onboardingScreen === 'welcome'
-    ) {
+    if (gasTankBalance >= 2 && onboardingScreen === 'welcome') {
       timer = setTimeout(() => {
         hasCompletedOnboardingRef.current = true;
         localStorage.setItem('hasCompletedOnboarding', 'true');
@@ -308,13 +302,6 @@ export default function HomeScreen(props: HomeScreenProps) {
   // Monitor balance conditions and dynamically update onboarding state
   // If either balance drops below 2, force user back to onboarding
   useEffect(() => {
-    // DEBUG: Disable dynamic balance monitoring during debugging
-    const DEBUG_DISABLE_BALANCE_MONITORING = true;
-
-    if (DEBUG_DISABLE_BALANCE_MONITORING) {
-      return;
-    }
-
     const hasInsufficientBalance =
       gasTankBalance < 2 ||
       (maxStableCoinBalance && maxStableCoinBalance.balance < 2);
