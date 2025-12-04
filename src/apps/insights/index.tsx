@@ -320,7 +320,14 @@ const App = () => {
     startPolling();
     refetchSubscription().catch(() => {});
 
-    alert('The subscription checkout will open in a new browser tab - once complete, return here to access Insights');
+    const confirmed = window.confirm(
+      'The subscription checkout will open in a new browser tab. Once complete, return here to access Insights.'
+    );
+    if (!confirmed) {
+      setIsAwaitingSubscription(false);
+      stopPolling();
+      return;
+    }
 
     if (isNativeApp && window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(
@@ -478,7 +485,7 @@ const App = () => {
 
             <div className="space-y-2 text-sm text-muted-foreground mb-6">
               <div className="flex items-center justify-between">
-                <span className="text-white/70">Connected wallet</span>
+                <span className="text-white/70">Connected EOA wallet</span>
                 <span className="font-mono text-white">
                   {shortenAddress(eoaAddress as string)}
                 </span>
