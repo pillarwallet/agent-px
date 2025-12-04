@@ -4,6 +4,7 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 
@@ -24,10 +25,17 @@ import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsF
 import RandomAvatar from '../../../pillarx-app/components/RandomAvatar/RandomAvatar';
 import ArrowDown from '../../assets/arrow-down.svg';
 import WarningIcon from '../../assets/warning.svg';
+import PnLStats from '../PnLStats/PnLStats';
 import SellButton from './SellButton';
 
 // hooks
+import { useTokenPnL } from '../../../../hooks/useTokenPnL';
+import useTransactionKit from '../../../../hooks/useTransactionKit';
 import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
+
+// services
+import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
+import { PortfolioToken } from '../../../../services/tokensData';
 
 interface SellProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
@@ -62,6 +70,54 @@ const Sell = (props: SellProps) => {
   const [isLoadingOffer, setIsLoadingOffer] = useState<boolean>(false);
   const [showTooltip, setShowTooltip] = useState<boolean>(false);
   const [truncatedFlag, setTruncatedFlag] = useState<boolean>(false);
+  const { walletAddress: accountAddress } = useTransactionKit();
+
+  // Fetch transactions for PnL
+  const {
+    data: transactionsData,
+    isLoading: isTransactionsLoading,
+    refetch: refetchTransactions,
+  } = useGetWalletTransactionsQuery(
+    { wallet: accountAddress || '' },
+    { skip: !accountAddress }
+  );
+
+  // Find matching portfolio token to get balance and price
+  const portfolioToken = useMemo(() => {
+    if (!token || !portfolioTokens || portfolioTokens.length === 0) return null;
+
+    return portfolioTokens.find(
+      (pt) =>
+        pt.contract.toLowerCase() === token.address.toLowerCase() &&
+        Number(getChainId(pt.blockchain as MobulaChainNames)) === token.chainId
+    );
+  }, [token, portfolioTokens]);
+
+  // Calculate PnL for selected token with proper balance and price
+  const { pnl, isLoading: isPnLLoading } = useTokenPnL(
+    token && accountAddress && portfolioToken
+      ? {
+          token: {
+            contract: token.address || '',
+            symbol: token.symbol,
+            decimals: token.decimals || 18,
+            balance: portfolioToken.balance || 0,
+            price: portfolioToken.price || 0,
+          },
+          transactionsData,
+          walletAddress: accountAddress,
+          chainId: token.chainId,
+        }
+      : null
+  );
+
+  // Refetch transactions when parent triggers refresh
+  // If transactionsData changes, useTokenPnL will automatically recalculate
+  useEffect(() => {
+    if (isRefreshing && refetchTransactions) {
+      refetchTransactions();
+    }
+  }, [isRefreshing, refetchTransactions]);
 
   const {
     getBestSellOffer,
@@ -179,6 +235,8 @@ const Sell = (props: SellProps) => {
     }
   };
 
+
+  // Calculate token balance (must be after getTokenBalance function)
   const tokenBalance = getTokenBalance();
 
   const handleTokenAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,7 +287,7 @@ const Sell = (props: SellProps) => {
 
   return (
     <div className="flex flex-col w-full" data-testid="pulse-sell-component">
-      <div className="bg-[#121116] m-2.5 rounded-[10px]">
+      <div className="m-2.5 bg-[#121116] min-h-[100px] rounded-lg">
         <div className="flex items-center p-3">
           <button
             onClick={() => {
@@ -412,6 +470,7 @@ const Sell = (props: SellProps) => {
             </div>
           </div>
         </div>
+
         <div className="flex justify-between items-center p-3">
           <div className="flex">
             {(notEnoughLiquidity || relayError) && (
@@ -535,6 +594,19 @@ const Sell = (props: SellProps) => {
           isInitialized={isInitialized}
         />
       </div>
+
+      {/* PnL Stats - only show if there's actual PnL data */}
+      {token &&
+        (isPnLLoading ||
+          isTransactionsLoading ||
+          (pnl && (pnl.totalBoughtUSDC > 0 || pnl.totalSoldUSDC > 0))) && (
+          <div className="w-full px-2.5 mb-2">
+            <PnLStats
+              metrics={pnl}
+              isLoading={isPnLLoading || isTransactionsLoading || isRefreshing}
+            />
+          </div>
+        )}
     </div>
   );
 };

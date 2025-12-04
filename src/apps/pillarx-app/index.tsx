@@ -14,7 +14,7 @@ import styled from 'styled-components';
 import './styles/tailwindPillarX.css';
 
 // types
-import { Projection } from '../../types/api';
+import { ApiLayout, Projection } from '../../types/api';
 
 // hooks
 import { useEIP7702Upgrade } from '../../hooks/useEIP7702Upgrade';
@@ -123,6 +123,104 @@ const App = () => {
             newApiData.push(item);
           }
         });
+
+        // Inject Algo Insights Tile (Mock Data)
+        const algoTile: Projection = {
+          id: 'algo-insights-mock',
+          layout: ApiLayout.ALGO_INSIGHTS,
+          meta: {
+            display: { title: 'Algo Insights' },
+          },
+          data: {
+            pnl_1m: 0.18,
+            pnl_3m: 26.3,
+            pnl_6m: 39.72,
+            risk_level: 'Low Risk',
+            pnl_status: {
+              winning: 54,
+              losing: 27.4,
+              neutral: 18.6,
+            },
+            cumulative_pnl: {
+              '1w': {
+                value: 0.18,
+                history: [
+                  { timestamp: 1732492800, value: -0.8 }, // Nov 25 (Mon)
+                  { timestamp: 1732579200, value: 1.2 }, // Nov 26 (Tue)
+                  { timestamp: 1732665600, value: 2.8 }, // Nov 27 (Wed)
+                  { timestamp: 1732752000, value: 1.5 }, // Nov 28 (Thu)
+                  { timestamp: 1732838400, value: 3.2 }, // Nov 29 (Fri)
+                  { timestamp: 1732924800, value: 2.1 }, // Nov 30 (Sat)
+                  { timestamp: 1733011200, value: 0.18 }, // Dec 1 (Sun)
+                ],
+              },
+              '1m': {
+                value: 0.18,
+                history: [
+                  { timestamp: 1730505600, value: -0.8 }, // Nov 2 (Week 1)
+                  { timestamp: 1731110400, value: 2.5 }, // Nov 9 (Week 2)
+                  { timestamp: 1731715200, value: 5.4 }, // Nov 16 (Week 3)
+                  { timestamp: 1732320000, value: 2.8 }, // Nov 23 (Week 4)
+                  { timestamp: 1732924800, value: 0.18 }, // Nov 30 (Week 5)
+                ],
+              },
+              '3m': {
+                value: 26.3,
+                history: [
+                  { timestamp: 1725408000, value: 0.5 }, // Sep 4 (Start)
+                  { timestamp: 1726012800, value: -5.5 }, // Sep 11 (Dip)
+                  { timestamp: 1726617600, value: 2.0 }, // Sep 18 (Recovery)
+                  { timestamp: 1727222400, value: 15.5 }, // Sep 25 (Big Jump)
+                  { timestamp: 1727827200, value: 26.8 }, // Oct 2 (Peak 1)
+                  { timestamp: 1728432000, value: 23.5 }, // Oct 9 (Dip)
+                  { timestamp: 1729036800, value: 28.2 }, // Oct 16 (Climb)
+                  { timestamp: 1729641600, value: 26.5 }, // Oct 23 (Dip)
+                  { timestamp: 1730246400, value: 30.5 }, // Oct 30 (Peak 2)
+                  { timestamp: 1730851200, value: 27.8 }, // Nov 6 (Dip)
+                  { timestamp: 1731456000, value: 31.2 }, // Nov 13 (Peak 3)
+                  { timestamp: 1732060800, value: 26.3 }, // Nov 20 (End)
+                ],
+              },
+              '6m': {
+                value: 39.72,
+                history: [
+                  { timestamp: 1719792000, value: 0.5 }, // Jul 1 (Start ~0%)
+                  { timestamp: 1720396800, value: 4.2 }, // Jul 8
+                  { timestamp: 1721001600, value: 6.5 }, // Jul 15 (Small peak)
+                  { timestamp: 1721606400, value: 5.1 }, // Jul 22
+                  { timestamp: 1722211200, value: 7.2 }, // Jul 29
+                  { timestamp: 1722816000, value: -3.5 }, // Aug 5 (Sharp drop)
+                  { timestamp: 1723420800, value: 0.2 }, // Aug 12
+                  { timestamp: 1724025600, value: -2.1 }, // Aug 19
+                  { timestamp: 1724630400, value: -3.5 }, // Aug 26
+                  { timestamp: 1725235200, value: -7.3 }, // Sep 2 (Lowest point)
+                  { timestamp: 1725840000, value: -2.5 }, // Sep 9
+                  { timestamp: 1726444800, value: 0.1 }, // Sep 16
+                  { timestamp: 1727049600, value: 0.5 }, // Sep 23
+                  { timestamp: 1727654400, value: 6.2 }, // Sep 30
+                  { timestamp: 1728259200, value: 5.5 }, // Oct 7
+                  { timestamp: 1728864000, value: 18.4 }, // Oct 14 (Big jump)
+                  { timestamp: 1729468800, value: 20.5 }, // Oct 21
+                  { timestamp: 1730073600, value: 10.2 }, // Oct 28 (Dip)
+                  { timestamp: 1730678400, value: 12.5 }, // Nov 4
+                  { timestamp: 1731283200, value: 15.8 }, // Nov 11
+                  { timestamp: 1731888000, value: 28.5 }, // Nov 18 (Jump)
+                  { timestamp: 1732492800, value: 32.2 }, // Nov 25
+                  { timestamp: 1733097600, value: 40.5 }, // Dec 2
+                  { timestamp: 1733702400, value: 38.2 }, // Dec 9
+                  { timestamp: 1734307200, value: 42.5 }, // Dec 16
+                  { timestamp: 1734912000, value: 44.1 }, // Dec 23 (Peak)
+                ],
+              },
+            },
+          },
+        };
+
+        // Add to the beginning of the feed if not already present
+        if (!newApiData.some((item) => item.id === algoTile.id)) {
+          newApiData.unshift(algoTile);
+        }
+
         return newApiData;
       });
       if (walletAddress) {

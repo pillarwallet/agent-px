@@ -179,7 +179,7 @@ exports[`<HomeScreen /> > renders correctly and matches snapshot 1`] = `
             </div>
           </div>
           <div
-            className="flex justify-between p-3"
+            className="flex p-3 justify-between"
           >
             <div
               className="flex"

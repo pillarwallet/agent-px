@@ -13,6 +13,7 @@ import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsF
 
 // utils
 import { limitDigitsNumber } from '../../../../utils/number';
+import { getChainName } from '../../utils/constants';
 
 function getButtonText(
   isLoading: boolean,
@@ -152,6 +153,21 @@ export default function BuyButton(props: BuyButtonProps) {
     if (!useRelayBuy && !areModulesInstalled && payingTokens.length > 0) {
       return false;
     }
+    // Check if it's an error object
+    if ((expressIntentResponse as { error?: string })?.error) {
+      return true;
+    }
+    // Check if it's ExpressIntentResponse with no bids
+    if ('bids' in (expressIntentResponse || {})) {
+      return (
+        isLoading ||
+        !token ||
+        !(parseFloat(usdAmount) > 0) ||
+        !expressIntentResponse ||
+        (expressIntentResponse as ExpressIntentResponse)?.bids?.length === 0
+      );
+    }
+    // For BuyOffer or other types, just check basic conditions
     return (
       isLoading ||
       !token ||

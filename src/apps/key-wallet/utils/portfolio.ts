@@ -69,4 +69,3 @@ export const groupAssetsByChain = (
 
   return grouped;
 };
-

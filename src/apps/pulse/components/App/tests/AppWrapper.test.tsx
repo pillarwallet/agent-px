@@ -36,6 +36,47 @@ vi.mock('../../../../../services/pillarXApiSearchTokens', () => ({
 
 vi.mock('../../../hooks/useGasTankBalance', () => ({
   useGasTankBalance: vi.fn(),
+vi.mock('../../../../../hooks/useTokenPnL', () => ({
+  useTokenPnL: vi.fn(() => ({
+    pnl: null,
+    isLoading: false,
+  })),
+}));
+
+vi.mock('../../../../../services/pillarXApiWalletTransactions', () => ({
+  useGetWalletTransactionsQuery: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  })),
+  pillarXApiWalletTransactions: {
+    reducerPath: 'pillarXApiWalletTransactions',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../../hooks/useRelaySell', () => ({
+  default: vi.fn(() => ({
+    getBestSellOffer: vi.fn(),
+    isInitialized: true,
+    error: null,
+  })),
+}));
+
+vi.mock('../../../hooks/useRelayBuy', () => ({
+  default: vi.fn(() => ({
+    getBestOffer: vi.fn(),
+    isInitialized: false,
+    error: null,
+  })),
+}));
+
+vi.mock('../../../../../hooks/useRemoteConfig', () => ({
+  useRemoteConfig: vi.fn(() => ({
+    isInitialized: true,
+    useRelayBuy: false,
+  })),
 }));
 
 const mockStore = configureStore({

@@ -16,9 +16,9 @@ import { addMiddleware } from '../store';
 // utils
 import {
   CompatibleChains,
+  getWrappedTokenSymbol,
   isTestnet,
   isWrappedNativeToken,
-  getWrappedTokenSymbol,
 } from '../utils/blockchain';
 
 // services

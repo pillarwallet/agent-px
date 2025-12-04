@@ -14,16 +14,16 @@ import { SearchType, SelectedToken, SortType } from '../../types/tokens';
 
 // utils
 import { isTestnet } from '../../../../utils/blockchain';
+import { useIsMobile } from '../../../../utils/media';
 import {
   formatExponentialSmallNumber,
   limitDigitsNumber,
 } from '../../../../utils/number';
-import { useIsMobile } from '../../../../utils/media';
 import { MobulaChainNames, getChainId } from '../../utils/constants';
 import {
   Asset,
-  filterMarketsByLiquidity,
   Market,
+  filterMarketsByLiquidity,
   parseFreshAndTrendingTokens,
   parseSearchData,
 } from '../../utils/parseSearchData';
@@ -49,9 +49,9 @@ import Sort from './Sort';
 import TokenList from './TokenList';
 
 // assets
-import SearchIcon from '../../assets/seach-icon.svg';
-import ClearSearchIcon from '../../assets/clear-search-icon.svg';
 import BackArrowIcon from '../../assets/back-arrow-icon.svg';
+import ClearSearchIcon from '../../assets/clear-search-icon.svg';
+import SearchIcon from '../../assets/seach-icon.svg';
 
 interface SearchProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
@@ -105,6 +105,8 @@ export default function Search({
   const [isError, setIsError] = useState(false);
   const [parsedAssets, setParsedAssets] = useState<Asset[]>();
   const MIN_LIQUIDITY_THRESHOLD = 1000;
+
+  const [hideSmallBalances, setHideSmallBalances] = useState(true);
 
   // Sorting state for search results
   const [searchSort, setSearchSort] = useState<{
@@ -659,10 +661,26 @@ export default function Search({
 
                 if (!isBuy) {
                   return (
-                    <div key={item} className="flex items-center">
+                    <div
+                      key={item}
+                      className="flex items-center justify-between w-full pr-3"
+                    >
                       <p className="text-[13px] font-normal text-white tracking-[-0.26px] px-3">
                         {item}
                       </p>
+
+                      {/* Hide small balances toggle */}
+                      <div
+                        className="flex items-center gap-1.5 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+                        onClick={() => setHideSmallBalances(!hideSmallBalances)}
+                      >
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full border border-white ${hideSmallBalances ? 'bg-white' : 'bg-transparent'}`}
+                        />
+                        <span className="text-[10px] text-white whitespace-nowrap">
+                          Hide &lt;$0.5
+                        </span>
+                      </div>
                     </div>
                   );
                 }
@@ -838,6 +856,8 @@ export default function Search({
                 isError={walletPortfolioError}
                 searchText={searchText}
                 includeStableCoins={isSearchingFromTopup}
+                hideSmallBalances={hideSmallBalances}
+                isFetching={walletPortfolioFetching}
               />
             </div>
           )}

@@ -10,6 +10,7 @@ import PointsTile from '../components/PointsTile/PointsTile';
 import TokensHorizontalTile from '../components/TokensHorizontalTile/TokensHorizontalTile';
 import TokensVerticalTile from '../components/TokensVerticalTile/TokensVerticalTile';
 import TokensWithMarketDataTile from '../components/TokensWithMarketDataTile/TokensWithMarketDataTile';
+import AlgoInsightsTile from '../components/AlgoInsightsTile/AlgoInsightsTile';
 
 type TileComponentType = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,4 +25,5 @@ export const componentMap: TileComponentType = {
   [ApiLayout.MEDIA_GRID_HIGHLIGHTED]: HighlightedMediaGridTile,
   [ApiLayout.PXPOINTS]: PointsTile,
   [ApiLayout.TOKENS_WITH_MARKET_DATA]: TokensWithMarketDataTile,
+  [ApiLayout.ALGO_INSIGHTS]: AlgoInsightsTile,
 };

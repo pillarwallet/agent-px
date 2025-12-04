@@ -1,5 +1,5 @@
 // Core
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 // Viem
 import { encodeFunctionData, erc20Abi, parseUnits } from 'viem';
@@ -11,11 +11,11 @@ import { Asset } from '../types';
 import {
   formatBalance,
   formatUsdValue,
+  getChainById,
+  getCurrentChainId,
+  isNativeAsset,
   sendTransaction,
   switchChain,
-  getCurrentChainId,
-  getChainById,
-  isNativeAsset,
 } from '../utils/blockchain';
 
 // Hooks
@@ -25,8 +25,8 @@ import useTransactionKit from '../../../hooks/useTransactionKit';
 import { getEIP7702AuthorizationIfNeeded } from '../../../utils/eip7702Authorization';
 
 // Assets
-import defaultLogo from '../images/logo-unknown.png';
 import type { WalletProviderLike } from '../../../types/walletProvider';
+import defaultLogo from '../images/logo-unknown.png';
 
 interface SendAssetModalProps {
   asset: Asset | null;
@@ -111,22 +111,23 @@ const SendAssetModal = ({
 }: SendAssetModalProps) => {
   const transactionKit = useTransactionKit();
   const kit = transactionKit?.kit;
-  const contextProvider = transactionKit?.walletProvider as WalletProviderLike | undefined;
+  const contextProvider = transactionKit?.walletProvider as
+    | WalletProviderLike
+    | undefined;
 
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentChainId, setCurrentChainId] = useState<number | null>(null);
-  const [resolvedProvider, setResolvedProvider] = useState<WalletProviderLike | null>(
-    walletProvider ?? contextProvider ?? null
-  );
+  const [resolvedProvider, setResolvedProvider] =
+    useState<WalletProviderLike | null>(
+      walletProvider ?? contextProvider ?? null
+    );
 
   const isDelegatedEoa = useMemo(() => {
     try {
-      return (
-        kit?.getEtherspotProvider?.().getWalletMode?.() === 'delegatedEoa'
-      );
+      return kit?.getEtherspotProvider?.().getWalletMode?.() === 'delegatedEoa';
     } catch (delegatedCheckError) {
       console.warn('Failed to determine wallet mode:', delegatedCheckError);
       return false;
@@ -205,7 +206,9 @@ const SendAssetModal = ({
 
   const sendWithTransactionKit = async (): Promise<string> => {
     if (!kit) {
-      throw new Error('Sorry, PillarX is not connected to a wallet - please try reloading the site or logging out and back in.');
+      throw new Error(
+        'Sorry, PillarX is not connected to a wallet - please try reloading the site or logging out and back in.'
+      );
     }
 
     kit.reset();
@@ -256,12 +259,8 @@ const SendAssetModal = ({
     }
 
     const txHash =
-      (await kit.getTransactionHash(
-        userOpHash,
-        asset.chainId,
-        120000,
-        3000
-      )) || undefined;
+      (await kit.getTransactionHash(userOpHash, asset.chainId, 120000, 3000)) ||
+      undefined;
 
     if (!txHash) {
       throw new Error(
@@ -469,18 +468,18 @@ const SendAssetModal = ({
               type="button"
               disabled={isLoading || (!resolvedProvider && !isDelegatedEoa)}
             >
-              {isLoading
-                ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="h-4 w-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
-                    <span>Sending...</span>
-                  </span>
-                  )
-                : !resolvedProvider && !isDelegatedEoa
-                  ? 'Connecting...'
-                  : isWrongChain && !isDelegatedEoa
-                    ? `Switch & Send`
-                    : 'Send'}
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="h-4 w-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                  <span>Sending...</span>
+                </span>
+              ) : !resolvedProvider && !isDelegatedEoa ? (
+                'Connecting...'
+              ) : isWrongChain && !isDelegatedEoa ? (
+                `Switch & Send`
+              ) : (
+                'Send'
+              )}
             </button>
           </div>
         </div>

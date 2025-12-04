@@ -13,12 +13,12 @@ import {
 
 // services
 import { useGetWalletPortfolioQuery } from '../../../../services/pillarXApiWalletPortfolio';
-import { getUserOperationStatus } from '../../../../services/userOpStatus';
 import {
   convertPortfolioAPIResponseToToken,
   PortfolioToken,
   chainNameToChainIdTokensData,
 } from '../../../../services/tokensData';
+import { getUserOperationStatus } from '../../../../services/userOpStatus';
 
 // types
 import { PayingToken, SelectedToken } from '../../types/tokens';
@@ -32,23 +32,23 @@ import Refresh from '../Misc/Refresh';
 import Settings from '../Misc/Settings';
 import PreviewSell from '../Sell/PreviewSell';
 import Sell from '../Sell/Sell';
-import TransactionStatus from '../Transaction/TransactionStatus';
 import SettingsMenu from '../Settings/SettingsMenu';
 import OnboardingWelcome from '../Onboarding/OnboardingWelcome';
 import TopUpScreen from '../Onboarding/TopUpScreen';
+import TransactionStatus from '../Transaction/TransactionStatus';
 
 // hooks
-import useTransactionKit from '../../../../hooks/useTransactionKit';
 import { useRemoteConfig } from '../../../../hooks/useRemoteConfig';
+import useTransactionKit from '../../../../hooks/useTransactionKit';
 import useIntentSdk from '../../hooks/useIntentSdk';
-import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 import { BuyOffer } from '../../hooks/useRelayBuy';
 import { useGasTankBalance } from '../../hooks/useGasTankBalance';
 import { useTotalUsdcBalance } from '../../hooks/useTotalUsdcBalance';
+import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 
 // utils
-import { getStableCurrencyBalanceOnEachChain } from '../../utils/utils';
 import { logPulseError } from '../../utils/sentry';
+import { getStableCurrencyBalanceOnEachChain } from '../../utils/utils';
 
 // constants
 import { STABLE_CURRENCIES } from '../../constants/tokens';
@@ -1371,6 +1371,7 @@ export default function HomeScreen(props: HomeScreenProps) {
                   setBuyToken={setBuyToken}
                   setChains={setChains}
                   usdcPrice={usdcPrice}
+                  isRefreshing={isRefreshingHome}
                 />
               ) : (
                 <Sell
