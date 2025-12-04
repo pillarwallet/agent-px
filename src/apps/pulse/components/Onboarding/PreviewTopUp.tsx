@@ -326,11 +326,16 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
       return;
     }
 
-    // If we get a success status, cancel any pending failure timeout
+    // If we get a success status, cancel any pending failure timeout and normal timeout
     if (newStatus === 'Transaction Complete') {
       if (failureTimeoutId) {
         clearTimeout(failureTimeoutId);
         setFailureTimeoutId(null);
+      }
+      // Clear any pending normal timeout to prevent it from overwriting final status
+      if (normalTimeoutIdRef.current) {
+        clearTimeout(normalTimeoutIdRef.current);
+        normalTimeoutIdRef.current = null;
       }
       setHasSeenSuccess(true);
       hasSeenSuccessRef.current = true;
@@ -356,6 +361,11 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
         if (hasSeenSuccessRef.current) {
           setFailureTimeoutId(null);
           return;
+        }
+        // Clear any pending normal timeout to prevent it from overwriting final status
+        if (normalTimeoutIdRef.current) {
+          clearTimeout(normalTimeoutIdRef.current);
+          normalTimeoutIdRef.current = null;
         }
         setCurrentTransactionStatus('Transaction Failed');
         statusStartTime.current = Date.now();
