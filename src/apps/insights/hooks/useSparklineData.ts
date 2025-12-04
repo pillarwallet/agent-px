@@ -33,12 +33,18 @@ export const useSparklineData = () => {
       if (result.error) {
         throw result.error;
       }
-      
+
+      const candles = Array.isArray(result?.candles)
+        ? result.candles
+        : Array.isArray(result?.data?.candles)
+          ? result.data.candles
+          : [];
+
       setSparklineDataMap(prev => ({
         ...prev,
-        [signal.id]: (result.data?.candles || []) as SparklineDataPoint[],
+        [signal.id]: candles as SparklineDataPoint[],
       }));
-      console.log(`✅ [Sparkline] Fetched ${signal.ticker} - ${result.data?.candles?.length || 0} candles`);
+      console.log(`✅ [Sparkline] Fetched ${signal.ticker} - ${candles.length} candles`);
     } catch (error) {
       console.error(`❌ [Sparkline] Error fetching sparkline for ${signal.ticker}:`, error);
     } finally {
