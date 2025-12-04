@@ -27,6 +27,8 @@ interface SettingsMenuProps {
   customSellAmounts: string[];
   selectedChainId: number;
   setSelectedChainId: Dispatch<SetStateAction<number>>;
+  onTopUp: () => void;
+  gasTankBalance: number;
 }
 
 export default function SettingsMenu(props: SettingsMenuProps) {
@@ -38,6 +40,8 @@ export default function SettingsMenu(props: SettingsMenuProps) {
     customSellAmounts,
     selectedChainId,
     setSelectedChainId,
+    onTopUp,
+    gasTankBalance,
   } = props;
 
   // Chain options for USDC settlement - using CompatibleChains from blockchain.ts
@@ -160,6 +164,26 @@ export default function SettingsMenu(props: SettingsMenuProps) {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Top Up Gas Tank Button */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={() => {
+            onTopUp();
+            closeSettingsMenu();
+          }}
+          type="button"
+          className="flex items-center justify-between w-full h-[42px] bg-[#121116] rounded-lg px-3 hover:bg-black transition-colors"
+          data-testid="pulse-settings-topup-button"
+        >
+          <span className="text-white text-sm font-medium">
+            Top up Gas Tank
+          </span>
+          <span className="text-[#8A77FF] text-sm font-medium">
+            ${gasTankBalance.toFixed(2)}
+          </span>
+        </button>
       </div>
 
       {/* Settings Content */}
