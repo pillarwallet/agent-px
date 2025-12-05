@@ -63,12 +63,13 @@ vi.mock('../../../../../hooks/useTransactionKit', () => ({
         isSentSuccessfully: true,
         batches: {
           'pulse-sell-batch-1': {
-            chainGroups: [
-              {
+            chainGroups: {
+              1: {
                 userOpHash: '0xTransactionHash123456789',
               },
-            ],
+            },
             errorMessage: null,
+            totalCost: '1000000000000000000',
           },
         },
       }),
@@ -162,6 +163,18 @@ describe('<PreviewSell />', () => {
     (useTransactionDebugLogger as any).mockReturnValue({
       transactionDebugLog: vi.fn(),
     });
+
+    // Mock fetch for native price endpoint
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ priceUSD: 1.5 }),
+      } as any)
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('renders correctly and matches snapshot', () => {
@@ -229,9 +242,14 @@ describe('<PreviewSell />', () => {
     });
 
     it('executes sell transaction', async () => {
-      const mockExecuteSell = vi
-        .fn()
-        .mockResolvedValue('0xTransactionHash123456789');
+      const mockExecuteSell = vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              resolve('0xTransactionHash123456789');
+            }, 100);
+          })
+      );
       (useRelaySell as any).mockReturnValue({
         getUSDCAddress: vi.fn(() => '0xUSDC1234567890'),
         executeSell: mockExecuteSell,
