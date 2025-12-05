@@ -150,6 +150,14 @@ const renderWithProviders = (props = {}) => {
 };
 
 describe('<PreviewSell />', () => {
+  beforeAll(() => {
+    vi.stubEnv('VITE_PAYMASTER_URL', 'https://paymaster.test');
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
 
