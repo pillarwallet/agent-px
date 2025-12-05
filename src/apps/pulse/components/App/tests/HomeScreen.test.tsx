@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 
 // hooks
 import useTransactionKit from '../../../../../hooks/useTransactionKit';
+import * as gasTankHooks from '../../../hooks/useGasTankBalance';
 
 // providers
 import BottomMenuModalProvider from '../../../../../providers/BottomMenuModalProvider';
@@ -27,6 +28,10 @@ vi.mock('../../../../../hooks/useTransactionKit', () => ({
 
 vi.mock('../../../../../services/pillarXApiWalletPortfolio', () => ({
   useGetWalletPortfolioQuery: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useGasTankBalance', () => ({
+  useGasTankBalance: vi.fn(),
 }));
 
 vi.mock('../../../../../hooks/useTokenPnL', () => ({
@@ -80,8 +85,14 @@ const mockProps = {
   sellToken: null,
   refetchWalletPortfolio: vi.fn(),
   setBuyToken: vi.fn(),
+  setSellToken: vi.fn(),
   chains: 'Ethereum',
   setChains: vi.fn(),
+  onboardingScreen: null,
+  setOnboardingScreen: vi.fn(),
+  topupToken: null,
+  setTopupToken: vi.fn(),
+  setIsSearchingFromTopup: vi.fn(),
 };
 
 const renderWithProviders = (props = {}) => {
@@ -118,6 +129,11 @@ describe('<HomeScreen />', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
+    });
+
+    (gasTankHooks.useGasTankBalance as any).mockReturnValue({
+      totalBalance: 100, // Non-zero gas tank balance to show main interface
+      isLoading: false,
     });
   });
 

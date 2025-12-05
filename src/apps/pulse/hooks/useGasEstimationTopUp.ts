@@ -7,54 +7,40 @@ import { getEIP7702AuthorizationIfNeeded } from '../../../utils/eip7702Authoriza
 
 // hooks
 import useTransactionKit from '../../../hooks/useTransactionKit';
-import useRelaySell, { SellOffer } from './useRelaySell';
+import useTopUp, { TopUpParams } from './useTopUp';
 
-// types
-import { SelectedToken } from '../types/tokens';
-import { Token } from '../../../services/tokensData';
-
-interface UseGasEstimationProps {
-  sellToken: SelectedToken | null;
-  sellOffer: SellOffer | null;
-  tokenAmount: string;
-  toChainId: number;
+interface UseGasEstimationTopUpProps extends TopUpParams {
   isPaused?: boolean;
-  userPortfolio?: Token[];
 }
 
-export default function useGasEstimation({
-  sellToken,
+export default function useGasEstimationTopUp({
+  selectedToken,
+  amount,
+  allocateAmount,
   sellOffer,
-  tokenAmount,
-  toChainId,
-  isPaused = false,
   userPortfolio,
-}: UseGasEstimationProps) {
+  isPaused = false,
+}: UseGasEstimationTopUpProps) {
   const [isEstimatingGas, setIsEstimatingGas] = useState(false);
   const [gasEstimationError, setGasEstimationError] = useState<string | null>(
     null
   );
   const [gasCostNative, setGasCostNative] = useState<string | null>(null);
   const [nativeTokenSymbol, setNativeTokenSymbol] = useState<string>('');
-  const [gasCostUSD, setGasCostUSD] = useState<string | null>(null);
 
   const isEstimatingRef = useRef(false);
   const estimateGasFeesRef = useRef<() => Promise<void>>();
 
   const { kit } = useTransactionKit();
-  const {
-    buildSellTransactions,
-    buildSellTransactionWithBridge,
-    isInitialized,
-  } = useRelaySell();
+  const { buildTopUpTransactionsForEstimation, isInitialized } = useTopUp();
 
   const estimateGasFees = useCallback(async () => {
-    if (!sellToken || !kit || !sellOffer || !tokenAmount) {
+    if (!selectedToken || !kit || !amount) {
       return;
     }
 
-    // For cross-chain sells, wait for Relay SDK to be initialized
-    if (sellToken.chainId !== toChainId && !isInitialized) {
+    // Wait for Relay SDK to be initialized
+    if (!isInitialized) {
       return;
     }
 
@@ -68,34 +54,25 @@ export default function useGasEstimation({
     setGasEstimationError(null);
 
     try {
-      let transactions = [];
-      if (sellToken.chainId === toChainId) {
-        // Build the transactions without executing them
-        transactions = await buildSellTransactions(
-          sellOffer,
-          sellToken,
-          tokenAmount,
-          userPortfolio
-        );
-      } else {
-        const { transactions: bridgeTransactions } =
-          await buildSellTransactionWithBridge(
-            tokenAmount,
-            sellToken,
-            toChainId,
-            userPortfolio
-          );
-        transactions = bridgeTransactions;
-      }
+      // Build the transactions without executing them
+      const transactions = await buildTopUpTransactionsForEstimation({
+        selectedToken,
+        amount,
+        allocateAmount,
+        sellOffer,
+        userPortfolio,
+      });
 
       if (transactions.length === 0) {
         setGasCostNative('0');
         setNativeTokenSymbol('');
+        isEstimatingRef.current = false;
+        setIsEstimatingGas(false);
         return;
       }
 
       // Clean up any existing batch first
-      const batchName = `pulse-sell-batch-${sellToken.chainId}`;
+      const batchName = `pulse-topup-batch-${selectedToken.chainId}`;
       try {
         kit.batch({ batchName }).remove();
       } catch (cleanupErr) {
@@ -105,7 +82,7 @@ export default function useGasEstimation({
       // Add each transaction to the batch
       for (let i = 0; i < transactions.length; i += 1) {
         const tx = transactions[i];
-        const transactionName = `pulse-sell-${sellToken.chainId}-${tx.data.slice(0, 10)}-${i}`;
+        const transactionName = `pulse-topup-${selectedToken.chainId}-${tx.data.slice(0, 10)}-${i}`;
 
         kit
           .transaction({
@@ -120,19 +97,11 @@ export default function useGasEstimation({
 
       const authorization = await getEIP7702AuthorizationIfNeeded(
         kit,
-        sellToken.chainId
+        selectedToken.chainId
       );
-
-      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
-
       const estimation = await kit.estimateBatches({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
-        paymasterDetails: {
-          url: paymasterUrl
-            ? `${paymasterUrl}/gasTankPaymaster?chainId=${sellToken.chainId}`
-            : '',
-        },
       });
 
       const batchEst = estimation.batches[batchName];
@@ -145,7 +114,7 @@ export default function useGasEstimation({
         const totalCostBN = batchEst.totalCost;
         if (totalCostBN) {
           // Get the native asset for the chain
-          const nativeAsset = getNativeAssetForChainId(sellToken.chainId);
+          const nativeAsset = getNativeAssetForChainId(selectedToken.chainId);
 
           // Convert from wei to native token units using the correct decimals
           const estimatedCostInNativeToken = formatUnits(
@@ -156,36 +125,13 @@ export default function useGasEstimation({
           // Store the native token amount and symbol
           setGasCostNative(estimatedCostInNativeToken);
           setNativeTokenSymbol(nativeAsset.symbol);
-
-          // Fetch native price USD from REST API to calculate USD cost
-          try {
-            const nativePriceUrl = `${
-              import.meta.env.VITE_PAYMASTER_URL
-            }/getNativePriceUSD?chainId=${sellToken.chainId}`;
-            const nativePriceResponse = await fetch(nativePriceUrl);
-            const nativePriceData = await nativePriceResponse.json();
-
-            if (nativePriceData?.priceUSD) {
-              const totalCostInUSD =
-                parseFloat(estimatedCostInNativeToken) *
-                nativePriceData.priceUSD;
-              setGasCostUSD(totalCostInUSD.toString());
-            }
-          } catch (fetchErr) {
-            console.error(
-              'Failed to fetch native price USD for gas estimation:',
-              fetchErr
-            );
-          }
         } else {
           setGasCostNative('0');
           setNativeTokenSymbol('');
-          setGasCostUSD(null);
         }
       } else {
         setGasCostNative('0');
         setNativeTokenSymbol('');
-        setGasCostUSD(null);
       }
 
       // Clean up the batch after estimation
@@ -195,7 +141,7 @@ export default function useGasEstimation({
         // Batch may not exist, which is fine
       }
     } catch (err) {
-      console.error('Failed to estimate gas fees:', err);
+      console.error('Failed to estimate gas fees for top-up:', err);
       setGasEstimationError('Failed to estimate gas fees');
       setGasCostNative(null);
     } finally {
@@ -203,14 +149,13 @@ export default function useGasEstimation({
       setIsEstimatingGas(false);
     }
   }, [
-    sellToken,
+    selectedToken,
     kit,
+    amount,
+    allocateAmount,
     sellOffer,
-    tokenAmount,
-    buildSellTransactions,
-    buildSellTransactionWithBridge,
+    buildTopUpTransactionsForEstimation,
     isPaused,
-    toChainId,
     isInitialized,
     userPortfolio,
   ]);
@@ -220,27 +165,25 @@ export default function useGasEstimation({
 
   // Estimate gas fees when dependencies change
   useEffect(() => {
-    // For cross-chain, also wait for isInitialized
     const isReadyForEstimation =
-      sellOffer &&
-      sellToken &&
+      selectedToken &&
       kit &&
-      tokenAmount &&
+      amount &&
       estimateGasFeesRef.current &&
       !isPaused &&
-      (sellToken.chainId === toChainId || isInitialized);
+      isInitialized;
 
     if (isReadyForEstimation && estimateGasFeesRef.current) {
       estimateGasFeesRef.current();
     }
   }, [
-    sellOffer,
-    sellToken,
+    selectedToken,
     kit,
-    tokenAmount,
+    amount,
+    allocateAmount,
+    sellOffer,
     isPaused,
     isInitialized,
-    toChainId,
   ]);
 
   return {
@@ -248,7 +191,6 @@ export default function useGasEstimation({
     gasEstimationError,
     gasCostNative,
     nativeTokenSymbol,
-    gasCostUSD,
     estimateGasFees,
   };
 }

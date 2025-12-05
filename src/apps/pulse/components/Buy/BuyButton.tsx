@@ -3,6 +3,7 @@ import { TailSpin } from 'react-loader-spinner';
 
 // types
 import { PayingToken, SelectedToken } from '../../types/tokens';
+import { getChainName } from '../../utils/constants';
 
 // hooks
 import { BuyOffer } from '../../hooks/useRelayBuy';
@@ -12,7 +13,6 @@ import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsF
 
 // utils
 import { limitDigitsNumber } from '../../../../utils/number';
-import { getChainName } from '../../utils/constants';
 
 function getButtonText(
   isLoading: boolean,

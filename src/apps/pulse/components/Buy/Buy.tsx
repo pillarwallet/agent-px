@@ -235,6 +235,13 @@ export default function Buy(props: BuyProps) {
     }
     setMinimumStableBalance(false);
 
+    // For non-Relay Buy, check native token balance
+    // When using Relay Buy (paymaster), HomeScreen already checks gas tank balance
+    if (USE_RELAY_BUY) {
+      setMinGasFee(false);
+      return;
+    }
+
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
@@ -254,7 +261,7 @@ export default function Buy(props: BuyProps) {
     }
     setMinGasFee(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioTokens, maxStableCoinBalance]);
+  }, [portfolioTokens, maxStableCoinBalance, USE_RELAY_BUY]);
 
   const handleUsdAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;

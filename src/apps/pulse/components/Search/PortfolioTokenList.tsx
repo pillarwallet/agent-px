@@ -35,6 +35,7 @@ export interface PortfolioTokenListProps {
   isLoading?: boolean;
   isError?: boolean;
   searchText?: string;
+  includeStableCoins?: boolean;
   hideSmallBalances: boolean;
   isFetching?: boolean;
 }
@@ -45,6 +46,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
     isLoading,
     isError,
     searchText,
+    includeStableCoins = false,
     handleTokenSelect,
     hideSmallBalances,
     isFetching = false,
@@ -84,9 +86,13 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
   const getFilteredPortfolioTokens = useCallback(() => {
     if (!walletPortfolioData?.assets) return [];
 
-    let tokens = convertPortfolioAPIResponseToToken(walletPortfolioData).filter(
-      (token) => !isStableCurrency(token)
-    );
+    let tokens = convertPortfolioAPIResponseToToken(walletPortfolioData)
+      .filter((token) => includeStableCoins || !isStableCurrency(token))
+      .sort((a: Token, b: Token) => {
+        const balanceUSDA = (a.price || 0) * (a.balance || 0);
+        const balanceUSDB = (b.price || 0) * (b.balance || 0);
+        return balanceUSDB - balanceUSDA; // Sort by highest USD value first
+      });
 
     // Filter small balances if toggle is enabled
     if (hideSmallBalances) {
@@ -143,7 +149,13 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
     }
 
     return tokens;
-  }, [walletPortfolioData, hideSmallBalances, sortConfig, searchText]);
+  }, [
+    walletPortfolioData,
+    hideSmallBalances,
+    sortConfig,
+    searchText,
+    includeStableCoins,
+  ]);
 
   const portfolioTokens = useMemo(() => {
     return getFilteredPortfolioTokens();

@@ -175,7 +175,9 @@ const TransactionDetails = ({
                 limitDigitsNumber(Number(usdAmount) || 0)
               )
             : formatExponentialSmallNumber(
-                limitDigitsNumber(sellOffer?.tokenAmountToReceive || 0)
+                limitDigitsNumber(
+                  sellOffer?.tokenAmountToReceive || Number(usdAmount) || 0
+                )
               )}
         </div>
         <div

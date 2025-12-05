@@ -20,6 +20,7 @@ interface UseGasEstimationBuyProps {
   fromChainId: number;
   isPaused?: boolean;
   userPortfolio?: Token[];
+  isUsingRelayBuy?: boolean;
 }
 
 export default function useGasEstimationBuy({
@@ -29,6 +30,7 @@ export default function useGasEstimationBuy({
   fromChainId,
   isPaused = false,
   userPortfolio,
+  isUsingRelayBuy = false,
 }: UseGasEstimationBuyProps) {
   const [isEstimatingGas, setIsEstimatingGas] = useState(false);
   const [gasEstimationError, setGasEstimationError] = useState<string | null>(
@@ -36,6 +38,7 @@ export default function useGasEstimationBuy({
   );
   const [gasCostNative, setGasCostNative] = useState<string | null>(null);
   const [nativeTokenSymbol, setNativeTokenSymbol] = useState<string>('');
+  const [gasCostUSD, setGasCostUSD] = useState<string | null>(null);
 
   const isEstimatingRef = useRef(false);
   const estimateGasFeesRef = useRef<() => Promise<void>>();
@@ -117,9 +120,21 @@ export default function useGasEstimationBuy({
         kit,
         buyToken.chainId
       );
+
+      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
+      const safePaymasterUrl = paymasterUrl?.endsWith('/')
+        ? paymasterUrl.slice(0, -1)
+        : paymasterUrl;
+
       const estimation = await kit.estimateBatches({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
+        paymasterDetails: {
+          url:
+            isUsingRelayBuy && safePaymasterUrl
+              ? `${safePaymasterUrl}/gasTankPaymaster?chainId=${fromChainId}`
+              : '',
+        },
       });
 
       const batchEst = estimation.batches[batchName];
@@ -143,13 +158,40 @@ export default function useGasEstimationBuy({
           // Store the native token amount and symbol
           setGasCostNative(estimatedCostInNativeToken);
           setNativeTokenSymbol(nativeAsset.symbol);
+
+          // Fetch native price USD from REST API to calculate USD cost
+          try {
+            if (!safePaymasterUrl) {
+              console.warn(
+                'VITE_PAYMASTER_URL is not configured, skipping native price fetch'
+              );
+            } else {
+              const nativePriceUrl = `${safePaymasterUrl}/getNativePriceUSD?chainId=${fromChainId}`;
+              const nativePriceResponse = await fetch(nativePriceUrl);
+              const nativePriceData = await nativePriceResponse.json();
+
+              if (nativePriceData?.priceUSD) {
+                const totalCostInUSD =
+                  parseFloat(estimatedCostInNativeToken) *
+                  nativePriceData.priceUSD;
+                setGasCostUSD(totalCostInUSD.toString());
+              }
+            }
+          } catch (fetchErr) {
+            console.error(
+              'Failed to fetch native price USD for gas estimation:',
+              fetchErr
+            );
+          }
         } else {
           setGasCostNative('0');
           setNativeTokenSymbol('');
+          setGasCostUSD(null);
         }
       } else {
         setGasCostNative('0');
         setNativeTokenSymbol('');
+        setGasCostUSD(null);
       }
 
       // Clean up the batch after estimation
@@ -176,6 +218,7 @@ export default function useGasEstimationBuy({
     fromChainId,
     isInitialized,
     userPortfolio,
+    isUsingRelayBuy,
   ]);
 
   // Store the latest function in ref to avoid infinite loops
@@ -202,6 +245,7 @@ export default function useGasEstimationBuy({
     gasEstimationError,
     gasCostNative,
     nativeTokenSymbol,
+    gasCostUSD,
     estimateGasFees,
   };
 }
