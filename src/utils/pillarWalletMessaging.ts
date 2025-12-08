@@ -254,3 +254,43 @@ export const signAuthorizationViaWebView = (
     }
   });
 };
+
+/**
+ * Type for navigation requests to the Pillar Wallet webview
+ */
+export type PillarWalletNavigationRequest = {
+  type: 'pillarXNavigationRequest';
+  value: 'openExternalUrl';
+  data: { url: string };
+};
+
+/**
+ * Opens a URL in the native browser (outside the webview)
+ * If running in a React Native webview, sends a message to the native app.
+ * Otherwise, opens the URL in a new browser window/tab.
+ * @param url - The URL to open
+ * @param options - Optional window.open options (only used in browser context)
+ * @returns void
+ */
+export const openExternalUrl = (
+  url: string,
+  options?: string
+): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  // Check if we're in a React Native webview
+  if (window.ReactNativeWebView) {
+    const message: PillarWalletNavigationRequest = {
+      type: 'pillarXNavigationRequest',
+      value: 'openExternalUrl',
+      data: { url },
+    };
+    window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    return;
+  }
+
+  // Fallback to browser window.open
+  window.open(url, '_blank', options || 'noopener,noreferrer');
+};
