@@ -28,6 +28,7 @@ import { isTestnet } from '../../utils/blockchain';
 // Utils
 import { generateFeedEvents, generateOverallPnLSparkline, generateOpenPnLSparkline, generateClosedPnLSparkline } from './utils/signalUtils';
 import { updateSignalPrices } from './api/insightsApi';
+import { openExternalUrl } from '../../utils/pillarWalletMessaging';
 
 // Types
 import type { TradingSignal, TabType, LeverageType, PnLViewType } from './types';
@@ -325,43 +326,29 @@ const App = () => {
     startPolling();
     refetchSubscription().catch(() => {});
 
-    const confirmed = window.confirm(
-      'The subscription checkout will open in a new browser tab. Once complete, return here to access Insights.'
-    );
-    if (!confirmed) {
-      setIsAwaitingSubscription(false);
-      stopPolling();
-      return;
-    }
-
-    if (isNativeApp && window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(
-        JSON.stringify({
-          type: 'pillarXNavigationRequest',
-          value: 'openExternalUrl',
-          data: { url: checkoutUrl },
-        })
+    if (!isNativeApp) {
+      const confirmed = window.confirm(
+        'The subscription checkout will open in a new browser tab. Once complete, return here to access Insights.'
       );
-      return;
-    }
-
-    const popup = window.open('', '_blank');
-    if (popup) {
-      try {
-        popup.opener = null;
-      } catch (error) {
-        console.warn('[insights] Unable to clear popup opener', error);
+      if (!confirmed) {
+        setIsAwaitingSubscription(false);
+        stopPolling();
+        return;
       }
-      popup.location.href = checkoutUrl;
-      return;
+    } else {
+      const confirmed = window.confirm(
+        'The subscription checkout will open in your browser. Once complete, return here to access Insights.'
+      );
+      if (!confirmed) {
+        setIsAwaitingSubscription(false);
+        stopPolling();
+        return;
+      }
     }
 
-    console.error('[insights] Popup blocked while opening Stripe checkout.');
-    alert(
-      'We could not open Stripe in a new tab. Please allow pop-ups for PillarX and try again.'
-    );
-    setIsAwaitingSubscription(false);
-    stopPolling();
+    // Use the utility function to open external URL
+    // It will handle both native app (via postMessage) and browser (via window.open)
+    openExternalUrl(checkoutUrl);
   }, [eoaAddress, isNativeApp, refetchSubscription, startPolling, stopPolling]);
 
   const handleManageSubscription = useCallback(() => {
@@ -369,7 +356,9 @@ const App = () => {
       alert('Subscription portal is currently unavailable.');
       return;
     }
-    window.open(trimmedManageSubscriptionUrl, '_blank', 'noopener,noreferrer');
+    // Use the utility function to open external URL
+    // It will handle both native app (via postMessage) and browser (via window.open)
+    openExternalUrl(trimmedManageSubscriptionUrl, 'noopener,noreferrer');
     setShowManageMenu(false);
   }, [trimmedManageSubscriptionUrl]);
 
