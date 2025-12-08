@@ -326,7 +326,6 @@ const App = () => {
     startPolling();
     refetchSubscription().catch(() => {});
 
-    // Only show confirmation dialog in browser context
     if (!isNativeApp) {
       const confirmed = window.confirm(
         'The subscription checkout will open in a new browser tab. Once complete, return here to access Insights.'
