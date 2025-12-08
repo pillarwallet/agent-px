@@ -272,10 +272,7 @@ export type PillarWalletNavigationRequest = {
  * @param options - Optional window.open options (only used in browser context)
  * @returns void
  */
-export const openExternalUrl = (
-  url: string,
-  options?: string
-): void => {
+export const openExternalUrl = (url: string, options?: string): void => {
   if (typeof window === 'undefined') {
     return;
   }
