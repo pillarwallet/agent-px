@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
 import { MdCheck } from 'react-icons/md';
 import { TailSpin } from 'react-loader-spinner';
-import { Hex, getAddress } from 'viem';
+import { Hex, getAddress, formatUnits } from 'viem';
 
 import {
   DispensableAsset,
@@ -67,6 +67,7 @@ interface PreviewBuyProps {
   onBuyOfferUpdate?: (offer: BuyOffer | null) => void; // For Relay Buy: callback to update offer
   setBuyFlowPaused?: (paused: boolean) => void; // For Relay Buy: pause background refresh
   userPortfolio?: Token[]; // For Relay Buy: user's token portfolio
+  gasTankBalance?: number; // For Relay Buy: gas tank balance to validate transaction
   usdcPrice?: number; // For Relay Buy: USDC price in USD (e.g., 0.9998)
 }
 
@@ -84,6 +85,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     onBuyOfferUpdate,
     setBuyFlowPaused,
     userPortfolio,
+    gasTankBalance = 0,
     usdcPrice,
   } = props;
 
@@ -126,20 +128,42 @@ export default function PreviewBuy(props: PreviewBuyProps) {
   // Get the appropriate offer based on feature flag
   const buyOffer = USE_RELAY_BUY ? (expressIntentResponse as BuyOffer) : null;
 
+  // Gas estimation for Relay Buy
+  // Skip gas estimation if we have relay offer fee (with 20% markup)
+  const hasRelayOfferFee = !!(
+    USE_RELAY_BUY && buyOffer?.offer.fees?.gas?.amountUsd
+  );
+  const {
+    isEstimatingGas,
+    gasEstimationError,
+    gasCostNative,
+    nativeTokenSymbol,
+    gasCostUSD,
+    estimateGasFees,
+  } = useGasEstimationBuy({
+    buyToken: buyToken || null,
+    buyOffer,
+    tokenAmount: usdAmount,
+    fromChainId: fromChainId || 1,
+    isPaused: isWaitingForSignature || isExecuting || hasRelayOfferFee,
+    userPortfolio,
+    isUsingRelayBuy: USE_RELAY_BUY,
+  });
+
   // Unified error handling
-  const error = USE_RELAY_BUY ? relayError : intentError;
+  // Don't show gas estimation error if we have relay offer fee (we're using that instead)
+  const shouldShowGasError = !hasRelayOfferFee && gasEstimationError;
+  const error = USE_RELAY_BUY ? shouldShowGasError || relayError : intentError;
   const clearError = USE_RELAY_BUY ? clearRelayError : clearIntentError;
 
-  // Gas estimation for Relay Buy
-  const { isEstimatingGas, gasCostNative, nativeTokenSymbol, estimateGasFees } =
-    useGasEstimationBuy({
-      buyToken: buyToken || null,
-      buyOffer,
-      tokenAmount: usdAmount,
-      fromChainId: fromChainId || 1,
-      isPaused: isWaitingForSignature || isExecuting,
-      userPortfolio,
-    });
+  // For Relay Buy: Use fee from relay offer (with 20% markup) instead of gas estimation hook
+  const relayOfferGasFeeUSD =
+    USE_RELAY_BUY && buyOffer?.offer.fees?.gas?.amountUsd
+      ? (parseFloat(buyOffer.offer.fees.gas.amountUsd) * 1.2).toString()
+      : null;
+
+  // Use relay offer fee if available, otherwise fall back to gas estimation
+  const finalGasCostUSD = relayOfferGasFeeUSD || gasCostUSD;
 
   useEffect(() => {
     if (isCopied) {
@@ -370,6 +394,25 @@ export default function PreviewBuy(props: PreviewBuyProps) {
       return;
     }
 
+    // Validate that gas tank balance is greater than gas fee in USD
+    if (finalGasCostUSD) {
+      const gasFeeValue = parseFloat(finalGasCostUSD);
+      if (gasTankBalance <= gasFeeValue) {
+        logPulseError(
+          new Error('Insufficient gas tank balance to cover gas fee'),
+          {
+            operation: 'execute_relay_buy_insufficient_gas_balance',
+            gasTankBalance,
+            gasFeeUSD: gasFeeValue,
+          },
+          { operation_type: 'validation_error' }
+        );
+        setIsWaitingForSignature(false);
+        setIsExecuting(false);
+        return;
+      }
+    }
+
     // Clear any existing errors and states
     if (error) {
       clearError();
@@ -380,6 +423,17 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     setIsExecuting(true);
     setIsLoading(true);
     if (setBuyFlowPaused) setBuyFlowPaused(true);
+
+    // Validate and prepare paymaster URL
+    const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
+    if (!paymasterUrl) {
+      console.error('VITE_PAYMASTER_URL environment variable is not set');
+      setIsWaitingForSignature(false);
+      setIsExecuting(false);
+      setIsLoading(false);
+      if (setBuyFlowPaused) setBuyFlowPaused(false);
+      return;
+    }
 
     try {
       // For Relay Buy EXACT_INPUT, we use the USD amount directly (not token amount)
@@ -402,9 +456,15 @@ export default function PreviewBuy(props: PreviewBuyProps) {
           kit,
           fromChainId
         );
+        const safePaymasterUrl = paymasterUrl.endsWith('/')
+          ? paymasterUrl.slice(0, -1)
+          : paymasterUrl;
         const batchSend = await kit.sendBatches({
           onlyBatchNames: [batchName],
           authorization: authorization || undefined,
+          paymasterDetails: {
+            url: `${safePaymasterUrl}/gasTankPaymaster?chainId=${fromChainId}`,
+          },
         });
 
         const sentBatch = batchSend.batches[batchName];
@@ -424,11 +484,34 @@ export default function PreviewBuy(props: PreviewBuyProps) {
             // Clean up the batch from kit after successful execution
             cleanupBatch(fromChainId, 'success');
 
-            // Ensure we have a valid gas fee string
-            const gasFeeString =
-              gasCostNative && nativeTokenSymbol
-                ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-                : '≈ 0.00';
+            // Format gas fee from sentBatch.totalCost
+            let gasFeeString = '≈ $0.00';
+            if (USE_RELAY_BUY && sentBatch?.totalCost) {
+              try {
+                // Convert totalCost from wei to native token amount (18 decimals)
+                const gasCostInNative = formatUnits(sentBatch.totalCost, 18);
+
+                // Fetch native price to convert to USD
+                const nativePriceUrl = `${safePaymasterUrl}/getNativePriceUSD?chainId=${fromChainId}`;
+                const nativePriceResponse = await fetch(nativePriceUrl);
+                const nativePriceData = await nativePriceResponse.json();
+
+                if (nativePriceData?.priceUSD) {
+                  const gasCostInUSD =
+                    parseFloat(gasCostInNative) * nativePriceData.priceUSD;
+                  gasFeeString = `≈ $${gasCostInUSD.toFixed(6)}`;
+                }
+              } catch (err) {
+                console.error('Failed to fetch native price for gas fee:', err);
+                // Fall back to native token format if USD conversion fails
+                if (gasCostNative && nativeTokenSymbol) {
+                  gasFeeString = `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`;
+                }
+              }
+            } else if (gasCostNative && nativeTokenSymbol) {
+              // For non-relay buy, show native token format
+              gasFeeString = `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`;
+            }
 
             showTransactionStatus(userOpHash, gasFeeString);
             return;
@@ -631,6 +714,46 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     usdcPrice,
   ]);
 
+  // Immediately check balance when token is selected (for onboarding detection)
+  useEffect(() => {
+    if (USE_RELAY_BUY) {
+      if (
+        buyToken &&
+        usdAmount &&
+        isRelayInitialized &&
+        onBuyOfferUpdate &&
+        fromChainId &&
+        !isWaitingForSignature &&
+        !isExecuting
+      ) {
+        refreshPreviewBuyData();
+      }
+    } else if (
+      buyToken &&
+      usdAmount &&
+      intentSdk &&
+      accountAddress &&
+      dispensableAssets.length > 0 &&
+      !isWaitingForSignature &&
+      !isExecuting
+    ) {
+      refreshPreviewBuyData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    buyToken,
+    usdAmount,
+    USE_RELAY_BUY,
+    isRelayInitialized,
+    onBuyOfferUpdate,
+    fromChainId,
+    isWaitingForSignature,
+    isExecuting,
+    intentSdk,
+    accountAddress,
+    dispensableAssets,
+  ]);
+
   // Auto-refresh buy offer every 15 seconds (disabled when waiting for signature or executing)
   useEffect(() => {
     if (USE_RELAY_BUY) {
@@ -741,6 +864,14 @@ export default function PreviewBuy(props: PreviewBuyProps) {
       ((totalReceivedValue - totalPaidValue) / totalPaidValue) * 100;
   } else {
     priceImpact = 0;
+  }
+
+  // Calculate gas fee display string
+  let gasFeeDisplay = '≈ $0.00';
+  if (USE_RELAY_BUY && finalGasCostUSD) {
+    gasFeeDisplay = `≈ $${parseFloat(finalGasCostUSD).toFixed(6)}`;
+  } else if (USE_RELAY_BUY && gasCostNative && nativeTokenSymbol) {
+    gasFeeDisplay = `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`;
   }
 
   return (
@@ -929,9 +1060,7 @@ export default function PreviewBuy(props: PreviewBuyProps) {
         )}
         {detailsEntry(
           'Gas fee',
-          USE_RELAY_BUY && gasCostNative && nativeTokenSymbol
-            ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-            : '≈ $0.00',
+          gasFeeDisplay,
           false,
           '',
           USE_RELAY_BUY ? isEstimatingGas : false,

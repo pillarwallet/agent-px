@@ -83,6 +83,7 @@ const GlobalTransactionsBatchProvider = ({
         (batchName) =>
           !batchName.includes('pulse-sell') &&
           !batchName.includes('pulse-buy') &&
+          !batchName.includes('pulse-topup') &&
           batchName !== 'paymaster-batch'
       );
       setBatchCount(filteredBatches.length);

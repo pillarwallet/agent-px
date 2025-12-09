@@ -744,7 +744,8 @@ const SendModalBatchesTabView = () => {
                 batchName &&
                 batchName !== 'batch-undefined' &&
                 !batchName.includes('pulse-sell') &&
-                !batchName.includes('pulse-buy')
+                !batchName.includes('pulse-buy') &&
+                !batchName.includes('pulse-topup')
             )
             .map(({ batchName, transactions }) => (
               <div key={batchName} id={`batch-${batchName}`}>

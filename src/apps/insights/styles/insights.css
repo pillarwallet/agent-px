@@ -1,0 +1,211 @@
+@config '../tailwind.insights.config.js';
+
+@font-face {
+  font-family: 'Formular';
+  src:
+    url('../../assets/landing-fonts/Formular-Regular.woff2') format('woff2'),
+    url('../../assets/landing-fonts/Formular-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Formular';
+  src:
+    url('../../assets/landing-fonts/Formular-Medium.woff2') format('woff2'),
+    url('../../assets/landing-fonts/Formular-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Formular';
+  src:
+    url('../../assets/landing-fonts/Formular-Bold.woff2') format('woff2'),
+    url('../../assets/landing-fonts/Formular-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* PillarX Deep Navy Gradient - Deeper */
+    --background: 235 50% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 235 35% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 235 35% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Violet Accent */
+    --primary: 262 83% 68%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary Navy */
+    --secondary: 235 30% 15%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 235 25% 18%;
+    --muted-foreground: 0 0% 65%;
+
+    --accent: 262 83% 68%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 348 83% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 235 30% 20%;
+    --input: 235 30% 20%;
+    --ring: 262 83% 68%;
+
+    --radius: 1.25rem;
+
+    /* PillarX Specific Colors */
+    --navy-darker: 235 55% 3%;
+    --navy-dark: 235 50% 4%;
+    --navy-medium: 235 45% 8%;
+    --violet-glow: 262 83% 68%;
+    --violet-bright: 262 90% 75%;
+    --green-profit: 142 76% 58%;
+    --red-loss: 348 83% 58%;
+    --glass-bg: 235 45% 8% / 0.4;
+    
+    /* Gradients */
+    --gradient-navy: linear-gradient(135deg, hsl(235, 45%, 6%), hsl(235, 40%, 8%), hsl(235, 35%, 10%));
+    --gradient-violet: linear-gradient(135deg, hsl(262, 83%, 68%), hsl(262, 90%, 75%));
+    --gradient-profit: linear-gradient(135deg, hsl(230, 83%, 68%), hsl(262, 83%, 68%));
+    --gradient-loss: linear-gradient(135deg, hsl(348, 83%, 58%), hsl(320, 80%, 55%));
+    
+    /* Shadows & Glows */
+    --shadow-violet-glow: 0 0 40px hsl(262, 83%, 68% / 0.4);
+    --shadow-card: 0 10px 30px hsl(235, 50%, 5% / 0.5);
+    
+    --sidebar-background: 235 35% 12%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 262 83% 68%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 235 30% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 235 30% 20%;
+    --sidebar-ring: 262 83% 68%;
+  }
+
+  .dark {
+    /* Same as root for dark-only theme */
+    --background: 235 40% 8%;
+    --foreground: 0 0% 98%;
+    --card: 235 35% 12%;
+    --card-foreground: 0 0% 98%;
+    --popover: 235 35% 12%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 262 83% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 235 30% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 235 25% 18%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 262 83% 68%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 348 83% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 235 30% 20%;
+    --input: 235 30% 20%;
+    --ring: 262 83% 68%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply backdrop-blur-2xl bg-gradient-to-br from-card/40 to-card/20 border border-primary/10;
+    box-shadow: 0 8px 32px hsl(var(--primary) / 0.08);
+  }
+  
+  .glass-card-hover {
+    @apply backdrop-blur-2xl bg-gradient-to-br from-card/50 to-card/30 border border-primary/20;
+    box-shadow: 0 12px 40px hsl(var(--primary) / 0.15);
+  }
+  
+  .glow-violet {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
+  }
+  
+  .glow-violet-strong {
+    box-shadow: 0 0 50px hsl(var(--primary) / 0.6);
+  }
+  
+  .gradient-navy {
+    background: linear-gradient(135deg, hsl(235, 55%, 3%), hsl(235, 50%, 4%), hsl(235, 45%, 6%));
+  }
+  
+  .gradient-violet {
+    background: linear-gradient(135deg, hsl(262, 83%, 68%), hsl(262, 90%, 75%));
+  }
+  
+  .hero-gradient {
+    background: linear-gradient(180deg, 
+      hsl(262, 83%, 68% / 0.15) 0%, 
+      hsl(262, 83%, 68% / 0.08) 50%,
+      transparent 100%
+    );
+  }
+  
+  .text-gradient-violet {
+    @apply bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent;
+  }
+  
+  .bg-parallax-glow {
+    background: 
+      radial-gradient(circle at 20% 30%, hsl(262, 83%, 68% / 0.2), transparent 50%),
+      radial-gradient(circle at 80% 70%, hsl(230, 83%, 68% / 0.15), transparent 50%),
+      linear-gradient(180deg, hsl(235, 55%, 3%), hsl(235, 50%, 4%));
+  }
+  
+  .card-glow-purple {
+    box-shadow: 0 0 40px hsl(262, 83%, 68% / 0.2);
+  }
+  
+  .glass-border {
+    @apply border border-primary/15;
+  }
+}
+
+/* Allow Tailwind utilities to control inputs */
+[type='text'],
+[type='number'],
+[type='search'],
+input:where(:not([type])) {
+  appearance: none;
+}
+
+/* Override default focus colors */
+[type='text']:focus,
+[type='number']:focus,
+[type='search']:focus,
+textarea:focus {
+  --tw-ring-color: #8A77FF;
+  border-color: #8A77FF;
+}

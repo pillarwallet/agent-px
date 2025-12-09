@@ -149,34 +149,36 @@ export default function useIntentSdk(props: IntentProps) {
     connectors,
   ]);
 
+  const [moduleCheckError, setModuleCheckError] = useState<boolean>(false);
+
   useEffect(() => {
-    if (
-      !areModulesInstalled &&
-      intentSdk &&
-      payingTokens &&
-      payingTokens.length > 0
-    ) {
-      const { chainId } = payingTokens[0];
-      setIsFetching(true);
-      intentSdk
-        .isWalletReadyForPulse(chainId)
-        .then((res) => {
+    const checkModules = async () => {
+      if (
+        !areModulesInstalled &&
+        !moduleCheckError &&
+        intentSdk &&
+        payingTokens &&
+        payingTokens.length > 0
+      ) {
+        const { chainId } = payingTokens[0];
+        setIsFetching(true);
+        try {
+          const res = await intentSdk.isWalletReadyForPulse(chainId);
           transactionDebugLog('Pulse wallet modules installed: ', res);
-          if (res) {
-            setAreModulesInstalled(true);
-          } else {
-            setAreModulesInstalled(false);
-          }
-          setIsFetching(false);
-        })
-        .catch((err) => {
+          setAreModulesInstalled(res);
+        } catch (err) {
           console.error('Error on checking the pulse wallet: ', err);
-          setIsFetching(false);
           setAreModulesInstalled(false);
-        });
-    }
+          setModuleCheckError(true);
+        } finally {
+          setIsFetching(false);
+        }
+      }
+    };
+
+    checkModules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intentSdk, payingTokens, areModulesInstalled]);
+  }, [intentSdk, payingTokens, areModulesInstalled, moduleCheckError]);
 
   const installModules = async () => {
     if (!payingTokens?.length || !intentSdk) return;
@@ -196,6 +198,21 @@ export default function useIntentSdk(props: IntentProps) {
     }
   };
 
+  const getEnablePulseTradingTransactions = async (): Promise<
+    Transactions[]
+  > => {
+    if (!intentSdk || !payingTokens?.length) return [];
+    const { chainId } = payingTokens[0];
+    try {
+      const res: Transactions[] = await intentSdk.enablePulseTrading(chainId);
+      transactionDebugLog('Enable pulse trading transactions: ', res);
+      return res;
+    } catch (err) {
+      console.error('Pulse trading - get transactions failed:: ', err);
+      return [];
+    }
+  };
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -208,5 +225,6 @@ export default function useIntentSdk(props: IntentProps) {
     areModulesInstalled,
     isInstalling,
     isFetching,
+    getEnablePulseTradingTransactions,
   };
 }

@@ -9,6 +9,9 @@ import { useAccount } from 'wagmi';
 import { useEIP7702Upgrade } from '../../../../hooks/useEIP7702Upgrade';
 import useTransactionKit from '../../../../hooks/useTransactionKit';
 
+// utils
+import { openExternalUrl } from '../../../../utils/pillarWalletMessaging';
+
 // reducer
 import { useAppDispatch } from '../../hooks/useReducerHooks';
 import { setIsReceiveModalOpen } from '../../reducer/WalletPortfolioSlice';
@@ -159,8 +162,8 @@ const WalletPortfolioButtons = () => {
         return;
       }
 
-      // Open the URL directly - simpler approach that works on all browsers
-      window.open(onrampUrl, '_top', 'noreferrer');
+      // Open the URL in external browser (native browser if in webview, new tab if in regular browser)
+      openExternalUrl(onrampUrl, 'noreferrer');
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error opening add cash URL:', error);

@@ -16,6 +16,7 @@ import { useGetWalletPortfolioQuery } from '../../../../services/pillarXApiWalle
 import {
   convertPortfolioAPIResponseToToken,
   PortfolioToken,
+  chainNameToChainIdTokensData,
 } from '../../../../services/tokensData';
 import { getUserOperationStatus } from '../../../../services/userOpStatus';
 
@@ -32,6 +33,8 @@ import Settings from '../Misc/Settings';
 import PreviewSell from '../Sell/PreviewSell';
 import Sell from '../Sell/Sell';
 import SettingsMenu from '../Settings/SettingsMenu';
+import OnboardingWelcome from '../Onboarding/OnboardingWelcome';
+import TopUpScreen from '../Onboarding/TopUpScreen';
 import TransactionStatus from '../Transaction/TransactionStatus';
 
 // hooks
@@ -39,11 +42,16 @@ import { useRemoteConfig } from '../../../../hooks/useRemoteConfig';
 import useTransactionKit from '../../../../hooks/useTransactionKit';
 import useIntentSdk from '../../hooks/useIntentSdk';
 import { BuyOffer } from '../../hooks/useRelayBuy';
+import { useGasTankBalance } from '../../hooks/useGasTankBalance';
+import { useTotalUsdcBalance } from '../../hooks/useTotalUsdcBalance';
 import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 
 // utils
 import { logPulseError } from '../../utils/sentry';
 import { getStableCurrencyBalanceOnEachChain } from '../../utils/utils';
+
+// constants
+import { STABLE_CURRENCIES } from '../../constants/tokens';
 
 // types
 type TransactionStatusState =
@@ -85,7 +93,13 @@ interface HomeScreenProps {
   setIsBuy: Dispatch<SetStateAction<boolean>>;
   refetchWalletPortfolio: () => void;
   setBuyToken: Dispatch<SetStateAction<SelectedToken | null>>;
+  setSellToken: Dispatch<SetStateAction<SelectedToken | null>>;
   setChains: Dispatch<SetStateAction<MobulaChainNames>>;
+  onboardingScreen: 'welcome' | 'topup' | null;
+  setOnboardingScreen: Dispatch<SetStateAction<'welcome' | 'topup' | null>>;
+  topupToken: SelectedToken | null;
+  setTopupToken: Dispatch<SetStateAction<SelectedToken | null>>;
+  setIsSearchingFromTopup: Dispatch<SetStateAction<boolean>>;
 }
 
 export default function HomeScreen(props: HomeScreenProps) {
@@ -97,7 +111,13 @@ export default function HomeScreen(props: HomeScreenProps) {
     setSearching,
     refetchWalletPortfolio,
     setBuyToken,
+    setSellToken,
     setChains,
+    onboardingScreen,
+    setOnboardingScreen,
+    topupToken,
+    setTopupToken,
+    setIsSearchingFromTopup,
   } = props;
   const { walletAddress: accountAddress } = useTransactionKit();
   const { getBestSellOffer, isInitialized } = useRelaySell();
@@ -200,14 +220,169 @@ export default function HomeScreen(props: HomeScreenProps) {
   const blockchainTxHashRef = useRef<string | undefined>(undefined);
   const failureGraceExpiryRef = useRef<number | null>(null);
   const hasInitializedChainIdRef = useRef<boolean>(false);
+  const [isTopUpFromSettings, setIsTopUpFromSettings] =
+    useState<boolean>(false);
 
-  const { data: walletPortfolioData } = useGetWalletPortfolioQuery(
-    { wallet: accountAddress || '', isPnl: false },
-    {
-      skip: !accountAddress,
-      refetchOnFocus: false,
-    }
+  // Track onboarding completion in localStorage to persist across rerenders
+  const hasCompletedOnboardingRef = useRef<boolean>(
+    localStorage.getItem('hasCompletedOnboarding') === 'true'
   );
+
+  const { data: walletPortfolioData, isLoading: isPortfolioLoading } =
+    useGetWalletPortfolioQuery(
+      { wallet: accountAddress || '', isPnl: false },
+      {
+        skip: !accountAddress,
+        refetchOnFocus: false,
+      }
+    );
+
+  // Hooks for onboarding data
+  const {
+    totalBalance: gasTankBalance,
+    isLoading: isGasTankLoading,
+    refetch: refetchGasTankBalance,
+  } = useGasTankBalance(accountAddress || null);
+  const { totalUsdcBalance } = useTotalUsdcBalance(walletPortfolioData);
+
+  // Immediately hide onboarding when a token is selected or preview opens
+  // But only if not in an active onboarding flow (welcome or topup screen)
+  useEffect(() => {
+    if (
+      (buyToken || sellToken || previewBuy || previewSell) &&
+      onboardingScreen === null
+    ) {
+      setOnboardingScreen(null);
+    }
+  }, [
+    buyToken,
+    sellToken,
+    previewBuy,
+    previewSell,
+    onboardingScreen,
+    setOnboardingScreen,
+  ]);
+
+  // Determine if onboarding should be shown based on gas tank balance
+  useEffect(() => {
+    // Show welcome screen only if gas tank balance is insufficient
+    if (
+      !isGasTankLoading &&
+      walletPortfolioData &&
+      portfolioTokens.length > 0 &&
+      gasTankBalance < 2 &&
+      onboardingScreen === null
+    ) {
+      setOnboardingScreen('welcome');
+    }
+  }, [
+    isGasTankLoading,
+    walletPortfolioData,
+    portfolioTokens.length,
+    gasTankBalance,
+    onboardingScreen,
+    setOnboardingScreen,
+  ]);
+
+  // Auto-dismiss onboarding when balance >= 2 while on welcome screen
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+
+    if (gasTankBalance >= 2 && onboardingScreen === 'welcome') {
+      timer = setTimeout(() => {
+        hasCompletedOnboardingRef.current = true;
+        localStorage.setItem('hasCompletedOnboarding', 'true');
+        setOnboardingScreen(null);
+      }, 3000);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [gasTankBalance, onboardingScreen, setOnboardingScreen]);
+
+  // Mark onboarding as complete only after gas tank balance is verified to be >= 2
+  // This ensures the flag is only set when the top-up deposit is confirmed
+  useEffect(() => {
+    if (gasTankBalance >= 2 && !hasCompletedOnboardingRef.current) {
+      // Balance is sufficient and not yet marked complete - mark it now
+      hasCompletedOnboardingRef.current = true;
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+    } else if (gasTankBalance < 2 && hasCompletedOnboardingRef.current) {
+      // Balance dropped below threshold - reset the flag
+      hasCompletedOnboardingRef.current = false;
+      localStorage.setItem('hasCompletedOnboarding', 'false');
+    }
+  }, [gasTankBalance]);
+
+  // Preselect max USDC token when topup screen is shown and totalUsdcBalance > 0
+  useEffect(() => {
+    if (
+      onboardingScreen === 'topup' &&
+      totalUsdcBalance > 0 &&
+      !topupToken &&
+      walletPortfolioData?.result?.data?.assets
+    ) {
+      // Find all USDC tokens from the portfolio
+      const usdcTokens = portfolioTokens.filter((token) => {
+        const chainId = chainNameToChainIdTokensData(token.blockchain);
+        return STABLE_CURRENCIES.some(
+          (stable) =>
+            stable.chainId === chainId &&
+            stable.address.toLowerCase() === token.contract.toLowerCase()
+        );
+      });
+
+      if (usdcTokens.length > 0) {
+        // Find the USDC token with the highest USD balance
+        const maxUsdcToken = usdcTokens.reduce((max, token) => {
+          const currentBalance = (token.price || 0) * (token.balance || 0);
+          const maxBalance = (max.price || 0) * (max.balance || 0);
+          return currentBalance > maxBalance ? token : max;
+        });
+
+        if ((maxUsdcToken.balance ?? 0) > 2) {
+          // Convert to SelectedToken format
+          setTopupToken({
+            name: maxUsdcToken.name,
+            symbol: maxUsdcToken.symbol,
+            logo: maxUsdcToken.logo,
+            usdValue: String(maxUsdcToken.price || 0),
+            dailyPriceChange: 0,
+            chainId: chainNameToChainIdTokensData(maxUsdcToken.blockchain),
+            decimals: maxUsdcToken.decimals,
+            address: maxUsdcToken.contract,
+          });
+        }
+      }
+    }
+  }, [
+    onboardingScreen,
+    totalUsdcBalance,
+    topupToken,
+    walletPortfolioData,
+    portfolioTokens,
+    setTopupToken,
+  ]);
+
+  // Sync sellToken to topupToken when in topup mode and token is selected
+  useEffect(() => {
+    if (onboardingScreen === 'topup' && sellToken) {
+      setTopupToken(sellToken);
+      // Reset the searching from topup flag after selection
+      setIsSearchingFromTopup(false);
+    }
+  }, [onboardingScreen, sellToken, setTopupToken, setIsSearchingFromTopup]);
+
+  const handleShowTopUp = (fromSettings = false) => {
+    setIsTopUpFromSettings(fromSettings);
+    setOnboardingScreen('topup');
+  };
+
+  const handleBackToWelcome = () => {
+    setIsTopUpFromSettings(false);
+    setOnboardingScreen('welcome');
+  };
 
   useEffect(() => {
     if (
@@ -460,7 +635,7 @@ export default function HomeScreen(props: HomeScreenProps) {
       failureGraceExpiryRef.current = null;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sellToken, tokenAmount, sellOffer, isBuy]
+    [sellToken, tokenAmount, sellOffer, isBuy, setOnboardingScreen]
   );
 
   const closeTransactionStatus = () => {
@@ -472,6 +647,22 @@ export default function HomeScreen(props: HomeScreenProps) {
 
     if (isFinalStatus) {
       stopTransactionPolling();
+
+      // Reset token after successful transaction completion
+      if (currentTransactionStatus === 'Transaction Complete') {
+        if (transactionData?.isBuy) {
+          // Reset buyToken only if Relay Buy is enabled
+          if (USE_RELAY_BUY) {
+            setBuyToken(null);
+          }
+        } else {
+          // Always reset sellToken after successful sell
+          setSellToken(null);
+        }
+
+        // Refetch gas tank balance after successful transaction
+        refetchGasTankBalance();
+      }
     } else {
       setIsBackgroundPolling(true);
       setShouldAutoReopen(true);
@@ -958,6 +1149,44 @@ export default function HomeScreen(props: HomeScreenProps) {
   }, [isBuy, buyRefreshCallback, previewBuy, handleRefresh]);
 
   const renderPreview = () => {
+    // Show onboarding screens
+    if (onboardingScreen === 'welcome') {
+      return (
+        <OnboardingWelcome
+          onComplete={handleShowTopUp}
+          gasTankBalance={gasTankBalance}
+          isGasTankLoading={isGasTankLoading}
+          maxStableCoinBalance={maxStableCoinBalance}
+        />
+      );
+    }
+
+    if (onboardingScreen === 'topup') {
+      return (
+        <TopUpScreen
+          onBack={handleBackToWelcome}
+          initialBalance={totalUsdcBalance}
+          setSearching={() => {
+            // Set to sell mode to show only holdings in search
+            setIsBuy(false);
+            // Set flag to include stable coins in search
+            setIsSearchingFromTopup(true);
+            setSearching(true);
+          }}
+          selectedToken={topupToken}
+          portfolioTokens={portfolioTokens}
+          setOnboardingScreen={setOnboardingScreen}
+          markOnboardingComplete={async () => {
+            // Refresh gas tank balance after successful top-up
+            // Don't mark as complete yet - let the balance validation logic verify the balance first
+            await refetchGasTankBalance();
+          }}
+          isPortfolioLoading={isPortfolioLoading}
+          showCloseButton={isTopUpFromSettings}
+        />
+      );
+    }
+
     if (previewBuy) {
       return (
         <div className="w-full flex justify-center px-3 md:p-3 mb-[70px]">
@@ -974,6 +1203,7 @@ export default function HomeScreen(props: HomeScreenProps) {
             onBuyOfferUpdate={handleBuyOfferUpdate}
             setBuyFlowPaused={setIsBuyFlowPaused}
             userPortfolio={portfolioTokens}
+            gasTankBalance={gasTankBalance}
             usdcPrice={usdcPrice}
           />
         </div>
@@ -993,6 +1223,7 @@ export default function HomeScreen(props: HomeScreenProps) {
             onSellOfferUpdate={setSellOffer}
             setSellFlowPaused={setIsSellFlowPaused}
             userPortfolio={portfolioTokens}
+            gasTankBalance={gasTankBalance}
           />
         </div>
       );
@@ -1047,6 +1278,8 @@ export default function HomeScreen(props: HomeScreenProps) {
             customSellAmounts={customSellAmounts}
             selectedChainId={selectedChainIdForSettlement}
             setSelectedChainId={setSelectedChainIdForSettlement}
+            onTopUp={() => handleShowTopUp(true)}
+            gasTankBalance={gasTankBalance}
           />
         ) : (
           <>
