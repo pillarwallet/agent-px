@@ -36,7 +36,7 @@ export const pillarXApiWalletTransactions = createApi({
               wallet,
               limit,
               page,
-              filterSpam: true,
+              filterSpam: false,
             },
           },
         };
