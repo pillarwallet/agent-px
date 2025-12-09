@@ -153,7 +153,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setShowBatchSendModal,
     setWalletConnectPayload,
   } = useBottomMenuModal();
-  const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+  const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
   const [isPaymaster, setIsPaymaster] = React.useState<boolean>(false);
   const [paymasterContext, setPaymasterContext] = React.useState<{
     mode: string;
@@ -970,10 +970,16 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setSafetyWarningMessage('');
 
     // Compute paymasterDetails only for user-driven flows
+    const safePaymasterUrl = paymasterUrl?.endsWith('/')
+      ? paymasterUrl.slice(0, -1)
+      : paymasterUrl;
     const paymasterDetails =
-      !isPayloadTransaction && isPaymaster && paymasterContext
+      !isPayloadTransaction &&
+      isPaymaster &&
+      paymasterContext &&
+      safePaymasterUrl
         ? {
-            url: `${paymasterUrl}${queryString}`,
+            url: `${safePaymasterUrl}${queryString}`,
             context: paymasterContext,
           }
         : undefined;
@@ -1070,7 +1076,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
         // Build all batches
         for (let batchIdx = 0; batchIdx < payload.batches.length; batchIdx++) {
           const batch = payload.batches[batchIdx];
-          const batchName = `batch-${batch.chainId}`;
+          // Use batch name from payload if provided, otherwise default to batch-{chainId}
+          const batchName = batch.batchName || `batch-${batch.chainId}`;
           // Add all transactions in the batch
           for (let txIdx = 0; txIdx < batch.transactions.length; txIdx++) {
             const tx = batch.transactions[txIdx];
@@ -1088,7 +1095,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
 
         // Estimate all batches
         const batchNames = payload.batches.map(
-          (batch) => `batch-${batch.chainId}`
+          (batch) => batch.batchName || `batch-${batch.chainId}`
         );
 
         // Get authorization for each unique chainId in batches
@@ -2350,7 +2357,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           }
         />
       )}
-      {isPayloadTransaction ? null : (
+      {isPayloadTransaction || isPayloadBatches ? null : (
         <>
           <FormGroup>
             <Label>{t`label.selectAsset`}</Label>

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import renderer from 'react-test-renderer';
-import SendAssetModal from '../SendAssetModal';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { WalletProviderLike } from '../../../../types/walletProvider';
 import { Asset } from '../../types';
-import type { WalletProviderLike } from '../../../types/walletProvider';
+import SendAssetModal from '../SendAssetModal';
 
 vi.mock('../../../hooks/useTransactionKit', () => ({
   default: () => ({
@@ -192,7 +192,9 @@ describe('<SendAssetModal />', () => {
     fireEvent.click(sendButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Please enter a recipient address/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Please enter a recipient address/i)
+      ).toBeInTheDocument();
     });
   });
 
@@ -236,7 +238,9 @@ describe('<SendAssetModal />', () => {
     fireEvent.click(sendButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Please enter a valid amount/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Please enter a valid amount/i)
+      ).toBeInTheDocument();
     });
   });
 
@@ -357,7 +361,9 @@ describe('<SendAssetModal />', () => {
 
     // Wait for the button text to update
     await waitFor(() => {
-      const sendButton = screen.getByRole('button', { name: /switch.*send|send/i });
+      const sendButton = screen.getByRole('button', {
+        name: /switch.*send|send/i,
+      });
       expect(sendButton).toBeInTheDocument();
     });
 
@@ -365,7 +371,10 @@ describe('<SendAssetModal />', () => {
     fireEvent.click(sendButton);
 
     await waitFor(() => {
-      expect(blockchain.switchChain).toHaveBeenCalledWith(1, mockWalletProvider);
+      expect(blockchain.switchChain).toHaveBeenCalledWith(
+        1,
+        mockWalletProvider
+      );
     });
   });
 

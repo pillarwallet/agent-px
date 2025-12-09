@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
 import { MdCheck } from 'react-icons/md';
 import { TailSpin } from 'react-loader-spinner';
+import { formatUnits } from 'viem';
 
 // utils
 import { getLogoForChainId } from '../../../../utils/blockchain';
@@ -42,6 +43,7 @@ interface PreviewSellProps {
   onSellOfferUpdate?: (offer: SellOffer | null) => void;
   setSellFlowPaused?: (paused: boolean) => void;
   userPortfolio?: PortfolioToken[];
+  gasTankBalance?: number; // Gas tank balance to validate transaction
 }
 
 const PreviewSell = (props: PreviewSellProps) => {
@@ -55,6 +57,7 @@ const PreviewSell = (props: PreviewSellProps) => {
     onSellOfferUpdate,
     setSellFlowPaused,
     userPortfolio,
+    gasTankBalance = 0,
   } = props;
   const [isExecuting, setIsExecuting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -80,6 +83,7 @@ const PreviewSell = (props: PreviewSellProps) => {
     gasEstimationError,
     gasCostNative,
     nativeTokenSymbol,
+    gasCostUSD,
     estimateGasFees,
   } = useGasEstimation({
     sellToken,
@@ -89,6 +93,15 @@ const PreviewSell = (props: PreviewSellProps) => {
     toChainId: selectedChainIdForSettlement,
     userPortfolio,
   });
+
+  // Use fee from relay offer (with 20% markup) instead of gas estimation hook
+  // Sell always uses relay, so no feature flag check needed
+  const relayOfferGasFeeUSD = sellOffer?.offer.fees?.gas?.amountUsd
+    ? (parseFloat(sellOffer.offer.fees.gas.amountUsd) * 1.2).toString()
+    : null;
+
+  // Use relay offer fee if available, otherwise fall back to gas estimation
+  const finalGasCostUSD = relayOfferGasFeeUSD || gasCostUSD;
 
   useEffect(() => {
     if (isCopied) {
@@ -292,6 +305,28 @@ const PreviewSell = (props: PreviewSellProps) => {
     isExecuting,
   ]);
 
+  // Immediately check balance when token is selected (for onboarding detection)
+  useEffect(() => {
+    if (
+      sellToken &&
+      tokenAmount &&
+      isInitialized &&
+      onSellOfferUpdate &&
+      !isWaitingForSignature &&
+      !isExecuting
+    ) {
+      refreshPreviewSellData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    sellToken,
+    tokenAmount,
+    isInitialized,
+    onSellOfferUpdate,
+    isWaitingForSignature,
+    isExecuting,
+  ]);
+
   // Auto-refresh sell offer every 15 seconds (disabled when waiting for signature)
   useEffect(() => {
     if (!sellToken || !tokenAmount || !isInitialized || !onSellOfferUpdate) {
@@ -371,6 +406,17 @@ const PreviewSell = (props: PreviewSellProps) => {
   const executeSellDirectly = async () => {
     if (!sellToken || !sellOffer || !kit) return;
 
+    // Validate that gas tank balance is greater than gas fee in USD
+    if (finalGasCostUSD) {
+      const gasFeeValue = parseFloat(finalGasCostUSD);
+      if (gasTankBalance <= gasFeeValue) {
+        console.error('Insufficient gas tank balance to cover gas fee in sell');
+        setIsWaitingForSignature(false);
+        setIsExecuting(false);
+        return;
+      }
+    }
+
     // Clear any existing errors and states
     if (error) {
       clearError();
@@ -380,6 +426,16 @@ const PreviewSell = (props: PreviewSellProps) => {
     setIsWaitingForSignature(true);
     setIsExecuting(true);
     if (setSellFlowPaused) setSellFlowPaused(true);
+
+    // Validate and prepare paymaster URL
+    const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
+    if (!paymasterUrl) {
+      console.error('VITE_PAYMASTER_URL environment variable is not set');
+      setIsWaitingForSignature(false);
+      setIsExecuting(false);
+      if (setSellFlowPaused) setSellFlowPaused(false);
+      return;
+    }
 
     try {
       // First, prepare the batch using the existing executeSell logic (without showing batch modal)
@@ -399,11 +455,18 @@ const PreviewSell = (props: PreviewSellProps) => {
           kit,
           sellToken.chainId
         );
+        const safePaymasterUrl = paymasterUrl.endsWith('/')
+          ? paymasterUrl.slice(0, -1)
+          : paymasterUrl;
         const batchSend = await kit.sendBatches({
           onlyBatchNames: [batchName],
           authorization: authorization || undefined,
+          paymasterDetails: {
+            url: `${safePaymasterUrl}/gasTankPaymaster?chainId=${sellToken.chainId}`,
+          },
         });
         const sentBatch = batchSend.batches[batchName];
+
         if (batchSend.isSentSuccessfully && !sentBatch?.errorMessage) {
           // In PillarX we only batch transactions per chainId, this is why sendBatch should only
           // have one chainGroup per batch
@@ -419,11 +482,27 @@ const PreviewSell = (props: PreviewSellProps) => {
             // Clean up the batch from kit after successful execution
             cleanupBatch(sellToken.chainId, 'success');
 
-            // Ensure we have a valid gas fee string for the transaction status
-            const gasFeeString =
-              gasCostNative && nativeTokenSymbol
-                ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-                : '≈ 0.00';
+            // Format gas fee from sentBatch.totalCost to USD (sell always uses relay)
+            let gasFeeString = '≈ $0.00';
+            if (sentBatch?.totalCost) {
+              try {
+                // Convert totalCost from wei to native token amount (18 decimals)
+                const gasCostInNative = formatUnits(sentBatch.totalCost, 18);
+
+                // Fetch native price to convert to USD
+                const nativePriceUrl = `${safePaymasterUrl}/getNativePriceUSD?chainId=${sellToken.chainId}`;
+                const nativePriceResponse = await fetch(nativePriceUrl);
+                const nativePriceData = await nativePriceResponse.json();
+
+                if (nativePriceData?.priceUSD) {
+                  const gasCostInUSD =
+                    parseFloat(gasCostInNative) * nativePriceData.priceUSD;
+                  gasFeeString = `≈ $${gasCostInUSD.toFixed(6)}`;
+                }
+              } catch (err) {
+                console.error('Failed to fetch native price for gas fee:', err);
+              }
+            }
 
             showTransactionStatus(userOpHash, gasFeeString);
             return;
@@ -731,6 +810,9 @@ const PreviewSell = (props: PreviewSellProps) => {
         {detailsEntry(
           'Gas fee',
           (() => {
+            if (finalGasCostUSD) {
+              return `≈ $${parseFloat(finalGasCostUSD).toFixed(6)}`;
+            }
             const gasFeeDisplay = gasCostNative
               ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
               : '≈ 0.00';

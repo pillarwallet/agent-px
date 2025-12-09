@@ -27,7 +27,10 @@ const WalletAddress = ({ address }: WalletAddressProps) => {
       if (resetCopyTimeoutRef.current) {
         clearTimeout(resetCopyTimeoutRef.current);
       }
-      resetCopyTimeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
+      resetCopyTimeoutRef.current = window.setTimeout(
+        () => setCopied(false),
+        2000
+      );
     } catch (error) {
       console.error('Failed to copy address:', error);
     }
@@ -59,4 +62,3 @@ const WalletAddress = ({ address }: WalletAddressProps) => {
 };
 
 export default WalletAddress;
-

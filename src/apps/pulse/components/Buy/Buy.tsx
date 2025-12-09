@@ -8,24 +8,28 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import { TailSpin } from 'react-loader-spinner';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Hex, getAddress, isAddress } from 'viem';
+import { getAddress, Hex, isAddress } from 'viem';
 
 // components
-import BuyButton from './BuyButton';
 import RandomAvatar from '../../../pillarx-app/components/RandomAvatar/RandomAvatar';
+import PnLStats from '../PnLStats/PnLStats';
+import BuyButton from './BuyButton';
 
 // hooks
-import useTransactionKit from '../../../../hooks/useTransactionKit';
 import { useRemoteConfig } from '../../../../hooks/useRemoteConfig';
+import { useTokenPnL } from '../../../../hooks/useTokenPnL';
+import useTransactionKit from '../../../../hooks/useTransactionKit';
 import useIntentSdk from '../../hooks/useIntentSdk';
 import useRelayBuy, { BuyOffer } from '../../hooks/useRelayBuy';
 
 // services
 import { useGetSearchTokensQuery } from '../../../../services/pillarXApiSearchTokens';
+import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
 import {
   chainNameToChainIdTokensData,
   PortfolioToken,
@@ -45,14 +49,14 @@ import WalletIcon from '../../assets/wallet.svg';
 import WarningIcon from '../../assets/warning.svg';
 
 // utils
+import { getLogoForChainId } from '../../../../utils/blockchain';
 import {
   ChainNames,
   isNativeToken,
   NativeSymbols,
 } from '../../utils/blockchain';
-import { MobulaChainNames, getChainId } from '../../utils/constants';
+import { getChainId, MobulaChainNames } from '../../utils/constants';
 import { getDesiredAssetValue, getDispensableAssets } from '../../utils/intent';
-import { getLogoForChainId } from '../../../../utils/blockchain';
 import { logPulseError } from '../../utils/sentry';
 
 interface BuyProps {
@@ -79,6 +83,7 @@ interface BuyProps {
   setBuyToken?: Dispatch<SetStateAction<SelectedToken | null>>;
   setChains: Dispatch<SetStateAction<MobulaChainNames>>;
   usdcPrice?: number; // For Relay Buy: USDC price from portfolio (passed from HomeScreen)
+  isRefreshing?: boolean;
 }
 
 export default function Buy(props: BuyProps) {
@@ -99,6 +104,7 @@ export default function Buy(props: BuyProps) {
     maxStableCoinBalance,
     customBuyAmounts,
     usdcPrice,
+    isRefreshing = false,
   } = props;
   const [usdAmount, setUsdAmount] = useState<string>('');
   const [debouncedUsdAmount, setDebouncedUsdAmount] = useState<string>('');
@@ -165,6 +171,57 @@ export default function Buy(props: BuyProps) {
   const [permittedChains, setPermittedChains] = useState<bigint[]>([]);
   const [sumOfStableBalance, setSumOfStableBalance] = useState<number>(0);
 
+  // Fetch transactions for PnL
+  const {
+    data: transactionsData,
+    isLoading: isTransactionsLoading,
+    refetch: refetchTransactions,
+  } = useGetWalletTransactionsQuery(
+    { wallet: accountAddress || '' },
+    { skip: !accountAddress }
+  );
+
+  // Find matching portfolio token to get balance and price
+  const portfolioToken = useMemo(() => {
+    if (!token || !portfolioTokens || portfolioTokens.length === 0) return null;
+
+    return portfolioTokens.find(
+      (pt) =>
+        pt.contract.toLowerCase() === token.address.toLowerCase() &&
+        Number(getChainId(pt.blockchain as MobulaChainNames)) === token.chainId
+    );
+  }, [token, portfolioTokens]);
+
+  // Calculate PnL for selected token
+  const {
+    pnl,
+    isLoading: isPnLLoading,
+    refetch: refetchPnL,
+  } = useTokenPnL(
+    token && accountAddress && portfolioToken
+      ? {
+          token: {
+            contract: token.address || '',
+            symbol: token.symbol,
+            decimals: token.decimals || 18,
+            balance: portfolioToken.balance || 0,
+            price: portfolioToken.price || 0,
+          },
+          transactionsData,
+          walletAddress: accountAddress,
+          chainId: token.chainId,
+        }
+      : null
+  );
+
+  // Refetch transactions when parent triggers refresh
+  // If transactionsData changes, useTokenPnL will automatically recalculate
+  useEffect(() => {
+    if (isRefreshing && refetchTransactions) {
+      refetchTransactions();
+    }
+  }, [isRefreshing, refetchTransactions]);
+
   useEffect(() => {
     if (!portfolioTokens || portfolioTokens.length === 0) {
       console.warn('No wallet portfolio data');
@@ -177,6 +234,13 @@ export default function Buy(props: BuyProps) {
       return;
     }
     setMinimumStableBalance(false);
+
+    // For non-Relay Buy, check native token balance
+    // When using Relay Buy (paymaster), HomeScreen already checks gas tank balance
+    if (USE_RELAY_BUY) {
+      setMinGasFee(false);
+      return;
+    }
 
     const nativeToken = portfolioTokens.find(
       (t) =>
@@ -197,7 +261,7 @@ export default function Buy(props: BuyProps) {
     }
     setMinGasFee(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioTokens, maxStableCoinBalance]);
+  }, [portfolioTokens, maxStableCoinBalance, USE_RELAY_BUY]);
 
   const handleUsdAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;
@@ -337,6 +401,11 @@ export default function Buy(props: BuyProps) {
 
   // Intent SDK: Refresh buy intent
   const refreshBuyIntent = useCallback(async () => {
+    // Refresh PnL data
+    if (refetchPnL) {
+      refetchPnL();
+    }
+
     // Prevent multiple simultaneous calls
     if (isLoading) {
       return;
@@ -378,6 +447,8 @@ export default function Buy(props: BuyProps) {
     setNoEnoughLiquidity(false);
     setInsufficientWalletBalance(false);
     setIsLoading(true);
+
+    // Refresh PnL data
 
     try {
       const intent: UserIntent = {
@@ -660,7 +731,8 @@ export default function Buy(props: BuyProps) {
             </div>
           </div>
         </div>
-        <div className="flex justify-between p-3">
+
+        <div className="flex p-3 justify-between">
           <div className="flex">
             {(() => {
               const showError =
@@ -804,6 +876,19 @@ export default function Buy(props: BuyProps) {
           useRelayBuy={USE_RELAY_BUY}
         />
       </div>
+
+      {/* PnL Stats - only show if there's actual PnL data */}
+      {token &&
+        (isPnLLoading ||
+          isTransactionsLoading ||
+          (pnl && (pnl.totalBoughtUSDC > 0 || pnl.totalSoldUSDC > 0))) && (
+          <div className="w-full px-2.5 mb-2">
+            <PnLStats
+              metrics={pnl}
+              isLoading={isPnLLoading || isTransactionsLoading || isRefreshing}
+            />
+          </div>
+        )}
     </div>
   );
 }

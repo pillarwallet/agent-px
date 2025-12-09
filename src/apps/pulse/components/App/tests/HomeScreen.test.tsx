@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 
 // hooks
 import useTransactionKit from '../../../../../hooks/useTransactionKit';
+import * as gasTankHooks from '../../../hooks/useGasTankBalance';
 
 // providers
 import BottomMenuModalProvider from '../../../../../providers/BottomMenuModalProvider';
@@ -29,6 +30,53 @@ vi.mock('../../../../../services/pillarXApiWalletPortfolio', () => ({
   useGetWalletPortfolioQuery: vi.fn(),
 }));
 
+vi.mock('../../../hooks/useGasTankBalance', () => ({
+  useGasTankBalance: vi.fn(),
+}));
+
+vi.mock('../../../../../hooks/useTokenPnL', () => ({
+  useTokenPnL: vi.fn(() => ({
+    pnl: null,
+    isLoading: false,
+  })),
+}));
+
+vi.mock('../../../../../services/pillarXApiWalletTransactions', () => ({
+  useGetWalletTransactionsQuery: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  })),
+  pillarXApiWalletTransactions: {
+    reducerPath: 'pillarXApiWalletTransactions',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../../hooks/useRelaySell', () => ({
+  default: vi.fn(() => ({
+    getBestSellOffer: vi.fn(),
+    isInitialized: true,
+    error: null,
+  })),
+}));
+
+vi.mock('../../../hooks/useRelayBuy', () => ({
+  default: vi.fn(() => ({
+    getBestOffer: vi.fn(),
+    isInitialized: false,
+    error: null,
+  })),
+}));
+
+vi.mock('../../../../../hooks/useRemoteConfig', () => ({
+  useRemoteConfig: vi.fn(() => ({
+    isInitialized: true,
+    useRelayBuy: false,
+  })),
+}));
+
 const mockProps = {
   setSearching: vi.fn(),
   setIsBuy: vi.fn(),
@@ -37,8 +85,14 @@ const mockProps = {
   sellToken: null,
   refetchWalletPortfolio: vi.fn(),
   setBuyToken: vi.fn(),
+  setSellToken: vi.fn(),
   chains: 'Ethereum',
   setChains: vi.fn(),
+  onboardingScreen: null,
+  setOnboardingScreen: vi.fn(),
+  topupToken: null,
+  setTopupToken: vi.fn(),
+  setIsSearchingFromTopup: vi.fn(),
 };
 
 const renderWithProviders = (props = {}) => {
@@ -75,6 +129,11 @@ describe('<HomeScreen />', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
+    });
+
+    (gasTankHooks.useGasTankBalance as any).mockReturnValue({
+      totalBalance: 100, // Non-zero gas tank balance to show main interface
+      isLoading: false,
     });
   });
 

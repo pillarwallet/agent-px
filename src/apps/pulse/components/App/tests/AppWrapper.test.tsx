@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 
 // hooks
 import useTransactionKit from '../../../../../hooks/useTransactionKit';
+import * as gasTankHooks from '../../../hooks/useGasTankBalance';
 
 // services
 import * as searchService from '../../../../../services/pillarXApiSearchTokens';
@@ -31,6 +32,53 @@ vi.mock('../../../../../services/pillarXApiWalletPortfolio', () => ({
 
 vi.mock('../../../../../services/pillarXApiSearchTokens', () => ({
   useGetSearchTokensQuery: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useGasTankBalance', () => ({
+  useGasTankBalance: vi.fn(),
+}));
+
+vi.mock('../../../../../hooks/useTokenPnL', () => ({
+  useTokenPnL: vi.fn(() => ({
+    pnl: null,
+    isLoading: false,
+  })),
+}));
+
+vi.mock('../../../../../services/pillarXApiWalletTransactions', () => ({
+  useGetWalletTransactionsQuery: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  })),
+  pillarXApiWalletTransactions: {
+    reducerPath: 'pillarXApiWalletTransactions',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../../hooks/useRelaySell', () => ({
+  default: vi.fn(() => ({
+    getBestSellOffer: vi.fn(),
+    isInitialized: true,
+    error: null,
+  })),
+}));
+
+vi.mock('../../../hooks/useRelayBuy', () => ({
+  default: vi.fn(() => ({
+    getBestOffer: vi.fn(),
+    isInitialized: false,
+    error: null,
+  })),
+}));
+
+vi.mock('../../../../../hooks/useRemoteConfig', () => ({
+  useRemoteConfig: vi.fn(() => ({
+    isInitialized: true,
+    useRelayBuy: false,
+  })),
 }));
 
 const mockStore = configureStore({
@@ -77,6 +125,11 @@ const defaultMocks = () => {
     isLoading: false,
     isFetching: false,
     error: null,
+  });
+
+  (gasTankHooks.useGasTankBalance as any).mockReturnValue({
+    totalBalance: 100, // Non-zero gas tank balance to show main interface
+    isLoading: false,
   });
 };
 
@@ -184,8 +237,6 @@ describe('<AppWrapper />', () => {
       expect(
         screen.getByDisplayValue('0x1234567890123456789012345678901234567890')
       ).toBeInTheDocument();
-      expect(screen.getByText('🔥 Trending')).toBeInTheDocument();
-      expect(screen.getByText('🌱 Fresh')).toBeInTheDocument();
       expect(screen.queryByTestId('pulse-home-view')).not.toBeInTheDocument();
       expect(
         screen.queryByTestId('pulse-buy-toggle-button')

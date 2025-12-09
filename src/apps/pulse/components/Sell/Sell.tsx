@@ -4,6 +4,7 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 
@@ -17,12 +18,6 @@ import {
   formatExponentialSmallNumber,
   limitDigitsNumber,
 } from '../../../../utils/number';
-import {
-  ChainNames,
-  NativeSymbols,
-  isNativeToken,
-} from '../../utils/blockchain';
-import { MobulaChainNames, getChainId } from '../../utils/constants';
 import { logPulseError } from '../../utils/sentry';
 
 // components
@@ -30,13 +25,18 @@ import HighDecimalsFormatted from '../../../pillarx-app/components/HighDecimalsF
 import RandomAvatar from '../../../pillarx-app/components/RandomAvatar/RandomAvatar';
 import ArrowDown from '../../assets/arrow-down.svg';
 import WarningIcon from '../../assets/warning.svg';
+import PnLStats from '../PnLStats/PnLStats';
 import SellButton from './SellButton';
 
 // hooks
+import { useTokenPnL } from '../../../../hooks/useTokenPnL';
+import useTransactionKit from '../../../../hooks/useTransactionKit';
 import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
 
 // services
+import { useGetWalletTransactionsQuery } from '../../../../services/pillarXApiWalletTransactions';
 import { PortfolioToken } from '../../../../services/tokensData';
+import { getChainId, MobulaChainNames } from '../../utils/constants';
 
 interface SellProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
@@ -68,12 +68,59 @@ const Sell = (props: SellProps) => {
   const [debouncedTokenAmount, setDebouncedTokenAmount] = useState<string>('');
   const [inputPlaceholder, setInputPlaceholder] = useState<string>('0.00');
   const [notEnoughLiquidity, setNotEnoughLiquidity] = useState<boolean>(false);
-  const [minGasAmount, setMinGasAmount] = useState<boolean>(false);
   const [showNumInP, setShowNumInP] = useState(false);
   const [sellOffer, setLocalSellOffer] = useState<SellOffer | null>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState<boolean>(false);
   const [showTooltip, setShowTooltip] = useState<boolean>(false);
   const [truncatedFlag, setTruncatedFlag] = useState<boolean>(false);
+  const { walletAddress: accountAddress } = useTransactionKit();
+
+  // Fetch transactions for PnL
+  const {
+    data: transactionsData,
+    isLoading: isTransactionsLoading,
+    refetch: refetchTransactions,
+  } = useGetWalletTransactionsQuery(
+    { wallet: accountAddress || '' },
+    { skip: !accountAddress }
+  );
+
+  // Find matching portfolio token to get balance and price
+  const portfolioToken = useMemo(() => {
+    if (!token || !portfolioTokens || portfolioTokens.length === 0) return null;
+
+    return portfolioTokens.find(
+      (pt) =>
+        pt.contract.toLowerCase() === token.address.toLowerCase() &&
+        Number(getChainId(pt.blockchain as MobulaChainNames)) === token.chainId
+    );
+  }, [token, portfolioTokens]);
+
+  // Calculate PnL for selected token with proper balance and price
+  const { pnl, isLoading: isPnLLoading } = useTokenPnL(
+    token && accountAddress && portfolioToken
+      ? {
+          token: {
+            contract: token.address || '',
+            symbol: token.symbol,
+            decimals: token.decimals || 18,
+            balance: portfolioToken.balance || 0,
+            price: portfolioToken.price || 0,
+          },
+          transactionsData,
+          walletAddress: accountAddress,
+          chainId: token.chainId,
+        }
+      : null
+  );
+
+  // Refetch transactions when parent triggers refresh
+  // If transactionsData changes, useTokenPnL will automatically recalculate
+  useEffect(() => {
+    if (isRefreshing && refetchTransactions) {
+      refetchTransactions();
+    }
+  }, [isRefreshing, refetchTransactions]);
 
   const {
     getBestSellOffer,
@@ -156,7 +203,12 @@ const Sell = (props: SellProps) => {
 
       // Find the asset in the portfolio
       const assetData = walletPortfolioData.result.data.assets.find(
-        (asset) => asset.asset.symbol === token.symbol
+        (asset) =>
+          asset.asset.symbol === token.symbol &&
+          asset.contracts_balances.some(
+            (contract) =>
+              contract.address.toLowerCase() === token.address.toLowerCase()
+          )
       );
 
       if (!assetData) return 0;
@@ -186,28 +238,7 @@ const Sell = (props: SellProps) => {
     }
   };
 
-  useEffect(() => {
-    if (!token || portfolioTokens.length === 0) {
-      setMinGasAmount(false);
-      return;
-    }
-
-    const nativeToken = portfolioTokens.find(
-      (t) =>
-        Number(getChainId(t.blockchain as MobulaChainNames)) ===
-          token.chainId && isNativeToken(t.contract)
-    );
-    if (!nativeToken) {
-      setMinGasAmount(true);
-      return;
-    }
-    if ((nativeToken?.price || 0) * (nativeToken?.balance || 0) < 1) {
-      setMinGasAmount(true);
-    } else {
-      setMinGasAmount(false);
-    }
-  }, [portfolioTokens, token]);
-
+  // Calculate token balance (must be after getTokenBalance function)
   const tokenBalance = getTokenBalance();
 
   const handleTokenAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,7 +289,7 @@ const Sell = (props: SellProps) => {
 
   return (
     <div className="flex flex-col w-full" data-testid="pulse-sell-component">
-      <div className="bg-[#121116] m-2.5 rounded-[10px]">
+      <div className="m-2.5 bg-[#121116] min-h-[100px] rounded-lg">
         <div className="flex items-center p-3">
           <button
             onClick={() => {
@@ -441,9 +472,10 @@ const Sell = (props: SellProps) => {
             </div>
           </div>
         </div>
+
         <div className="flex justify-between items-center p-3">
           <div className="flex">
-            {(notEnoughLiquidity || relayError || minGasAmount) && (
+            {(notEnoughLiquidity || relayError) && (
               <>
                 <div className="flex items-center justify-center">
                   <img
@@ -457,10 +489,7 @@ const Sell = (props: SellProps) => {
                   data-testid="pulse-sell-error-message"
                 >
                   {relayError ||
-                    (notEnoughLiquidity ? 'Not enough balance' : '') ||
-                    (minGasAmount && token
-                      ? `Min. $1 ${NativeSymbols[token.chainId]} required on ${ChainNames[token.chainId]}`
-                      : '')}
+                    (notEnoughLiquidity ? 'Not enough balance' : '')}
                 </div>
               </>
             )}
@@ -559,7 +588,7 @@ const Sell = (props: SellProps) => {
         <SellButton
           token={token}
           tokenAmount={tokenAmount}
-          notEnoughLiquidity={notEnoughLiquidity || minGasAmount}
+          notEnoughLiquidity={notEnoughLiquidity}
           setPreviewSell={setPreviewSell}
           setSellOffer={setSellOffer}
           sellOffer={sellOffer}
@@ -567,6 +596,19 @@ const Sell = (props: SellProps) => {
           isInitialized={isInitialized}
         />
       </div>
+
+      {/* PnL Stats - only show if there's actual PnL data */}
+      {token &&
+        (isPnLLoading ||
+          isTransactionsLoading ||
+          (pnl && (pnl.totalBoughtUSDC > 0 || pnl.totalSoldUSDC > 0))) && (
+          <div className="w-full px-2.5 mb-2">
+            <PnLStats
+              metrics={pnl}
+              isLoading={isPnLLoading || isTransactionsLoading || isRefreshing}
+            />
+          </div>
+        )}
     </div>
   );
 };

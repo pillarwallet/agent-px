@@ -36,6 +36,7 @@ export default function useGasEstimation({
   );
   const [gasCostNative, setGasCostNative] = useState<string | null>(null);
   const [nativeTokenSymbol, setNativeTokenSymbol] = useState<string>('');
+  const [gasCostUSD, setGasCostUSD] = useState<string | null>(null);
 
   const isEstimatingRef = useRef(false);
   const estimateGasFeesRef = useRef<() => Promise<void>>();
@@ -121,9 +122,17 @@ export default function useGasEstimation({
         kit,
         sellToken.chainId
       );
+
+      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+
       const estimation = await kit.estimateBatches({
         onlyBatchNames: [batchName],
         authorization: authorization || undefined,
+        paymasterDetails: {
+          url: paymasterUrl
+            ? `${paymasterUrl}/gasTankPaymaster?chainId=${sellToken.chainId}`
+            : '',
+        },
       });
 
       const batchEst = estimation.batches[batchName];
@@ -147,13 +156,36 @@ export default function useGasEstimation({
           // Store the native token amount and symbol
           setGasCostNative(estimatedCostInNativeToken);
           setNativeTokenSymbol(nativeAsset.symbol);
+
+          // Fetch native price USD from REST API to calculate USD cost
+          try {
+            const nativePriceUrl = `${
+              import.meta.env.VITE_PAYMASTER_URL
+            }/getNativePriceUSD?chainId=${sellToken.chainId}`;
+            const nativePriceResponse = await fetch(nativePriceUrl);
+            const nativePriceData = await nativePriceResponse.json();
+
+            if (nativePriceData?.priceUSD) {
+              const totalCostInUSD =
+                parseFloat(estimatedCostInNativeToken) *
+                nativePriceData.priceUSD;
+              setGasCostUSD(totalCostInUSD.toString());
+            }
+          } catch (fetchErr) {
+            console.error(
+              'Failed to fetch native price USD for gas estimation:',
+              fetchErr
+            );
+          }
         } else {
           setGasCostNative('0');
           setNativeTokenSymbol('');
+          setGasCostUSD(null);
         }
       } else {
         setGasCostNative('0');
         setNativeTokenSymbol('');
+        setGasCostUSD(null);
       }
 
       // Clean up the batch after estimation
@@ -216,6 +248,7 @@ export default function useGasEstimation({
     gasEstimationError,
     gasCostNative,
     nativeTokenSymbol,
+    gasCostUSD,
     estimateGasFees,
   };
 }

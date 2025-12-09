@@ -14,6 +14,11 @@ export default function AppWrapper() {
   const [chains, setChains] = useState<MobulaChainNames>(MobulaChainNames.All);
   const [buyToken, setBuyToken] = useState<SelectedToken | null>(null);
   const [sellToken, setSellToken] = useState<SelectedToken | null>(null);
+  const [onboardingScreen, setOnboardingScreen] = useState<
+    'welcome' | 'topup' | null
+  >(null);
+  const [topupToken, setTopupToken] = useState<SelectedToken | null>(null);
+  const [isSearchingFromTopup, setIsSearchingFromTopup] = useState(false);
 
   const { walletAddress: accountAddress } = useTransactionKit();
 
@@ -72,6 +77,7 @@ export default function AppWrapper() {
       walletPortfolioFetching={walletPortfolioFetching}
       walletPortfolioError={!!walletPortfolioError}
       refetchWalletPortfolio={refetchWalletPortfolio}
+      isSearchingFromTopup={isSearchingFromTopup}
     />
   ) : (
     <HomeScreen
@@ -82,7 +88,13 @@ export default function AppWrapper() {
       setIsBuy={setIsBuy}
       refetchWalletPortfolio={refetchWalletPortfolio}
       setBuyToken={setBuyToken}
+      setSellToken={setSellToken}
       setChains={setChains}
+      onboardingScreen={onboardingScreen}
+      setOnboardingScreen={setOnboardingScreen}
+      topupToken={topupToken}
+      setTopupToken={setTopupToken}
+      setIsSearchingFromTopup={setIsSearchingFromTopup}
     />
   );
 }

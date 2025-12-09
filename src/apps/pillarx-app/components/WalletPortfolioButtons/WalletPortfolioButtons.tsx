@@ -1,13 +1,16 @@
-import { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useState } from 'react';
 import { RiArrowDownLine } from 'react-icons/ri';
-import { useAccount } from 'wagmi';
 import { TailSpin } from 'react-loader-spinner';
 import { isAddress } from 'viem';
+import { useAccount } from 'wagmi';
 
 // hooks
 import { useEIP7702Upgrade } from '../../../../hooks/useEIP7702Upgrade';
 import useTransactionKit from '../../../../hooks/useTransactionKit';
+
+// utils
+import { openExternalUrl } from '../../../../utils/pillarWalletMessaging';
 
 // reducer
 import { useAppDispatch } from '../../hooks/useReducerHooks';
@@ -26,7 +29,7 @@ const WalletPortfolioButtons = () => {
   const { user } = usePrivy();
   const { isConnected } = useAccount();
   const { isEligible, handleUpgradeClick } = useEIP7702Upgrade();
-  const { walletAddress: accountAddress, kit } = useTransactionKit();
+  const { walletAddress: accountAddress } = useTransactionKit();
   const [isAddCashLoading, setIsAddCashLoading] = useState(false);
 
   // Check if Privy user is connected via WalletConnect using linkedAccounts
@@ -38,12 +41,10 @@ const WalletPortfolioButtons = () => {
         account.connectorType === 'wallet_connect_v2')
   );
 
-  // Don't show WalletConnectDropdown if user is connected via Wagmi or Privy with WalletConnect
-  // or if user is in delegatedEoa mode
+  // Don't show WalletConnectDropdown if user is connected via Wagmi
+  // or if user is connected via Privy with WalletConnect
   const shouldShowWalletConnectDropdown =
-    !isConnected &&
-    !isPrivyConnectedViaWalletConnect &&
-    kit.getEtherspotProvider().getWalletMode() !== 'delegatedEoa';
+    !isConnected && !isPrivyConnectedViaWalletConnect;
 
   const handleAddCash = async () => {
     if (isAddCashLoading) return;
@@ -161,8 +162,8 @@ const WalletPortfolioButtons = () => {
         return;
       }
 
-      // Open the URL directly - simpler approach that works on all browsers
-      window.open(onrampUrl, '_top', 'noreferrer');
+      // Open the URL in external browser (native browser if in webview, new tab if in regular browser)
+      openExternalUrl(onrampUrl, 'noreferrer');
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error opening add cash URL:', error);

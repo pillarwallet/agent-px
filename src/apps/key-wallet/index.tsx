@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { createPublicClient, http } from 'viem';
-import type { WalletClient } from 'viem';
 import { useWallets } from '@privy-io/react-auth';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { WalletClient } from 'viem';
+import { createPublicClient, http } from 'viem';
 
 // Styles
 import './styles/tailwindKeyWallet.css';
@@ -9,22 +9,25 @@ import './styles/tailwindKeyWallet.css';
 // Hooks
 import useTransactionKit from '../../hooks/useTransactionKit';
 import type {
-  WalletProviderLike,
   Eip1193LikeProvider,
+  WalletProviderLike,
 } from '../../types/walletProvider';
 
 // Services
 import { pillarXApiWalletPortfolio } from '../../services/pillarXApiWalletPortfolio';
 
 // Components
-import WalletAddress from './components/WalletAddress';
 import AssetsList from './components/AssetsList';
 import SendAssetModal from './components/SendAssetModal';
 import TransactionStatus from './components/TransactionStatus';
+import WalletAddress from './components/WalletAddress';
 
 // Utils
-import { transformPortfolioToAssets, getTotalPortfolioValue } from './utils/portfolio';
 import { getChainById } from './utils/blockchain';
+import {
+  getTotalPortfolioValue,
+  transformPortfolioToAssets,
+} from './utils/portfolio';
 
 // Types
 import { Asset, TransactionStatus as TxStatus } from './types';
@@ -33,13 +36,16 @@ const { useGetWalletPortfolioQuery } = pillarXApiWalletPortfolio;
 
 const App = () => {
   const transactionKit = useTransactionKit();
-  const contextProvider = transactionKit?.walletProvider as WalletProviderLike | undefined;
+  const contextProvider = transactionKit?.walletProvider as
+    | WalletProviderLike
+    | undefined;
   const { wallets } = useWallets();
 
   // State
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [transactions, setTransactions] = useState<TxStatus[]>([]);
-  const [walletProvider, setWalletProvider] = useState<WalletProviderLike | null>(null);
+  const [walletProvider, setWalletProvider] =
+    useState<WalletProviderLike | null>(null);
   const [eoaAddress, setEoaAddress] = useState<string>(() => {
     if (wallets?.[0]?.address) {
       return wallets[0].address;
@@ -121,7 +127,8 @@ const App = () => {
               detectedAddress = addresses?.[0];
             } else if (
               'request' in contextProvider &&
-              typeof (contextProvider as Eip1193LikeProvider).request === 'function'
+              typeof (contextProvider as Eip1193LikeProvider).request ===
+                'function'
             ) {
               const eipProvider = contextProvider as Eip1193LikeProvider;
               const accounts = await eipProvider.request<string[]>({
@@ -231,7 +238,9 @@ const App = () => {
         const succeeded = receipt.status === 'success';
         setTransactions((prev) =>
           prev.map((tx) =>
-            tx.hash === txHash ? { ...tx, status: (succeeded ? 'success' : 'failed') } : tx
+            tx.hash === txHash
+              ? { ...tx, status: succeeded ? 'success' : 'failed' }
+              : tx
           )
         );
       } catch (error: any) {
@@ -240,10 +249,18 @@ const App = () => {
         const message = (error?.message || '').toString().toLowerCase();
         // If wait times out, leave as pending (user can retry/check later)
         if (name.includes('timeout') || message.includes('timeout')) {
-          console.warn('waitForTransactionReceipt timed out for', txHash, error);
+          console.warn(
+            'waitForTransactionReceipt timed out for',
+            txHash,
+            error
+          );
           return;
         }
-        console.error('Error while waiting for transaction receipt', txHash, error);
+        console.error(
+          'Error while waiting for transaction receipt',
+          txHash,
+          error
+        );
         // Mark as failed on explicit errors
         setTransactions((prev) =>
           prev.map((tx) =>
@@ -267,7 +284,8 @@ const App = () => {
         <div className="text-4xl mb-4">🔑</div>
         <h2 className="text-2xl font-bold text-white mb-2">Key Wallet</h2>
         <p className="text-white/60 text-center">
-          Sorry, we can't find your wallet address. Please try reloading the site or logging out and back in.
+          Sorry, we can't find your wallet address. Please try reloading the
+          site or logging out and back in.
         </p>
       </div>
     );
@@ -336,4 +354,3 @@ const App = () => {
 };
 
 export default App;
-

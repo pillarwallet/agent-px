@@ -59,21 +59,75 @@ export const useWalletModeVerification = ({
       setError(null);
 
       try {
-        // Get EOA address from privateKey
-        let resolvedEoaAddress: string;
+        // Resolve the address to check (could be from privateKey or eoaAddress prop)
+        let resolvedAddress: string | undefined;
         if (privateKey) {
           const eoaAccount = privateKeyToAccount(privateKey as `0x${string}`);
-          resolvedEoaAddress = eoaAccount.address;
+          resolvedAddress = eoaAccount.address;
         }
 
-        // Get counterfactual address from kit (in modular mode)
-        const counterfactualAddress = await kit.getWalletAddress();
-
         if (eoaAddress) {
-          resolvedEoaAddress = eoaAddress;
+          resolvedAddress = eoaAddress;
+        }
+
+        if (!resolvedAddress) {
+          if (cancelled) return;
+          setEip7702Info({});
+          setWalletMode('modular');
+          setError('No address available');
+          return;
         }
 
         if (cancelled) return;
+
+        // Get code for resolvedAddress across all chains (reused for both validation and EIP-7702 checks)
+        const eoaAddressCodeChecks = await Promise.all(
+          visibleChains.map(async (chain) => {
+            const publicClient = createPublicClient({
+              chain,
+              transport: http(),
+            });
+
+            const code = await publicClient.getCode({
+              address: resolvedAddress as `0x${string}`,
+            });
+
+            return {
+              chainId: chain.id,
+              code,
+              isSmartContract:
+                code !== undefined &&
+                code !== '0x' &&
+                !code.startsWith('0xef0100'),
+            };
+          })
+        );
+
+        // Validate that resolvedAddress is actually an EOA, not a smart contract
+        // If the address is a smart contract (not EIP-7702) on any chain, treat it as a contract
+        const isSmartContract = eoaAddressCodeChecks.some(
+          (check) => check.isSmartContract
+        );
+
+        if (isSmartContract) {
+          // The provided address (from eoaAddress prop or privateKey) is a smart contract, not an EOA
+          // EIP-7702 is only applicable to EOAs, so skip the check and default to modular
+          const contractChains = eoaAddressCodeChecks
+            .filter((check) => check.isSmartContract)
+            .map((check) => check.chainId)
+            .join(', ');
+          console.warn(
+            `Address ${resolvedAddress} is a smart contract on chain(s): ${contractChains}, not an EOA. Skipping EIP-7702 check and getWalletAddress() call.`
+          );
+          if (cancelled) return;
+          setEip7702Info({});
+          setWalletMode('modular');
+          return;
+        }
+
+        // At this point, resolvedAddress is confirmed to be an EOA (or has EIP-7702 designation)
+        // Get counterfactual address from kit (in modular mode)
+        const counterfactualAddress = await kit.getWalletAddress();
 
         // Check all supported chains
         let shouldRemainModular = false;
@@ -125,46 +179,37 @@ export const useWalletModeVerification = ({
 
         // If we reach here, smart account is not deployed and has no assets
         // Check for EIP-7702 implementation on EOA
-        const eip7702Checks = await Promise.all(
-          visibleChains.map(async (chain) => {
-            const publicClient = createPublicClient({
-              chain,
-              transport: http(),
-            });
+        const eip7702Checks = eoaAddressCodeChecks.map((check) => {
+          const senderCode = check.code;
 
-            const senderCode = await publicClient.getCode({
-              address: resolvedEoaAddress as `0x${string}`,
-            });
+          const hasEIP7702Designation =
+            senderCode !== undefined &&
+            senderCode !== '0x' &&
+            senderCode.startsWith('0xef0100');
 
-            const hasEIP7702Designation =
-              senderCode !== undefined &&
-              senderCode !== '0x' &&
-              senderCode.startsWith('0xef0100');
+          // Extract delegate address from EIP-7702 code if present
+          let delegateAddress: string | null = null;
+          let isOurImplementation = false;
 
-            // Extract delegate address from EIP-7702 code if present
-            let delegateAddress: string | null = null;
-            let isOurImplementation = false;
+          if (hasEIP7702Designation) {
+            // EIP-7702 format: 0xef0100 + XX-byte delegate address
+            // Extract delegate address using regex
+            const match = senderCode.match(/^0xef0100(.{40})$/);
+            delegateAddress = match ? `0x${match[1]}` : null;
 
-            if (hasEIP7702Designation) {
-              // EIP-7702 format: 0xef0100 + XX-byte delegate address
-              // Extract delegate address using regex
-              const match = senderCode.match(/^0xef0100(.{40})$/);
-              delegateAddress = match ? `0x${match[1]}` : null;
+            // Check if it's our implementation (Kernel V3)
+            isOurImplementation =
+              delegateAddress?.toLowerCase() ===
+              OUR_EIP7702_IMPLEMENTATION_ADDRESS.toLowerCase();
+          }
 
-              // Check if it's our implementation (Kernel V3)
-              isOurImplementation =
-                delegateAddress?.toLowerCase() ===
-                OUR_EIP7702_IMPLEMENTATION_ADDRESS.toLowerCase();
-            }
-
-            return {
-              hasEIP7702: hasEIP7702Designation,
-              chainId: chain.id,
-              delegateAddress,
-              isOurImplementation,
-            };
-          })
-        );
+          return {
+            hasEIP7702: hasEIP7702Designation,
+            chainId: check.chainId,
+            delegateAddress,
+            isOurImplementation,
+          };
+        });
         if (cancelled) return;
 
         // Build per-chain implementation details

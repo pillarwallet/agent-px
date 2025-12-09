@@ -24,17 +24,87 @@ vi.mock('../../../hooks/useIntentSdk', () => ({
   default: vi.fn(),
 }));
 
+vi.mock('../../../../../hooks/useTokenPnL', () => ({
+  useTokenPnL: vi.fn(() => ({
+    pnl: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  })),
+}));
+
 // useTransactionKit is mocked globally in setupTests.ts
 
-vi.mock('../../../../services/pillarXApiSearchTokens', () => ({
+vi.mock('../../../../../services/pillarXApiSearchTokens', () => ({
   useGetSearchTokensQuery: vi.fn(() => ({
     data: undefined,
     isLoading: false,
   })),
+  pillarXApiSearchTokens: {
+    reducerPath: 'pillarXApiSearchTokens',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
 }));
 
-vi.mock('../../../../utils/blockchain', () => ({
+vi.mock('../../../../../utils/blockchain', () => ({
   getLogoForChainId: vi.fn(() => '/src/assets/images/logo-ethereum.png'),
+  isGnosisEnabled: false,
+  CompatibleChains: [
+    { chainId: 1, chainName: 'Ethereum' },
+    { chainId: 137, chainName: 'Polygon' },
+  ],
+}));
+
+vi.mock('../../../../../services/pillarXApiWalletTransactions', () => ({
+  useGetWalletTransactionsQuery: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
+  pillarXApiWalletTransactions: {
+    reducerPath: 'pillarXApiWalletTransactions',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../../../../services/pillarXApiWaitlist', () => ({
+  pillarXApiWaitlist: {
+    reducerPath: 'pillarXApiWaitlist',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../../../../services/pillarXApiPresence', () => ({
+  pillarXApiPresence: {
+    reducerPath: 'pillarXApiPresence',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../../../../services/pillarXApiTransactionsHistory', () => ({
+  pillarXApiTransactionsHistory: {
+    reducerPath: 'pillarXApiTransactionsHistory',
+    reducer: () => ({}),
+    middleware: () => (next: any) => (action: any) => next(action),
+  },
+}));
+
+vi.mock('../../hooks/useRelayBuy', () => ({
+  default: vi.fn(() => ({
+    getBestOffer: vi.fn(),
+    isInitialized: false,
+    error: null,
+  })),
+}));
+
+vi.mock('../../../../../hooks/useRemoteConfig', () => ({
+  useRemoteConfig: vi.fn(() => ({
+    isInitialized: true,
+    useRelayBuy: false,
+  })),
 }));
 
 const mockGetDispensableAssets = vi.fn();
@@ -408,7 +478,7 @@ describe('<Buy />', () => {
         portfolioTokens: [],
       });
 
-      expect(screen.getByText('$0.00')).toBeInTheDocument();
+      expect(screen.getAllByText('$0.00').length).toBeGreaterThan(0);
     });
 
     it('handles loading state', () => {
