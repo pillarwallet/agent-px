@@ -162,7 +162,11 @@ describe('<PreviewSell />', () => {
     vi.clearAllMocks();
 
     (useRelaySell as any).mockReturnValue({
-      getUSDCAddress: vi.fn(() => '0xUSDC1234567890'),
+      getUSDCToken: vi.fn(() => ({
+        chainId: 1,
+        address: '0xUSDC1234567890',
+        decimals: 6,
+      })),
       executeSell: vi.fn(),
       error: null,
       clearError: vi.fn(),
@@ -259,7 +263,11 @@ describe('<PreviewSell />', () => {
           })
       );
       (useRelaySell as any).mockReturnValue({
-        getUSDCAddress: vi.fn(() => '0xUSDC1234567890'),
+        getUSDCToken: vi.fn(() => ({
+          chainId: 1,
+          address: '0xUSDC1234567890',
+          decimals: 6,
+        })),
         executeSell: mockExecuteSell,
         error: null,
         clearError: vi.fn(),
@@ -299,7 +307,11 @@ describe('<PreviewSell />', () => {
   describe('handles error states', () => {
     it('displays relay error', () => {
       (useRelaySell as any).mockReturnValue({
-        getUSDCAddress: vi.fn(() => '0xUSDC1234567890'),
+        getUSDCToken: vi.fn(() => ({
+          chainId: 1,
+          address: '0xUSDC1234567890',
+          decimals: 6,
+        })),
         executeSell: vi.fn(),
         error: 'Relay error occurred',
         clearError: vi.fn(),
@@ -334,7 +346,7 @@ describe('<PreviewSell />', () => {
   describe('handles edge cases', () => {
     it('handles missing USDC address', () => {
       (useRelaySell as any).mockReturnValue({
-        getUSDCAddress: vi.fn(() => null),
+        getUSDCToken: vi.fn(() => null),
         executeSell: vi.fn(),
         error: null,
         clearError: vi.fn(),
