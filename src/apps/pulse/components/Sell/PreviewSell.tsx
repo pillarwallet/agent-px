@@ -69,7 +69,7 @@ const PreviewSell = (props: PreviewSellProps) => {
   const [isTransactionSuccess, setIsTransactionSuccess] = useState(false);
   const previewModalRef = useRef<HTMLDivElement>(null);
   const {
-    getUSDCAddress,
+    getUSDCToken,
     executeSell,
     error,
     clearError,
@@ -232,7 +232,8 @@ const PreviewSell = (props: PreviewSellProps) => {
   //   }
   // };
 
-  const usdcAddress = getUSDCAddress(selectedChainIdForSettlement || 0);
+  const usdcToken = getUSDCToken(selectedChainIdForSettlement || 0);
+  const usdcAddress = usdcToken ? usdcToken.address : '';
 
   // Clean up pulse-sell batch when component unmounts or preview closes
   useEffect(() => {

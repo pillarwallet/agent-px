@@ -112,14 +112,19 @@ export default function useRelaySell() {
   }, [isInitialized]);
 
   /**
-   * Get the USDC address for a specific chain
+   * Get the USDC token details for a specific chain
    */
-  const getUSDCAddress = useCallback((chainId: number): string | null => {
-    const stableCurrency = STABLE_CURRENCIES.find(
-      (currency) => currency.chainId === chainId
-    );
-    return stableCurrency?.address || null;
-  }, []);
+  const getUSDCToken = useCallback(
+    (
+      chainId: number
+    ): { chainId: number; address: string; decimals: number } | null => {
+      const stableCurrency = STABLE_CURRENCIES.find(
+        (currency) => currency.chainId === chainId
+      );
+      return stableCurrency ?? null;
+    },
+    []
+  );
 
   /**
    * Get the best sell offer for swapping a token to USDC
@@ -140,11 +145,14 @@ export default function useRelaySell() {
         return null;
       }
 
-      const usdcAddress = getUSDCAddress(toChainId);
-      if (!usdcAddress) {
+      const usdcToken = getUSDCToken(toChainId);
+      if (!usdcToken) {
         setError('Unable to get quote. Please try again.');
         return null;
       }
+
+      const usdcAddress = usdcToken.address;
+      const usdcDecimals = usdcToken.decimals;
 
       setIsLoading(true);
       setError(null);
@@ -205,14 +213,15 @@ export default function useRelaySell() {
           if (currencyOut.amountFormatted) {
             usdcAmount = parseFloat(currencyOut.amountFormatted);
           } else if (currencyOut.amount) {
-            // Convert from raw units to readable format
-            usdcAmount = parseFloat(currencyOut.amount) / 10 ** 6; // USDC has 6 decimals
+            // Convert from raw units to readable format using USDC decimals
+            usdcAmount = parseFloat(currencyOut.amount) / 10 ** usdcDecimals;
           }
 
           // Get the minimum amount (prefer formatted, fallback to raw amount)
           if (currencyOut.minimumAmount) {
-            // minimumAmount is in raw units, convert to readable format
-            minimumAmount = parseFloat(currencyOut.minimumAmount) / 10 ** 6; // USDC has 6 decimals
+            // minimumAmount is in raw units, convert to readable format using USDC decimals
+            minimumAmount =
+              parseFloat(currencyOut.minimumAmount) / 10 ** usdcDecimals;
           } else {
             // Fallback: calculate minimum receive using slippage tolerance
             // Formula: Minimum to receive = Est. to amount × (1 - max.slippage)
@@ -329,11 +338,13 @@ export default function useRelaySell() {
         throw new Error('Fee receiver address is not configured');
       }
 
-      // Get USDC address for the chain
-      const usdcAddress = getUSDCAddress(token.chainId);
-      if (!usdcAddress) {
+      // Get USDC address and decimals for the chain
+      const usdcToken = getUSDCToken(token.chainId);
+      if (!usdcToken) {
         throw new Error('USDC address not found for chain');
       }
+
+      const usdcAddress = usdcToken.address;
 
       // Calculate fee distribution: 99% to user, 1% to fee receiver
       // We swap 100% of the token, then take 1% of the received USDC as fee
@@ -1005,17 +1016,20 @@ export default function useRelaySell() {
         const usdcAfterFee = usdcAfterFirstSwap * 0.99; // 1% fee taken
 
         // Step 3: Get quote for bridging USDC to target chain
-        const usdcAddress = getUSDCAddress(fromChainId);
-        if (!usdcAddress) {
+        const usdcToken = getUSDCToken(fromChainId);
+        if (!usdcToken) {
           setError('Unable to get USDC address for source chain');
           return null;
         }
+
+        const usdcAddress = usdcToken.address;
+        const usdcDecimals = usdcToken.decimals;
 
         const bridgeOffer = await getBestSellOffer({
           fromAmount: usdcAfterFee.toString(),
           fromTokenAddress: usdcAddress,
           fromChainId,
-          fromTokenDecimals: 6,
+          fromTokenDecimals: usdcDecimals,
           toChainId, // Target chain
           slippage,
         });
@@ -1065,7 +1079,7 @@ export default function useRelaySell() {
         setIsLoading(false);
       }
     },
-    [isInitialized, getBestSellOffer, getUSDCAddress]
+    [isInitialized, getBestSellOffer, getUSDCToken]
   );
 
   /**
@@ -1133,11 +1147,14 @@ export default function useRelaySell() {
 
       const fromAmountBigInt = parseUnits(inputAmount, fromToken.decimals);
 
-      // Step 3: Get USDC address
-      const usdcAddress = getUSDCAddress(fromChainId);
-      if (!usdcAddress) {
+      // Step 3: Get USDC address and decimals
+      const usdcToken = getUSDCToken(fromChainId);
+      if (!usdcToken) {
         throw new Error('USDC address not found for source chain');
       }
+
+      const usdcAddress = usdcToken.address;
+      const usdcDecimals = usdcToken.decimals;
 
       // Step 4: Calculate fee for first swap (1% of USDC received)
       const feeReceiver = import.meta.env.VITE_SWAP_FEE_RECEIVER;
@@ -1399,7 +1416,7 @@ export default function useRelaySell() {
       // Step 10: Get quote for USDC bridge
       const usdcToBridgeFormatted = (
         Number(usdcAfterFirstSwapFee) /
-        10 ** 6
+        10 ** usdcDecimals
       ).toString();
 
       let bridgeOffer: SellOffer | null = null;
@@ -1408,7 +1425,7 @@ export default function useRelaySell() {
           fromAmount: usdcToBridgeFormatted,
           fromTokenAddress: usdcAddress,
           fromChainId,
-          fromTokenDecimals: 6,
+          fromTokenDecimals: usdcDecimals,
           toChainId, // Target chain
         });
       } catch (err) {
@@ -1452,7 +1469,10 @@ export default function useRelaySell() {
         }
 
         if (bridgeSpenderAddress) {
-          const usdcAmountBigInt = parseUnits(usdcToBridgeFormatted, 6);
+          const usdcAmountBigInt = parseUnits(
+            usdcToBridgeFormatted,
+            usdcDecimals
+          );
 
           const isAllowance = await isAllowanceSet({
             owner: walletAddress || '',
@@ -1583,7 +1603,7 @@ export default function useRelaySell() {
     },
     [
       getBestSellOffer,
-      getUSDCAddress,
+      getUSDCToken,
       isAllowanceSet,
       walletAddress,
       transactionDebugLog,
@@ -1596,7 +1616,7 @@ export default function useRelaySell() {
   }, []);
 
   return {
-    getUSDCAddress,
+    getUSDCToken,
     getBestSellOffer,
     getBestSellOfferWithBridge,
     executeSell,

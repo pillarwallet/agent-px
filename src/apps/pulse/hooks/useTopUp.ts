@@ -32,11 +32,8 @@ export default function useTopUp() {
   const [error, setError] = useState<string | null>(null);
 
   const { kit, walletAddress } = useTransactionKit();
-  const {
-    buildSellTransactions,
-    getUSDCAddress,
-    isInitialized: isRelayInitialized,
-  } = useRelaySell();
+  const { buildSellTransactions, isInitialized: isRelayInitialized } =
+    useRelaySell();
   const { transactionDebugLog } = useTransactionDebugLogger();
 
   const clearError = useCallback(() => {
@@ -59,12 +56,6 @@ export default function useTopUp() {
 
       const transactions = [];
       const { chainId } = selectedToken;
-
-      // Get USDC address for the chain
-      const usdcAddress = getUSDCAddress(chainId);
-      if (!usdcAddress) {
-        throw new Error(`USDC not supported on chain ${chainId}`);
-      }
 
       // Step 1: If non-USDC token, add sell transactions
       if (sellOffer) {
@@ -154,7 +145,7 @@ export default function useTopUp() {
 
       return transactions;
     },
-    [walletAddress, getUSDCAddress, buildSellTransactions]
+    [walletAddress, buildSellTransactions]
   );
 
   /**
