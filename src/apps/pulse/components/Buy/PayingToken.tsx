@@ -4,6 +4,7 @@ import { MdCheck } from 'react-icons/md';
 
 // utils
 import { getLogoForChainId } from '../../../../utils/blockchain';
+import { truncateDecimals } from '../../utils/number';
 
 // types
 import { PayingToken as PayingTokenType } from '../../types/tokens';
@@ -85,7 +86,7 @@ export default function PayingToken(props: PayingTokenProps) {
       </div>
       <div className="flex flex-col justify-center text-right">
         <div className="text-[13px] font-normal text-white">
-          {payingToken.totalRaw}
+          {truncateDecimals(payingToken.totalRaw, 6)}
         </div>
         <div className="text-xs font-normal text-white/50">
           ${payingToken.totalUsd.toFixed(2)}

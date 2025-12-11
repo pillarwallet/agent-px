@@ -51,3 +51,18 @@ export function bigIntPow(base: bigint, exponent: bigint): bigint {
   }
   return result;
 }
+
+export function truncateDecimals(
+  value: string | number,
+  decimals: number
+): string {
+  const strValue = typeof value === 'number' ? value.toString() : value;
+  const [integerPart, decimalPart] = strValue.split('.');
+
+  if (!decimalPart) {
+    return integerPart;
+  }
+
+  const truncatedDecimal = decimalPart.slice(0, decimals);
+  return `${integerPart}.${truncatedDecimal}`;
+}
