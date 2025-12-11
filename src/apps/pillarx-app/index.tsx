@@ -41,10 +41,10 @@ import WalletPortfolioTile from './components/WalletPortfolioTile/WalletPortfoli
 // images
 import PillarXLogo from './components/PillarXLogo/PillarXLogo';
 import pillarLogoLight from './images/pillarX_full_white.png';
-import searchIcon from '../pulse/assets/search-icon.png';
+import searchIcon from '../pulse/assets/seach-icon.svg';
 
 // constants
-import { PAGE_LIMIT } from './utils/constants';
+import { PAGE_LIMIT, PILLARX_URL, PILLAR_X_APP_URL } from './utils/constants';
 
 const App = () => {
   const [page, setPage] = useState(1);
@@ -368,14 +368,8 @@ const App = () => {
         onClick={handleSearchClick}
         className="flex items-center w-full max-w-[645px] h-8 mx-auto mb-5 mobile:mb-4 bg-[rgba(30,29,36,0.3)] border-2 border-[#1e1d24] shadow-[inset_0px_2px_0px_2px_#121116] rounded-[10px] px-[10px] cursor-pointer"
       >
-        <div className="flex items-center justify-center w-3 h-3 bg-[rgba(255,255,255,0.1)] border-[1.5px] border-[rgba(255,255,255,0.6)] shadow-[inset_0px_4px_2px_rgba(18,17,22,0.25)] rounded-full flex-shrink-0">
-          <img
-            src={searchIcon}
-            alt="search"
-            className="w-[6px] h-[6px] opacity-60"
-          />
-        </div>
-        <span className="font-['Poppins'] font-normal text-[13px] leading-[13px] tracking-[-0.02em] text-white opacity-50 ml-[10px] select-none">
+        <img src={searchIcon} alt="search" className="w-[14px] h-[14px] opacity-60" />
+        <span className="font-['Poppins'] font-normal text-[13px] leading-[13px] tracking-[-0.02em] text-white opacity-50 ml-3 mt-[1px] select-none">
           Search
         </span>
       </button>
