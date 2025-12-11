@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import './styles/tailwindPillarX.css';
 
@@ -40,6 +41,7 @@ import WalletPortfolioTile from './components/WalletPortfolioTile/WalletPortfoli
 // images
 import PillarXLogo from './components/PillarXLogo/PillarXLogo';
 import pillarLogoLight from './images/pillarX_full_white.png';
+import searchIcon from '../pulse/assets/search-icon.png';
 
 // constants
 import { PAGE_LIMIT } from './utils/constants';
@@ -59,6 +61,7 @@ const App = () => {
   // hooks
   const { checkOnLogin } = useEIP7702Upgrade();
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
   // Check if we're in React Native app (check localStorage which is set in Main.tsx)
   const isReactNativeApp = !!localStorage.getItem('DEVICE_PLATFORM');
@@ -337,6 +340,11 @@ const App = () => {
     }
   };
 
+  // Handler to navigate to Pulse Search in Buy mode
+  const handleSearchClick = () => {
+    navigate('/pulse?searching=true');
+  };
+
   return (
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
     <Wrapper>
@@ -354,6 +362,23 @@ const App = () => {
           className="object-contain h-[20px] mobile:h-[18px]"
         />
       </HeaderContainer>
+      {/* Search Bar */}
+      <button
+        type="button"
+        onClick={handleSearchClick}
+        className="flex items-center w-full max-w-[645px] h-8 mx-auto mb-5 mobile:mb-4 bg-[rgba(30,29,36,0.3)] border-2 border-[#1e1d24] shadow-[inset_0px_2px_0px_2px_#121116] rounded-[10px] px-[10px] cursor-pointer"
+      >
+        <div className="flex items-center justify-center w-3 h-3 bg-[rgba(255,255,255,0.1)] border-[1.5px] border-[rgba(255,255,255,0.6)] shadow-[inset_0px_4px_2px_rgba(18,17,22,0.25)] rounded-full flex-shrink-0">
+          <img
+            src={searchIcon}
+            alt="search"
+            className="w-[6px] h-[6px] opacity-60"
+          />
+        </div>
+        <span className="font-['Poppins'] font-normal text-[13px] leading-[13px] tracking-[-0.02em] text-white opacity-50 ml-[10px] select-none">
+          Search
+        </span>
+      </button>
       <div
         ref={divRef}
         className="flex flex-col gap-[40px] tablet:gap-[28px] mobile:gap-[32px]"
@@ -406,10 +431,10 @@ const HeaderContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 70px;
+  margin-bottom: 20px;
 
   @media (max-width: 768px) {
-    margin-bottom: 58px;
+    margin-bottom: 16px;
   }
 `;
 
