@@ -53,7 +53,7 @@ vi.mock('../../constants/tokens', () => ({
     {
       chainId: 1,
       address: '0xA0b86a33E6441b8C4C8C0C8C0C8C0C8C0C8C0C8C',
-      symbol: 'USDC',
+      decimals: 6,
     },
   ],
 }));
@@ -182,7 +182,7 @@ describe('useRelaySell', () => {
     expect(result.current.isLoading).toBe(false);
     expect(result.current.error).toBe(null);
     expect(result.current.isInitialized).toBe(false);
-    expect(typeof result.current.getUSDCAddress).toBe('function');
+    expect(typeof result.current.getUSDCToken).toBe('function');
     expect(typeof result.current.getBestSellOffer).toBe('function');
     expect(typeof result.current.executeSell).toBe('function');
     expect(typeof result.current.buildSellTransactions).toBe('function');
@@ -249,7 +249,7 @@ describe('useRelaySell', () => {
     expect(result.current.isInitialized).toBe(true);
   });
 
-  it('getUSDCAddress returns correct address for supported chain', async () => {
+  it('getUSDCToken returns correct token for supported chain', async () => {
     const useRelaySdk = await import('../useRelaySdk');
     const useTransactionKit = await import(
       '../../../../hooks/useTransactionKit'
@@ -289,11 +289,15 @@ describe('useRelaySell', () => {
 
     const { result } = renderHook(() => useRelaySell());
 
-    const usdcAddress = result.current.getUSDCAddress(1);
-    expect(usdcAddress).toBe('0xA0b86a33E6441b8C4C8C0C8C0C8C0C8C0C8C0C8C');
+    const usdcToken = result.current.getUSDCToken(1);
+    expect(usdcToken?.address).toBe(
+      '0xA0b86a33E6441b8C4C8C0C8C0C8C0C8C0C8C0C8C'
+    );
+    expect(usdcToken?.decimals).toBe(6);
+    expect(usdcToken?.chainId).toBe(1);
   });
 
-  it('getUSDCAddress returns null for unsupported chain', async () => {
+  it('getUSDCToken returns null for unsupported chain', async () => {
     const useRelaySdk = await import('../useRelaySdk');
     const useTransactionKit = await import(
       '../../../../hooks/useTransactionKit'
@@ -333,8 +337,8 @@ describe('useRelaySell', () => {
 
     const { result } = renderHook(() => useRelaySell());
 
-    const usdcAddress = result.current.getUSDCAddress(999);
-    expect(usdcAddress).toBe(null);
+    const usdcToken = result.current.getUSDCToken(999);
+    expect(usdcToken).toBe(null);
   });
 
   it('getBestSellOffer returns null when not initialized', async () => {
@@ -633,7 +637,11 @@ describe('useRelaySell', () => {
 
     const { result } = renderHook(() => useRelaySell());
 
-    const success = await result.current.executeSell(mockSelectedToken, '1.0');
+    const success = await result.current.executeSell(
+      mockSelectedToken,
+      '1.0',
+      1
+    );
 
     expect(success).toBe(false);
 

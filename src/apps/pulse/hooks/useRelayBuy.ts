@@ -108,13 +108,15 @@ export default function useRelayBuy() {
   }, [isInitialized]);
 
   /**
-   * Get the USDC address for a specific chain
+   * Get the USDC token details for a specific chain
    */
-  const getUSDCAddress = (chainId: number): string | null => {
+  const getUSDCToken = (
+    chainId: number
+  ): { chainId: number; address: string; decimals: number } | null => {
     const stableCurrency = STABLE_CURRENCIES.find(
       (currency) => currency.chainId === chainId
     );
-    return stableCurrency?.address || null;
+    return stableCurrency ?? null;
   };
 
   /**
@@ -135,11 +137,14 @@ export default function useRelayBuy() {
         return null;
       }
 
-      const usdcAddress = getUSDCAddress(fromChainId);
-      if (!usdcAddress) {
+      const USDCtoken = getUSDCToken(fromChainId);
+      if (!USDCtoken) {
         setError('Unable to get quote. Please try again.');
         return null;
       }
+
+      const usdcAddress = USDCtoken.address;
+      const usdcDecimals = USDCtoken.decimals;
 
       setIsLoading(true);
       setError(null);
@@ -172,8 +177,11 @@ export default function useRelayBuy() {
           // If USDC price is $0.9998, then $10 USD = 10 / 0.9998 = 10.002 USDC
           const usdcAmount = usdAmount / usdcPrice;
 
-          // Convert to wei using 6 decimals (USDC precision)
-          fromAmountInWei = parseUnits(usdcAmount.toFixed(6), 6);
+          // Convert to wei using USDC decimals (e.g., 6 on Ethereum, 18 on BSC)
+          fromAmountInWei = parseUnits(
+            usdcAmount.toFixed(usdcDecimals),
+            usdcDecimals
+          );
         } catch (parseError) {
           console.error('Failed to parse fromAmount:', parseError);
           setError('Invalid amount. Please try again.');
@@ -308,10 +316,13 @@ export default function useRelayBuy() {
       }
 
       // Get USDC address for the chain
-      const usdcAddress = getUSDCAddress(fromChainId);
-      if (!usdcAddress) {
+      const USDCtoken = getUSDCToken(fromChainId);
+      if (!USDCtoken) {
         throw new Error('USDC address not found for chain');
       }
+
+      const usdcAddress = USDCtoken.address;
+      const usdcDecimals = USDCtoken.decimals;
 
       // Calculate fee distribution: 1% fee, 99% for swap
       // Get the USDC amount needed for the swap from the quote
@@ -357,7 +368,7 @@ export default function useRelayBuy() {
             t.blockchain === `chain-${fromChainId}`
         );
         if (usdcToken && usdcToken.balance) {
-          userUsdcBalance = toWei(usdcToken.balance.toString(), 6); // USDC has 6 decimals
+          userUsdcBalance = toWei(usdcToken.balance.toString(), usdcDecimals);
         }
 
         // Debug: Log balance validation only if there's an issue
@@ -788,7 +799,7 @@ export default function useRelayBuy() {
   );
 
   return {
-    getUSDCAddress,
+    getUSDCToken,
     getBestOffer,
     executeBuy,
     buildTransactions,

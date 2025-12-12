@@ -94,6 +94,11 @@ vi.mock('../../../../../services/pillarXApiTransactionsHistory', () => ({
 
 vi.mock('../../hooks/useRelayBuy', () => ({
   default: vi.fn(() => ({
+    getUSDCToken: vi.fn(() => ({
+      chainId: 1,
+      address: '0xUSDC1234567890',
+      decimals: 6,
+    })),
     getBestOffer: vi.fn(),
     isInitialized: false,
     error: null,
