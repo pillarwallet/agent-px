@@ -7,6 +7,18 @@ exports[`<Main /> > renders correctly 1`] = `
     id="header"
   >
     <div
+      className="header__announcement"
+    >
+      <div
+        className="header__announcement__wrapper"
+        dangerouslySetInnerHTML={
+          {
+            "__html": "<p>🚀Just in: PillarX Algorithmic Insights! Trade smarter with PillarX. <a href="https://go.pillarx.app/LY6ZNTS">Start your FREE 7-day trial</a></p>",
+          }
+        }
+      />
+    </div>
+    <div
       className="container"
     >
       <a
