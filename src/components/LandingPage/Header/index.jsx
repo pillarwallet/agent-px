@@ -11,7 +11,6 @@ const Header = () => {
   const [lastScrollY, setLastScrollY] = useState(0);
   const announcement = {
     show: true,
-    message: `<p>🚀Just in: PillarX Algorithmic Insights! Trade smarter with PillarX. <a href="https://go.pillarx.app/LY6ZNTS">Start your FREE 7-day trial</a></p>`,
   };
 
   useEffect(() => {
@@ -47,10 +46,15 @@ const Header = () => {
       >
         {announcement.show && (
           <div className="header__announcement">
-            <div
-              className="header__announcement__wrapper"
-              dangerouslySetInnerHTML={{ __html: announcement.message }}
-            />
+            <div className="header__announcement__wrapper">
+              <p>
+                🚀Just in: PillarX Algorithmic Insights! Trade smarter with
+                PillarX.{' '}
+                <a href="https://go.pillarx.app/LY6ZNTS">
+                  Start your FREE 7-day trial
+                </a>
+              </p>
+            </div>
           </div>
         )}
 
