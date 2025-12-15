@@ -9,6 +9,9 @@ const Header = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const announcement = {
+    show: true,
+  };
 
   useEffect(() => {
     const controlNavbar = () => {
@@ -41,6 +44,20 @@ const Header = () => {
         className={`header ${isVisible ? '' : 'header--hidden'}`}
         id="header"
       >
+        {announcement.show && (
+          <div className="header__announcement">
+            <div className="header__announcement__wrapper">
+              <p>
+                🚀Just in: PillarX Algorithmic Insights! Trade smarter with
+                PillarX.{' '}
+                <a href="https://go.pillarx.app/LY6ZNTS">
+                  Start your FREE 7-day trial
+                </a>
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="container">
           <Link to="/" className="header__logo">
             <img
