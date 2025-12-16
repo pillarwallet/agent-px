@@ -200,17 +200,17 @@ export default function Buy(props: BuyProps) {
   } = useTokenPnL(
     token && accountAddress && portfolioToken
       ? {
-          token: {
-            contract: token.address || '',
-            symbol: token.symbol,
-            decimals: token.decimals || 18,
-            balance: portfolioToken.balance || 0,
-            price: portfolioToken.price || 0,
-          },
-          transactionsData,
-          walletAddress: accountAddress,
-          chainId: token.chainId,
-        }
+        token: {
+          contract: token.address || '',
+          symbol: token.symbol,
+          decimals: token.decimals || 18,
+          balance: portfolioToken.balance || 0,
+          price: portfolioToken.price || 0,
+        },
+        transactionsData,
+        walletAddress: accountAddress,
+        chainId: token.chainId,
+      }
       : null
   );
 
@@ -245,7 +245,7 @@ export default function Buy(props: BuyProps) {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-          maxStableCoinBalance.chainId && isNativeToken(t.contract)
+        maxStableCoinBalance.chainId && isNativeToken(t.contract)
     );
 
     if (!nativeToken) {
@@ -667,8 +667,8 @@ export default function Buy(props: BuyProps) {
                   />
                 </div>
                 <div className="flex flex-col mt-2.5 h-10 w-[91px]">
-                  <div className="flex">
-                    <p className="font-normal desktop:text-sm mobile:text-xs xs:text-xs">
+                  <div className="flex w-full">
+                    <p className="font-normal desktop:text-sm mobile:text-xs xs:text-xs truncate block max-w-[85px]">
                       {token.symbol}
                     </p>
                     {token.symbol.length + token.name.length <= 13 && (
@@ -677,9 +677,18 @@ export default function Buy(props: BuyProps) {
                       </p>
                     )}
                   </div>
-                  <div className="flex">
+                  <div className="flex items-center gap-1">
                     <p className="opacity-50 font-normal text-white h-[10px] text-[10px]">
                       ${token.usdValue}
+                    </p>
+                    <p
+                      className={`font-normal text-[10px] leading-[10px] ${token.dailyPriceChange >= 0
+                          ? 'text-[#00FF00]'
+                          : 'text-[#FF0000]'
+                        }`}
+                    >
+                      {token.dailyPriceChange > 0 ? '+' : ''}
+                      {token.dailyPriceChange.toFixed(2)}%
                     </p>
                   </div>
                 </div>
@@ -823,11 +832,10 @@ export default function Buy(props: BuyProps) {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${
-                  isDisabled
+                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
                     ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
                     : 'bg-[#121116] text-white cursor-pointer'
-                }`}
+                  }`}
                 onClick={() => {
                   if (!isDisabled) {
                     if (isMax) {

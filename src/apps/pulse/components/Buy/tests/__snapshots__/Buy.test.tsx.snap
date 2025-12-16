@@ -38,22 +38,29 @@ exports[`<Buy /> > renders correctly and matches snapshot 1`] = `
             className="flex flex-col mt-2.5 h-10 w-[91px]"
           >
             <div
-              className="flex"
+              className="flex w-full"
             >
               <p
-                className="font-normal desktop:text-sm mobile:text-xs xs:text-xs"
+                className="font-normal desktop:text-sm mobile:text-xs xs:text-xs truncate block max-w-[85px]"
               >
                 TEST
               </p>
             </div>
             <div
-              className="flex"
+              className="flex items-center gap-1"
             >
               <p
                 className="opacity-50 font-normal text-white h-[10px] text-[10px]"
               >
                 $
                 100.00
+              </p>
+              <p
+                className="font-normal text-[10px] leading-[10px] text-[#00FF00]"
+              >
+                +
+                0.05
+                %
               </p>
             </div>
           </div>
