@@ -4,6 +4,7 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
 import { useEffect, useState } from 'react';
 import { Link, NavLink, ScrollRestoration } from 'react-router-dom';
+import UtmTracker from '../../UtmTracker';
 
 const Header = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -36,6 +37,9 @@ const Header = () => {
 
   return (
     <>
+      {/* Store & Track UTM */}
+      <UtmTracker />
+      
       {/* Browser's scroll restoration  */}
       <ScrollRestoration />
 
