@@ -18,6 +18,17 @@ const USDC_ADDRESSES = allStableCurrencies.map(
     currency.address.toLowerCase()
 );
 
+/**
+ * Get the USDC decimals for a specific chain
+ */
+const getUSDCDecimalsByChainId = (chainId: number): number => {
+  const usdcToken = allStableCurrencies.find(
+    (currency: { chainId: number; address: string; decimals: number }) =>
+      currency.chainId === chainId
+  ) as { chainId: number; address: string; decimals: number } | undefined;
+  return usdcToken?.decimals ?? 6; // Default to 6 if not found
+};
+
 export const reconstructTrades = (
   transactions: MobulaTransactionRow[],
   walletAddress: string
@@ -332,10 +343,12 @@ export const getRelayValidatedTrades = async (
 
                 // For BUY, we expect negative USDC (spending)
                 // For SELL, we expect positive USDC (receiving)
+                const usdcDecimals = getUSDCDecimalsByChainId(token.chainId);
+                const usdcDivisor = 10 ** usdcDecimals;
                 if (side === 'BUY' && balanceDiff < 0) {
-                  usdcAmount += Math.abs(balanceDiff) / 1e6; // USDC has 6 decimals
+                  usdcAmount += Math.abs(balanceDiff) / usdcDivisor;
                 } else if (side === 'SELL' && balanceDiff > 0) {
-                  usdcAmount += balanceDiff / 1e6;
+                  usdcAmount += balanceDiff / usdcDivisor;
                 }
               }
             });
@@ -438,7 +451,8 @@ export const calculatePnLFromRelay = (
       // If state changes show token movement, use that
       if (tokenChange !== 0) {
         const tokenDivisor = 10 ** token.decimals;
-        const usdcDivisor = 1e6;
+        const usdcDecimals = getUSDCDecimalsByChainId(token.chainId);
+        const usdcDivisor = 10 ** usdcDecimals;
 
         const tokenAmountRaw = Math.abs(tokenChange) / tokenDivisor;
         const usdcAmountRaw = Math.abs(usdcChange) / usdcDivisor;

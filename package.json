@@ -23,7 +23,7 @@
     "@etherspot/data-utils": "1.1.1",
     "@etherspot/intent-sdk": "1.0.0-alpha.12",
     "@etherspot/modular-sdk": "6.1.1",
-    "@etherspot/transaction-kit": "2.1.3",
+    "@etherspot/transaction-kit": "2.1.4",
     "@hypelab/sdk-react": "1.0.4",
     "@lifi/sdk": "3.6.8",
     "@mui/icons-material": "5.16.6",

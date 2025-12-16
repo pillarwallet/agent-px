@@ -279,13 +279,13 @@ ul li:last-child {
 
 .header__announcement {
   position: relative;
-  background: var(--light-blue);
+  background: #8a77ff;
   z-index: 101;
 }
 
 @media only screen and (max-width: 1024px) {
   .header__announcement {
-    background: rgba(94, 0, 255, 0.9);
+    background: #8a77ff;
   }
 }
 
@@ -298,18 +298,21 @@ ul li:last-child {
 }
 
 .header__announcement__wrapper p {
-  font-size: 1.4rem;
+  font-size: 1.6rem;
   margin-bottom: 0;
   font-weight: 700;
 }
 
 .header__announcement__wrapper p a {
-  display: none;
   text-decoration: underline;
 }
 
 @media only screen and (max-width: 1023px) {
-  .header__announcement__wrapper p a {
+  .header__announcement__wrapper p {
+    font-size: 1.4rem;
+  }
+
+  .header__announcement__wrapper a {
     display: inline-block;
   }
 }
