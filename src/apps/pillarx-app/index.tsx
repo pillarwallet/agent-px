@@ -373,7 +373,7 @@ const App = () => {
           alt="search"
           className="w-[14px] h-[14px] opacity-60"
         />
-        <span className="font-['Poppins'] font-normal text-[13px] leading-[13px] tracking-[-0.02em] text-white opacity-50 ml-3 mt-[1px] select-none">
+        <span className="font-normal text-[13px] leading-[13px] tracking-[-0.02em] text-white opacity-50 ml-3 mt-[1px] select-none">
           Search
         </span>
       </button>
