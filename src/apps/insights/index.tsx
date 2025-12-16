@@ -26,12 +26,22 @@ import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
 import { isTestnet } from '../../utils/blockchain';
 
 // Utils
-import { generateFeedEvents, generateOverallPnLSparkline, generateOpenPnLSparkline, generateClosedPnLSparkline } from './utils/signalUtils';
+import {
+  generateFeedEvents,
+  generateOverallPnLSparkline,
+  generateOpenPnLSparkline,
+  generateClosedPnLSparkline,
+} from './utils/signalUtils';
 import { updateSignalPrices } from './api/insightsApi';
 import { openExternalUrl } from '../../utils/pillarWalletMessaging';
 
 // Types
-import type { TradingSignal, TabType, LeverageType, PnLViewType } from './types';
+import type {
+  TradingSignal,
+  TabType,
+  LeverageType,
+  PnLViewType,
+} from './types';
 
 const STRIPE_CHECKOUT_URL_TESTNET =
   import.meta.env.VITE_STRIPE_CHECKOUT_URL_TESTNET ||
@@ -105,11 +115,22 @@ const App = () => {
     privyWallets.length > 0 ? privyWallets[0]?.address : undefined;
 
   const eoaAddress = useMemo(() => {
-    return storedEoaAddress || privyWalletAddress || fallbackWalletAddress || null;
+    return (
+      storedEoaAddress || privyWalletAddress || fallbackWalletAddress || null
+    );
   }, [storedEoaAddress, privyWalletAddress, fallbackWalletAddress]);
+
+  const utm = JSON.parse(localStorage.getItem('utm') || '{}');
+
+  const clientRef = JSON.stringify({
+    wallet: eoaAddress,
+    utm_source: utm.source || 'direct',
+    utm_medium: utm.medium || 'direct',
+    utm_campaign: utm.campaign || 'direct',
+  });
+
   const devicePlatform = useMemo(() => getInitialDevicePlatform(), []);
-  const isNativeApp =
-    devicePlatform === 'ios' || devicePlatform === 'android';
+  const isNativeApp = devicePlatform === 'ios' || devicePlatform === 'android';
 
   const {
     subscription,
@@ -134,7 +155,12 @@ const App = () => {
   const { signals, loading, setSignals } = useTradingSignals({
     enabled: consentGiven && hasActiveSubscription,
   });
-  const { sparklineDataMap, fetchSparkline, fetchSparklines, loading: sparklineLoading } = useSparklineData();
+  const {
+    sparklineDataMap,
+    fetchSparkline,
+    fetchSparklines,
+    loading: sparklineLoading,
+  } = useSparklineData();
   const logoMap = useLogoMap(signals);
 
   // Track initial load - only animate on first load, not on data refreshes
@@ -161,7 +187,7 @@ const App = () => {
         const consentDate = new Date(consent.timestamp);
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        
+
         if (consentDate > oneYearAgo) {
           setConsentGiven(true);
         } else {
@@ -186,25 +212,28 @@ const App = () => {
     }
 
     if (signals.length > 0 && !loading) {
-      const openSignals = signals.filter(s => s.status === 'active');
-      
+      const openSignals = signals.filter((s) => s.status === 'active');
+
       // Only fetch sparklines for signals we haven't fetched yet
-      const signalsNeedingSparklines = openSignals.filter(signal => {
+      const signalsNeedingSparklines = openSignals.filter((signal) => {
         const alreadyFetched = fetchedSparklineIdsRef.current.has(signal.id);
-        const hasData = sparklineDataMap[signal.id] && sparklineDataMap[signal.id].length > 0;
+        const hasData =
+          sparklineDataMap[signal.id] && sparklineDataMap[signal.id].length > 0;
         const isLoading = sparklineLoading[signal.id];
-        
+
         if (alreadyFetched || hasData || isLoading) {
           return false;
         }
-        
+
         // Mark as fetched to prevent duplicate requests
         fetchedSparklineIdsRef.current.add(signal.id);
         return true;
       });
-      
+
       if (signalsNeedingSparklines.length > 0) {
-        console.log(`📊 [Sparkline] Initial fetch for ${signalsNeedingSparklines.length} new signals`);
+        console.log(
+          `📊 [Sparkline] Initial fetch for ${signalsNeedingSparklines.length} new signals`
+        );
         fetchSparklines(signalsNeedingSparklines);
       }
     }
@@ -222,13 +251,22 @@ const App = () => {
   };
 
   // Filtered signals
-  const openSignals = useMemo(() => signals.filter(s => s.status === 'active'), [signals]);
+  const openSignals = useMemo(
+    () => signals.filter((s) => s.status === 'active'),
+    [signals]
+  );
   const closedSignals = useMemo(() => {
     return signals
-      .filter(s => ['completed', 'stopped', 'closed'].includes(s.status || 'active'))
+      .filter((s) =>
+        ['completed', 'stopped', 'closed'].includes(s.status || 'active')
+      )
       .sort((a, b) => {
-        const dateA = new Date(a.closed_at || a.last_price_update || a.created_at).getTime();
-        const dateB = new Date(b.closed_at || b.last_price_update || b.created_at).getTime();
+        const dateA = new Date(
+          a.closed_at || a.last_price_update || a.created_at
+        ).getTime();
+        const dateB = new Date(
+          b.closed_at || b.last_price_update || b.created_at
+        ).getTime();
         return dateB - dateA;
       });
   }, [signals]);
@@ -248,35 +286,53 @@ const App = () => {
   // PnL calculations
   const openTotalPnL = useMemo(() => {
     const value = calculateOpenPnL();
-    console.log(`💰 [PnL] openTotalPnL: ${value}% (${openSignals.length} signals)`);
+    console.log(
+      `💰 [PnL] openTotalPnL: ${value}% (${openSignals.length} signals)`
+    );
     if (openSignals.length > 0) {
-      console.log('📊 [PnL] Open signals breakdown:', openSignals.map(s => ({
-        ticker: s.ticker,
-        profit_loss_percent: s.profit_loss_percent,
-        realized_pnl_percent: s.realized_pnl_percent,
-      })));
+      console.log(
+        '📊 [PnL] Open signals breakdown:',
+        openSignals.map((s) => ({
+          ticker: s.ticker,
+          profit_loss_percent: s.profit_loss_percent,
+          realized_pnl_percent: s.realized_pnl_percent,
+        }))
+      );
     }
     return value;
   }, [openSignals]);
-  
+
   const closedTotalPnL = useMemo(() => {
     const closedPnL = calculateTotalPnL(closedSignals);
     const openRealizedPnL = calculateOpenRealizedPnL();
     const value = closedPnL + openRealizedPnL;
-    console.log(`💰 [PnL] closedTotalPnL: ${value}% (closed: ${closedPnL}%, open realized: ${openRealizedPnL}%)`);
+    console.log(
+      `💰 [PnL] closedTotalPnL: ${value}% (closed: ${closedPnL}%, open realized: ${openRealizedPnL}%)`
+    );
     return value;
   }, [closedSignals, openSignals]);
-  
+
   const floatingPnL = useMemo(() => {
     const value = openTotalPnL + closedTotalPnL;
-    console.log(`💰 [PnL] floatingPnL: ${value}% (open: ${openTotalPnL}%, closed: ${closedTotalPnL}%)`);
+    console.log(
+      `💰 [PnL] floatingPnL: ${value}% (open: ${openTotalPnL}%, closed: ${closedTotalPnL}%)`
+    );
     return value;
   }, [openTotalPnL, closedTotalPnL]);
 
   // Sparkline data
-  const overallPnLSparklineData = useMemo(() => generateOverallPnLSparkline(closedSignals), [closedSignals]);
-  const openPnLSparklineData = useMemo(() => generateOpenPnLSparkline(openSignals), [openSignals]);
-  const closedPnLSparklineData = useMemo(() => generateClosedPnLSparkline(closedSignals, openSignals), [closedSignals, openSignals]);
+  const overallPnLSparklineData = useMemo(
+    () => generateOverallPnLSparkline(closedSignals),
+    [closedSignals]
+  );
+  const openPnLSparklineData = useMemo(
+    () => generateOpenPnLSparkline(openSignals),
+    [openSignals]
+  );
+  const closedPnLSparklineData = useMemo(
+    () => generateClosedPnLSparkline(closedSignals, openSignals),
+    [closedSignals, openSignals]
+  );
 
   // Feed events
   const feedEvents = useMemo(() => generateFeedEvents(signals), [signals]);
@@ -319,7 +375,7 @@ const App = () => {
     }
 
     const checkoutUrl = `${STRIPE_CHECKOUT_URL}?client_reference_id=${encodeURIComponent(
-      eoaAddress
+      clientRef
     )}`;
 
     setIsAwaitingSubscription(true);
@@ -370,7 +426,7 @@ const App = () => {
     const interval = setInterval(() => {
       handleUpdatePrices();
       // Refresh sparklines for open signals
-      const currentOpenSignals = signals.filter(s => s.status === 'active');
+      const currentOpenSignals = signals.filter((s) => s.status === 'active');
       if (currentOpenSignals.length > 0) {
         fetchSparklines(currentOpenSignals);
       }
@@ -427,9 +483,7 @@ const App = () => {
     !isAwaitingSubscription &&
     !isSubscriptionPolling;
   const subscriptionInactive =
-    Boolean(eoaAddress) &&
-    !subscriptionLoading &&
-    !hasActiveSubscription;
+    Boolean(eoaAddress) && !subscriptionLoading && !hasActiveSubscription;
   const subscriptionStatusLabel = subscription?.status
     ? subscription.status.replace(/_/g, ' ')
     : 'No active subscription';
@@ -445,7 +499,9 @@ const App = () => {
       <>
         {consentModalElement}
         <div className="min-h-screen bg-parallax-glow flex items-center justify-center">
-          <div className="text-muted-foreground">Please accept the terms to continue...</div>
+          <div className="text-muted-foreground">
+            Please accept the terms to continue...
+          </div>
         </div>
       </>
     );
@@ -504,8 +560,8 @@ const App = () => {
               Unlock PillarX Algorithmic Insights
             </h1>
             <p className="text-muted-foreground mb-6">
-              Insights now requires an active subscription. Subscribe via
-              Stripe to continue.
+              Insights now requires an active subscription. Subscribe via Stripe
+              to continue.
             </p>
 
             <div className="space-y-2 text-sm text-muted-foreground mb-6">
@@ -526,7 +582,8 @@ const App = () => {
             </div>
 
             <p className="text-sm text-muted-foreground mb-8">
-              Every subscription starts with a 7-day free trial. You won&apos;t be charged until the trial ends, and you can cancel anytime.
+              Every subscription starts with a 7-day free trial. You won&apos;t
+              be charged until the trial ends, and you can cancel anytime.
             </p>
 
             <div className="space-y-3">
@@ -628,7 +685,9 @@ const App = () => {
 
           {/* Main Content */}
           {loading ? (
-            <div className="text-center text-muted-foreground py-12">Loading events...</div>
+            <div className="text-center text-muted-foreground py-12">
+              Loading events...
+            </div>
           ) : signals.length === 0 ? (
             <div className="text-center text-muted-foreground py-12">
               No events yet. Waiting for incoming events...
@@ -642,9 +701,9 @@ const App = () => {
                   </div>
                 ) : (
                   feedEvents.map((event) => (
-                    <FeedEventCard 
-                      key={event.id} 
-                      event={event} 
+                    <FeedEventCard
+                      key={event.id}
+                      event={event}
                       leverage={leverage}
                       animateOnMount={isInitialLoad}
                     />
@@ -656,7 +715,9 @@ const App = () => {
             <div className="space-y-4 max-w-5xl mx-auto">
               <AnimatePresence mode="popLayout">
                 {displayedSignals.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-12">No events in this category</div>
+                  <div className="text-center text-muted-foreground py-12">
+                    No events in this category
+                  </div>
                 ) : (
                   displayedSignals.map((signal) => (
                     <SignalCard
