@@ -240,7 +240,13 @@ export default function Search({
       setSearchType(undefined);
     }
     setSearching(false);
-    removeQueryParams();
+
+    // Don't call removeQueryParams if we have the 'searching' parameter
+    // This allows AppWrapper to handle navigation back to home
+    const searchingParam = query.get('searching');
+    if (searchingParam !== 'true') {
+      removeQueryParams();
+    }
   };
 
   // Click outside to close functionality

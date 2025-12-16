@@ -141,6 +141,15 @@ vi.mock('../../../../hooks/useTransactionKit', () => ({
   })),
 }));
 
+// Mock useDeployWallet hook
+vi.mock('../../../../../hooks/useDeployWallet', () => ({
+  default: () => ({
+    getWalletDeploymentCost: vi.fn().mockResolvedValue(0),
+    isWalletDeployed: vi.fn().mockResolvedValue(true),
+    getGasPrice: vi.fn().mockResolvedValue('0x123'),
+  }),
+}));
+
 describe('<CardsSwap />', () => {
   beforeEach(() => {
     vi.clearAllMocks();
