@@ -464,7 +464,15 @@ export const calculatePnLFromRelay = (
       const allTxs = [...(req.data?.inTxs || []), ...(req.data?.outTxs || [])];
 
       const { tokenChange, usdcChange, latestTimestamp, usdcChainId } = allTxs.reduce(
-        (acc, tx) => {
+        (
+          acc: {
+            tokenChange: number;
+            usdcChange: number;
+            latestTimestamp: number;
+            usdcChainId?: number;
+          },
+          tx
+        ) => {
           if (tx.timestamp) {
             // Normalize Relay tx timestamp to seconds to match other producers
             acc.latestTimestamp =
@@ -490,7 +498,12 @@ export const calculatePnLFromRelay = (
           }
           return acc;
         },
-        { tokenChange: 0, usdcChange: 0, latestTimestamp: timestamp, usdcChainId: token.chainId }
+        {
+          tokenChange: 0,
+          usdcChange: 0,
+          latestTimestamp: timestamp,
+          usdcChainId: token.chainId,
+        }
       );
 
       timestamp = latestTimestamp;
