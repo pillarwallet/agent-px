@@ -100,15 +100,37 @@ export const reconstructTrades = (
     // SELL: Token OUT (-), USDC IN (+)
 
     let side: 'BUY' | 'SELL' | null = null;
-    if (tokenChange > 0 && usdcChange < 0) side = 'BUY';
-    else if (tokenChange < 0 && usdcChange > 0) side = 'SELL';
+    if (tokenChange > 0) side = 'BUY';
+    else if (tokenChange < 0) side = 'SELL';
 
     if (!side) return; // Unsupported direction (e.g. both in or both out)
 
     const absTokenChange = Math.abs(tokenChange);
-    const absUsdcChange = Math.abs(usdcChange);
+    let absUsdcChange = Math.abs(usdcChange);
 
     if (absTokenChange === 0) return; // Dust or zero value
+
+    // FALLBACK: If we detected a valid token movement (BUY/SELL) but NO USDC movement
+    // (e.g. native BNB wrap/unwrap or missing internal tx data), try to use the token price
+    // from the transaction data to estimate the USD value.
+    if (absUsdcChange === 0 && group.length > 0) {
+      // Use the first available price from the group
+      // Mobula usually provides 'token_price' or 'asset.price' in the transaction row
+      // Check the first tx in the group data
+      const referenceTx = group[0];
+      // Note: MobulaTransactionRow type definition might differ, but assuming standard Mobula response
+      // or we check 'asset.price' if available. 
+      // Based on viewed file, we used 'group[0]?.token_price' in getRelayValidatedTrades fallback.
+      // Let's use similar logic here.
+      // Since 'tx' is not available in this scope, use 'group'
+      const price = (referenceTx as any).token_price || (referenceTx as any).asset?.price || 0;
+      if (price > 0) {
+        absUsdcChange = absTokenChange * price;
+      }
+    }
+
+    // If we still have 0 USDC value, we can't calculate PnL properly for this trade
+    if (absUsdcChange === 0) return;
 
     trades.push({
       side,
@@ -123,7 +145,16 @@ export const reconstructTrades = (
     });
   });
 
-  return trades.sort((a, b) => a.timestamp - b.timestamp);
+  return trades.sort((a, b) => {
+    const timeDiff = a.timestamp - b.timestamp;
+    if (timeDiff !== 0) return timeDiff;
+
+    // Identical timestamps: BUY before SELL
+    if (a.side === 'BUY' && b.side === 'SELL') return -1;
+    if (a.side === 'SELL' && b.side === 'BUY') return 1;
+
+    return 0;
+  });
 };
 
 export const calculatePnL = (
@@ -246,10 +277,14 @@ export const getRelayValidatedTrades = async (
   // Group by hash
   const groupedByTxHash: { [txHash: string]: MobulaTransactionRow[] } = {};
   tokenTransactions.forEach((tx) => {
-    if (!groupedByTxHash[tx.tx_hash]) {
-      groupedByTxHash[tx.tx_hash] = [];
+    // API sometimes returns 'hash' instead of 'tx_hash'
+    const hash = tx.hash || tx.tx_hash;
+    if (!hash) return; // Skip if no hash found
+
+    if (!groupedByTxHash[hash]) {
+      groupedByTxHash[hash] = [];
     }
-    groupedByTxHash[tx.tx_hash].push(tx);
+    groupedByTxHash[hash].push(tx);
   });
 
   const txHashes = Object.keys(groupedByTxHash);
@@ -381,7 +416,17 @@ export const getRelayValidatedTrades = async (
     })
     .filter((trade) => trade !== null) as ReconstructedTrade[];
 
-  return trades.sort((a, b) => a.timestamp - b.timestamp);
+  return trades.sort((a, b) => {
+    const timeDiff = a.timestamp - b.timestamp;
+    if (timeDiff !== 0) return timeDiff;
+
+    // If timestamps are identical, prioritize BUYs before SELLs
+    // to ensure we have inventory to sell (prevents skipping sells due to 0 balance)
+    if (a.side === 'BUY' && b.side === 'SELL') return -1;
+    if (a.side === 'SELL' && b.side === 'BUY') return 1;
+
+    return 0;
+  });
 };
 
 /**
@@ -418,7 +463,7 @@ export const calculatePnLFromRelay = (
       const userAddress = req.user?.toLowerCase();
       const allTxs = [...(req.data?.inTxs || []), ...(req.data?.outTxs || [])];
 
-      const { tokenChange, usdcChange, latestTimestamp } = allTxs.reduce(
+      const { tokenChange, usdcChange, latestTimestamp, usdcChainId } = allTxs.reduce(
         (acc, tx) => {
           if (tx.timestamp) {
             // Normalize Relay tx timestamp to seconds to match other producers
@@ -437,13 +482,15 @@ export const calculatePnLFromRelay = (
                   acc.tokenChange += balanceDiff;
                 } else if (tokenAddr && USDC_ADDRESSES.includes(tokenAddr)) {
                   acc.usdcChange += balanceDiff;
+                  // Capture chainId where USDC actually moved
+                  if (tx.chainId) acc.usdcChainId = tx.chainId;
                 }
               }
             });
           }
           return acc;
         },
-        { tokenChange: 0, usdcChange: 0, latestTimestamp: timestamp }
+        { tokenChange: 0, usdcChange: 0, latestTimestamp: timestamp, usdcChainId: token.chainId }
       );
 
       timestamp = latestTimestamp;
@@ -451,7 +498,8 @@ export const calculatePnLFromRelay = (
       // If state changes show token movement, use that
       if (tokenChange !== 0) {
         const tokenDivisor = 10 ** token.decimals;
-        const usdcDecimals = getUSDCDecimalsByChainId(token.chainId);
+        // Use the chain ID from the USDC transaction, defaulting to token chain if not found
+        const usdcDecimals = getUSDCDecimalsByChainId(usdcChainId || token.chainId);
         const usdcDivisor = 10 ** usdcDecimals;
 
         const tokenAmountRaw = Math.abs(tokenChange) / tokenDivisor;
@@ -460,11 +508,27 @@ export const calculatePnLFromRelay = (
         if (tokenChange > 0) {
           side = 'BUY';
           amountToken = tokenAmountRaw;
-          amountUSDC = usdcAmountRaw;
+          // Try to get USDC amount from state changes first
+          if (usdcAmountRaw > 0) {
+            amountUSDC = usdcAmountRaw;
+          } else if (metadata?.currencyIn?.amountUsd) {
+            // Fallback: If we detected token BUY via state changes but no USDC state change,
+            // check metadata for the inbound currency's USD value (which is what we spent).
+            // Actually for BUY: We receive Token (Out), we spend CurrencyIn.
+            // So we check currencyIn.amountUsd.
+            amountUSDC = parseFloat(metadata.currencyIn.amountUsd);
+          }
         } else {
           side = 'SELL';
           amountToken = tokenAmountRaw;
-          amountUSDC = usdcAmountRaw;
+          // Try to get USDC amount from state changes first
+          if (usdcAmountRaw > 0) {
+            amountUSDC = usdcAmountRaw;
+          } else if (metadata?.currencyOut?.amountUsd) {
+            // Fallback: If we detected token SELL via state changes but no USDC state change,
+            // check metadata for the outbound currency's USD value (which is what we received).
+            amountUSDC = parseFloat(metadata.currencyOut.amountUsd);
+          }
         }
       }
       // Fallback to metadata if no state changes found
@@ -479,26 +543,19 @@ export const calculatePnLFromRelay = (
         if (isBuy) {
           side = 'BUY';
           amountToken = parseFloat(currencyOut.amountFormatted || '0');
-          const inSymbol = currencyIn.currency?.symbol?.toUpperCase();
-          if (
-            inAddress &&
-            (USDC_ADDRESSES.includes(inAddress) || inSymbol === 'USDC')
-          ) {
+          amountUSDC = parseFloat(currencyIn.amountUsd || '0');
+          if (amountUSDC === 0 && (inAddress &&
+            (USDC_ADDRESSES.includes(inAddress) || currencyIn.currency?.symbol?.toUpperCase() === 'USDC'))) {
             amountUSDC = parseFloat(currencyIn.amountFormatted || '0');
-          } else {
-            amountUSDC = parseFloat(currencyIn.amountUsd || '0');
           }
+
         } else if (isSell) {
           side = 'SELL';
           amountToken = parseFloat(currencyIn.amountFormatted || '0');
-          const outSymbol = currencyOut.currency?.symbol?.toUpperCase();
-          if (
-            outAddress &&
-            (USDC_ADDRESSES.includes(outAddress) || outSymbol === 'USDC')
-          ) {
+          amountUSDC = parseFloat(currencyOut.amountUsd || '0');
+          if (amountUSDC === 0 && (outAddress &&
+            (USDC_ADDRESSES.includes(outAddress) || currencyOut.currency?.symbol?.toUpperCase() === 'USDC'))) {
             amountUSDC = parseFloat(currencyOut.amountFormatted || '0');
-          } else {
-            amountUSDC = parseFloat(currencyOut.amountUsd || '0');
           }
         }
       } else {
@@ -558,5 +615,14 @@ export const calculatePnLFromRelay = (
     })
     .filter((trade) => trade !== null) as ReconstructedTrade[];
 
-  return trades.sort((a, b) => a.timestamp - b.timestamp);
+  return trades.sort((a, b) => {
+    const timeDiff = a.timestamp - b.timestamp;
+    if (timeDiff !== 0) return timeDiff;
+
+    // Identical timestamps: BUY before SELL
+    if (a.side === 'BUY' && b.side === 'SELL') return -1;
+    if (a.side === 'SELL' && b.side === 'BUY') return 1;
+
+    return 0;
+  });
 };
