@@ -138,10 +138,9 @@ export const reconstructTrades = (
       // Based on viewed file, we used 'group[0]?.token_price' in getRelayValidatedTrades fallback.
       // Let's use similar logic here.
       // Since 'tx' is not available in this scope, use 'group'
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const price =
-        (referenceTx as any).token_price ||
-        (referenceTx as any).asset?.price ||
+        referenceTx.token_price ||
+        (referenceTx.asset as { price?: number }).price ||
         0;
       if (price > 0) {
         absUsdcChange = absTokenChange * price;
