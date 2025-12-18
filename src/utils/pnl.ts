@@ -36,12 +36,28 @@ export const reconstructTrades = (
   const trades: ReconstructedTrade[] = [];
   const groupedByTxHash: { [txHash: string]: MobulaTransactionRow[] } = {};
 
+  // Deduplicate transactions by hash + amount + symbol to prevent counting same data twice
+  const uniqueTransactions = transactions.filter(
+    (tx, index, self) =>
+      index ===
+      self.findIndex(
+        (t) =>
+          (t.tx_hash || t.hash) === (tx.tx_hash || tx.hash) &&
+          t.from === tx.from &&
+          t.to === tx.to &&
+          t.amount === tx.amount &&
+          t.asset.symbol === tx.asset.symbol
+      )
+  );
+
   // Group by txHash
-  transactions.forEach((tx) => {
-    if (!groupedByTxHash[tx.tx_hash]) {
-      groupedByTxHash[tx.tx_hash] = [];
+  uniqueTransactions.forEach((tx) => {
+    const hash = tx.tx_hash || tx.hash;
+    if (!hash) return;
+    if (!groupedByTxHash[hash]) {
+      groupedByTxHash[hash] = [];
     }
-    groupedByTxHash[tx.tx_hash].push(tx);
+    groupedByTxHash[hash].push(tx);
   });
 
   // Process each group
@@ -93,7 +109,6 @@ export const reconstructTrades = (
     });
 
     if (tokenSymbol === 'INVALID' || !tokenSymbol) return; // Ignore multi-token or no-token txs
-    if (usdcChange === 0) return; // No USDC leg, unsupported for this PnL logic
 
     // Determine direction
     // BUY: Token IN (+), USDC OUT (-)
@@ -119,17 +134,21 @@ export const reconstructTrades = (
       // Check the first tx in the group data
       const referenceTx = group[0];
       // Note: MobulaTransactionRow type definition might differ, but assuming standard Mobula response
-      // or we check 'asset.price' if available. 
+      // or we check 'asset.price' if available.
       // Based on viewed file, we used 'group[0]?.token_price' in getRelayValidatedTrades fallback.
       // Let's use similar logic here.
       // Since 'tx' is not available in this scope, use 'group'
-      const price = (referenceTx as any).token_price || (referenceTx as any).asset?.price || 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const price =
+        (referenceTx as any).token_price ||
+        (referenceTx as any).asset?.price ||
+        0;
       if (price > 0) {
         absUsdcChange = absTokenChange * price;
       }
     }
 
-    // If we still have 0 USDC value, we can't calculate PnL properly for this trade
+    // If we still have 0 USDC value after fallback, we can't calculate PnL properly for this trade
     if (absUsdcChange === 0) return;
 
     trades.push({
@@ -447,7 +466,15 @@ export const calculatePnLFromRelay = (
 
   // Known USDC addresses for matching quote currency
 
-  const trades = relayRequests
+  // Deduplicate relay requests by id to prevent double-counting
+  const seenRequestIds = new Set<string>();
+  const uniqueRelayRequests = relayRequests.filter((req) => {
+    if (seenRequestIds.has(req.id)) return false;
+    seenRequestIds.add(req.id);
+    return true;
+  });
+
+  const trades = uniqueRelayRequests
     .map((req) => {
       let amountToken = 0;
       let amountUSDC = 0;
@@ -463,48 +490,70 @@ export const calculatePnLFromRelay = (
       const userAddress = req.user?.toLowerCase();
       const allTxs = [...(req.data?.inTxs || []), ...(req.data?.outTxs || [])];
 
-      const { tokenChange, usdcChange, latestTimestamp, usdcChainId } = allTxs.reduce(
-        (
-          acc: {
-            tokenChange: number;
-            usdcChange: number;
-            latestTimestamp: number;
-            usdcChainId?: number;
-          },
-          tx
-        ) => {
-          if (tx.timestamp) {
-            // Normalize Relay tx timestamp to seconds to match other producers
-            acc.latestTimestamp =
-              tx.timestamp > 1e12
-                ? Math.floor(tx.timestamp / 1000)
-                : tx.timestamp;
-          }
-          if (tx.stateChanges) {
-            tx.stateChanges.forEach((sc) => {
-              if (sc.address?.toLowerCase() === userAddress) {
-                const tokenAddr = sc.change?.data?.tokenAddress?.toLowerCase();
-                const balanceDiff = parseFloat(sc.change?.balanceDiff || '0');
+      const { tokenChange, usdcChange, latestTimestamp, usdcChainId } =
+        allTxs.reduce(
+          (
+            acc: {
+              tokenChange: number;
+              usdcChange: number;
+              latestTimestamp: number;
+              usdcChainId?: number;
+            },
+            tx
+          ) => {
+            if (tx.timestamp) {
+              // Normalize Relay tx timestamp to seconds to match other producers
+              acc.latestTimestamp =
+                tx.timestamp > 1e12
+                  ? Math.floor(tx.timestamp / 1000)
+                  : tx.timestamp;
+            }
+            if (tx.stateChanges) {
+              tx.stateChanges.forEach((sc) => {
+                if (sc.address?.toLowerCase() === userAddress) {
+                  const tokenAddr =
+                    sc.change?.data?.tokenAddress?.toLowerCase();
+                  const balanceDiff = parseFloat(sc.change?.balanceDiff || '0');
 
-                if (tokenAddr === tokenContract) {
-                  acc.tokenChange += balanceDiff;
-                } else if (tokenAddr && USDC_ADDRESSES.includes(tokenAddr)) {
-                  acc.usdcChange += balanceDiff;
-                  // Capture chainId where USDC actually moved
-                  if (tx.chainId) acc.usdcChainId = tx.chainId;
+                  if (tokenAddr === tokenContract) {
+                    acc.tokenChange += balanceDiff;
+                  } else if (
+                    (tokenAddr && USDC_ADDRESSES.includes(tokenAddr)) ||
+                    sc.change?.data?.symbol?.toUpperCase() === 'USDC' // Robust check by symbol
+                  ) {
+                    acc.usdcChange += balanceDiff;
+                    // Capture chainId where USDC actually moved
+                    if (tx.chainId) acc.usdcChainId = tx.chainId;
+                  }
                 }
-              }
-            });
+              });
+            }
+            return acc;
+          },
+          {
+            tokenChange: 0,
+            usdcChange: 0,
+            latestTimestamp: timestamp,
+            usdcChainId: undefined, // Start with undefined to detect real USDC moves
           }
-          return acc;
-        },
-        {
-          tokenChange: 0,
-          usdcChange: 0,
-          latestTimestamp: timestamp,
-          usdcChainId: token.chainId,
+        );
+
+      // If we didn't find a USDC chain ID in state changes, try to get it from metadata
+      let finalUsdcChainId = usdcChainId;
+      if (!finalUsdcChainId) {
+        if (metadata?.currencyIn?.currency?.symbol?.toUpperCase() === 'USDC') {
+          // If we're buying, currencyIn is what we spent (USDC)
+          finalUsdcChainId = req.in?.chainId;
+        } else if (
+          metadata?.currencyOut?.currency?.symbol?.toUpperCase() === 'USDC'
+        ) {
+          // If we're selling, currencyOut is what we received (USDC)
+          finalUsdcChainId = req.out?.chainId;
         }
-      );
+      }
+
+      // Final fallback to token chain ID
+      finalUsdcChainId = finalUsdcChainId || token.chainId;
 
       timestamp = latestTimestamp;
 
@@ -512,7 +561,7 @@ export const calculatePnLFromRelay = (
       if (tokenChange !== 0) {
         const tokenDivisor = 10 ** token.decimals;
         // Use the chain ID from the USDC transaction, defaulting to token chain if not found
-        const usdcDecimals = getUSDCDecimalsByChainId(usdcChainId || token.chainId);
+        const usdcDecimals = getUSDCDecimalsByChainId(finalUsdcChainId);
         const usdcDivisor = 10 ** usdcDecimals;
 
         const tokenAmountRaw = Math.abs(tokenChange) / tokenDivisor;
@@ -557,17 +606,24 @@ export const calculatePnLFromRelay = (
           side = 'BUY';
           amountToken = parseFloat(currencyOut.amountFormatted || '0');
           amountUSDC = parseFloat(currencyIn.amountUsd || '0');
-          if (amountUSDC === 0 && (inAddress &&
-            (USDC_ADDRESSES.includes(inAddress) || currencyIn.currency?.symbol?.toUpperCase() === 'USDC'))) {
+          if (
+            amountUSDC === 0 &&
+            inAddress &&
+            (USDC_ADDRESSES.includes(inAddress) ||
+              currencyIn.currency?.symbol?.toUpperCase() === 'USDC')
+          ) {
             amountUSDC = parseFloat(currencyIn.amountFormatted || '0');
           }
-
         } else if (isSell) {
           side = 'SELL';
           amountToken = parseFloat(currencyIn.amountFormatted || '0');
           amountUSDC = parseFloat(currencyOut.amountUsd || '0');
-          if (amountUSDC === 0 && (outAddress &&
-            (USDC_ADDRESSES.includes(outAddress) || currencyOut.currency?.symbol?.toUpperCase() === 'USDC'))) {
+          if (
+            amountUSDC === 0 &&
+            outAddress &&
+            (USDC_ADDRESSES.includes(outAddress) ||
+              currencyOut.currency?.symbol?.toUpperCase() === 'USDC')
+          ) {
             amountUSDC = parseFloat(currencyOut.amountFormatted || '0');
           }
         }
