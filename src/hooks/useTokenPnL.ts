@@ -36,7 +36,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const [result, setResult] = useState<TokenPnLResult>({
     pnl: null,
     isLoading: false,
-    refetch: () => {},
+    refetch: () => { },
     debug: {
       mobulaTxCount: 0,
       relayRequestCount: 0,
@@ -93,6 +93,19 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
           relayResponseCount: 0,
           status: 'No Token',
         },
+      }));
+      return undefined;
+    }
+
+    // NEW: Skip PnL calculation for small balances (< $0.50)
+    // This avoids "Suspiciously high execution price" warnings for dust
+    const balanceUSD = (tokenPrice || 0) * (tokenBalance || 0);
+    if (balanceUSD < 0.5) {
+      setResult((prev) => ({
+        ...prev,
+        pnl: null,
+        isLoading: false,
+        debug: { ...prev.debug, status: 'Skipped - Small Balance' },
       }));
       return undefined;
     }
