@@ -136,15 +136,15 @@ exports[`<AppWrapper /> > renders correctly and matches snapshot 1`] = `
               type="button"
             >
               <div
-                className="flex items-center justify-center w-[157px] h-[36px] bg-[#1E1D24] rounded-[6px]"
+                className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px]"
               >
                 <div
-                  className="flex font-normal text-sm text-white/50"
+                  className="absolute left-[12px] top-[12px] font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white"
                 >
                   Select token
                 </div>
                 <div
-                  className="absolute right-[12px]"
+                  className="absolute right-[12px] top-[15px]"
                 >
                   <img
                     alt="arrow-down"

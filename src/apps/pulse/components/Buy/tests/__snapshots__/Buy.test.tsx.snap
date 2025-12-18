@@ -17,7 +17,7 @@ exports[`<Buy /> > renders correctly and matches snapshot 1`] = `
         type="button"
       >
         <div
-          className="relative w-[157px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
+          className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
           data-testid="pulse-buy-token-selected-1-Test Token"
         >
           <div

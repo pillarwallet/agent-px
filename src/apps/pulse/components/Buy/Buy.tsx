@@ -200,17 +200,17 @@ export default function Buy(props: BuyProps) {
   } = useTokenPnL(
     token && accountAddress && portfolioToken
       ? {
-        token: {
-          contract: token.address || '',
-          symbol: token.symbol,
-          decimals: token.decimals || 18,
-          balance: portfolioToken.balance || 0,
-          price: portfolioToken.price || 0,
-        },
-        transactionsData,
-        walletAddress: accountAddress,
-        chainId: token.chainId,
-      }
+          token: {
+            contract: token.address || '',
+            symbol: token.symbol,
+            decimals: token.decimals || 18,
+            balance: portfolioToken.balance || 0,
+            price: portfolioToken.price || 0,
+          },
+          transactionsData,
+          walletAddress: accountAddress,
+          chainId: token.chainId,
+        }
       : null
   );
 
@@ -245,7 +245,7 @@ export default function Buy(props: BuyProps) {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-        maxStableCoinBalance.chainId && isNativeToken(t.contract)
+          maxStableCoinBalance.chainId && isNativeToken(t.contract)
     );
 
     if (!nativeToken) {
@@ -642,7 +642,7 @@ export default function Buy(props: BuyProps) {
           >
             {token ? (
               <div
-                className="relative w-[157px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
+                className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
                 data-testid={`pulse-buy-token-selected-${token.chainId}-${token.name}`}
               >
                 {/* Logo */}
@@ -688,18 +688,20 @@ export default function Buy(props: BuyProps) {
                     {/* Triangle Indicator */}
                     {token.dailyPriceChange !== 0 && (
                       <div
-                        className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent ${token.dailyPriceChange >= 0
-                          ? 'border-b-[6px] border-b-[#5CFF93]'
-                          : 'border-t-[6px] border-t-[#FF366C]'
-                          } opacity-50`}
+                        className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent ${
+                          token.dailyPriceChange >= 0
+                            ? 'border-b-[6px] border-b-[#5CFF93]'
+                            : 'border-t-[6px] border-t-[#FF366C]'
+                        } opacity-50`}
                       />
                     )}
 
                     <p
-                      className={`font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${token.dailyPriceChange >= 0
-                        ? 'text-[#5CFF93]'
-                        : 'text-[#FF366C]'
-                        }`}
+                      className={`font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
+                        token.dailyPriceChange >= 0
+                          ? 'text-[#5CFF93]'
+                          : 'text-[#FF366C]'
+                      }`}
                     >
                       {Math.abs(token.dailyPriceChange).toFixed(1)}%
                     </p>
@@ -716,21 +718,21 @@ export default function Buy(props: BuyProps) {
                 </div>
               </div>
             ) : (
-              <div className="relative flex items-center justify-center w-[157px] h-[36px] bg-[#1E1D24] rounded-[6px]">
+              <div className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px]">
                 {isSearchingToken ? (
-                  <div className="flex items-center">
+                  <div className="flex items-center absolute left-[12px] top-[10px]">
                     <TailSpin width={16} height={16} />
-                    <div className="ml-2 font-normal text-sm text-white/50">
+                    <div className="ml-2 font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-50">
                       Searching...
                     </div>
                   </div>
                 ) : (
-                  <div className="flex font-normal text-sm text-white/50">
+                  <div className="absolute left-[12px] top-[12px] font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white">
                     Select token
                   </div>
                 )}
                 {/* Chevron */}
-                <div className="absolute right-[12px]">
+                <div className="absolute right-[12px] top-[15px]">
                   <img
                     src={ArrowDown}
                     className="w-[12px] h-[6px] opacity-50"
@@ -850,10 +852,11 @@ export default function Buy(props: BuyProps) {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
-                  ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
-                  : 'bg-[#121116] text-white cursor-pointer'
-                  }`}
+                className={`flex-1 items-center justify-center rounded-[10px] ${
+                  isDisabled
+                    ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
+                    : 'bg-[#121116] text-white cursor-pointer'
+                }`}
                 onClick={() => {
                   if (!isDisabled) {
                     if (isMax) {
