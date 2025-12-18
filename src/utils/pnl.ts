@@ -138,10 +138,7 @@ export const reconstructTrades = (
       // Based on viewed file, we used 'group[0]?.token_price' in getRelayValidatedTrades fallback.
       // Let's use similar logic here.
       // Since 'tx' is not available in this scope, use 'group'
-      const price =
-        referenceTx.token_price ||
-        (referenceTx.asset as { price?: number }).price ||
-        0;
+      const price = referenceTx.token_price || 0;
       if (price > 0) {
         absUsdcChange = absTokenChange * price;
       }
