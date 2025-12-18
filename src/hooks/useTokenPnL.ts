@@ -36,7 +36,7 @@ export const useTokenPnL = (props: UseTokenPnLProps | null): TokenPnLResult => {
   const [result, setResult] = useState<TokenPnLResult>({
     pnl: null,
     isLoading: false,
-    refetch: () => { },
+    refetch: () => {},
     debug: {
       mobulaTxCount: 0,
       relayRequestCount: 0,
