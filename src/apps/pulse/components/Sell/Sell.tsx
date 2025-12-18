@@ -330,13 +330,13 @@ const Sell = (props: SellProps) => {
                 {/* Top Row: Symbol and Name */}
                 <div className="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]">
                   <p
-                    className="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
+                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
                     data-testid="pulse-sell-token-selector-symbol"
                   >
                     {token.symbol}
                   </p>
                   <p
-                    className="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
+                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
                     data-testid="pulse-sell-token-selector-name"
                   >
                     {token.name}
@@ -346,7 +346,7 @@ const Sell = (props: SellProps) => {
                 {/* Bottom Row: Price and Change */}
                 <div className="absolute left-[36px] top-[20px] flex items-center gap-[6px]">
                   <p
-                    className="font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
+                    className="font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
                     data-testid="pulse-sell-token-selector-price"
                   >
                     ${formatExponentialSmallNumber(token.usdValue)}
@@ -365,7 +365,7 @@ const Sell = (props: SellProps) => {
                     )}
 
                     <p
-                      className={`font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
+                      className={`font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
                         token.dailyPriceChange >= 0
                           ? 'text-[#5CFF93]'
                           : 'text-[#FF366C]'
@@ -388,7 +388,7 @@ const Sell = (props: SellProps) => {
             ) : (
               <div className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px]">
                 <div
-                  className="absolute left-[12px] top-[12px] font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white"
+                  className="absolute left-[12px] top-[12px] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white"
                   data-testid="pulse-sell-token-selector-placeholder"
                 >
                   Select token

@@ -670,17 +670,17 @@ export default function Buy(props: BuyProps) {
 
                 {/* Top Row: Symbol and Name */}
                 <div className="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]">
-                  <p className="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]">
+                  <p className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]">
                     {token.symbol}
                   </p>
-                  <p className="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block">
+                  <p className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block">
                     {token.name}
                   </p>
                 </div>
 
                 {/* Bottom Row: Price and Change */}
                 <div className="absolute left-[36px] top-[20px] flex items-center gap-[6px]">
-                  <p className="font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50">
+                  <p className="font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50">
                     ${token.usdValue}
                   </p>
 
@@ -697,7 +697,7 @@ export default function Buy(props: BuyProps) {
                     )}
 
                     <p
-                      className={`font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
+                      className={`font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
                         token.dailyPriceChange >= 0
                           ? 'text-[#5CFF93]'
                           : 'text-[#FF366C]'
@@ -722,12 +722,12 @@ export default function Buy(props: BuyProps) {
                 {isSearchingToken ? (
                   <div className="flex items-center absolute left-[12px] top-[10px]">
                     <TailSpin width={16} height={16} />
-                    <div className="ml-2 font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-50">
+                    <div className="ml-2 font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-50">
                       Searching...
                     </div>
                   </div>
                 ) : (
-                  <div className="absolute left-[12px] top-[12px] font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white">
+                  <div className="absolute left-[12px] top-[12px] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white">
                     Select token
                   </div>
                 )}

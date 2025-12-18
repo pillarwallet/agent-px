@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import renderer from 'react-test-renderer';
 import { vi } from 'vitest';
 
 // store
@@ -166,6 +167,20 @@ describe('<CardsSwap />', () => {
     store.dispatch(setSearchTokenResult([]));
     store.dispatch(setUsdPriceSwapToken(0.1));
     store.dispatch(setUsdPriceReceiveToken(100));
+  });
+
+  describe('Rendering and Snapshot', () => {
+    it('renders correctly and matches snapshot', () => {
+      const tree = renderer
+        .create(
+          <ExchangeTestWrapper>
+            <CardsSwap />
+          </ExchangeTestWrapper>
+        )
+        .toJSON();
+
+      expect(tree).toMatchSnapshot();
+    });
   });
 
   describe('Default State Rendering', () => {

@@ -39,13 +39,13 @@ exports[`<Sell /> > renders correctly and matches snapshot 1`] = `
               class="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]"
             >
               <p
-                class="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
+                class="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
                 data-testid="pulse-sell-token-selector-symbol"
               >
                 TEST
               </p>
               <p
-                class="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
+                class="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
                 data-testid="pulse-sell-token-selector-name"
               >
                 Test Token
@@ -55,7 +55,7 @@ exports[`<Sell /> > renders correctly and matches snapshot 1`] = `
               class="absolute left-[36px] top-[20px] flex items-center gap-[6px]"
             >
               <p
-                class="font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
+                class="font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
                 data-testid="pulse-sell-token-selector-price"
               >
                 $
@@ -68,7 +68,7 @@ exports[`<Sell /> > renders correctly and matches snapshot 1`] = `
                   class="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[6px] border-b-[#5CFF93] opacity-50"
                 />
                 <p
-                  class="font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 text-[#5CFF93]"
+                  class="font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 text-[#5CFF93]"
                 >
                   0.1
                   %
