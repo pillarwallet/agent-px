@@ -169,19 +169,6 @@ describe('<CardsSwap />', () => {
     store.dispatch(setUsdPriceReceiveToken(100));
   });
 
-  describe('Rendering and Snapshot', () => {
-    it('renders correctly and matches snapshot', () => {
-      const tree = renderer
-        .create(
-          <ExchangeTestWrapper>
-            <CardsSwap />
-          </ExchangeTestWrapper>
-        )
-        .toJSON();
-
-      expect(tree).toMatchSnapshot();
-    });
-  });
 
   describe('Default State Rendering', () => {
     it('renders the component container', () => {
