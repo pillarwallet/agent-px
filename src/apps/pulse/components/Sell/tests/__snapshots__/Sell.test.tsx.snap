@@ -70,7 +70,7 @@ exports[`<Sell /> > renders correctly and matches snapshot 1`] = `
                 <p
                   class="font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 text-[#5CFF93]"
                 >
-                  0.1
+                  0.05
                   %
                 </p>
               </div>

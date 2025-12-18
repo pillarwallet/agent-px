@@ -703,7 +703,7 @@ export default function Buy(props: BuyProps) {
                           : 'text-[#FF366C]'
                       }`}
                     >
-                      {Math.abs(token.dailyPriceChange).toFixed(1)}%
+                      {Math.abs(token.dailyPriceChange).toFixed(2)}%
                     </p>
                   </div>
                 </div>
