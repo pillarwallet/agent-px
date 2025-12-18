@@ -1,13 +1,7 @@
 import { Dispatch, SetStateAction, useState, useEffect } from 'react';
 import { TailSpin } from 'react-loader-spinner';
 import { BigNumber, utils } from 'ethers';
-import {
-  Address,
-  encodeFunctionData,
-  erc20Abi,
-  parseUnits,
-  formatUnits,
-} from 'viem';
+import { Address, encodeFunctionData, erc20Abi, parseUnits } from 'viem';
 
 // assets
 import BackArrow from '../../assets/back-arrow.svg';
@@ -42,6 +36,22 @@ import {
 // utils
 import { calculateTopUpGasCost } from '../../utils/gasCalculation';
 
+interface FeeAsset {
+  decimals: number;
+  balance: number;
+  tokenPrice?: string;
+  asset: {
+    symbol: string;
+    contract: string;
+    name: string;
+    decimals: number;
+    balance: number;
+    price?: number;
+  };
+  paymasterAddress?: string;
+  [key: string]: unknown;
+}
+
 interface TopUpScreenProps {
   onBack: () => void;
   initialBalance: number;
@@ -74,7 +84,9 @@ export default function TopUpScreen(props: TopUpScreenProps) {
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isGaslessSupported, setIsGaslessSupported] = useState<boolean>(false);
-  const [selectedFeeAsset, setSelectedFeeAsset] = useState<any>(null);
+  const [selectedFeeAsset, setSelectedFeeAsset] = useState<FeeAsset | null>(
+    null
+  );
   const [gasPrice, setGasPrice] = useState<string>('');
   const [estimatedGasCostInToken, setEstimatedGasCostInToken] =
     useState<string>('');
@@ -358,7 +370,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
 
     try {
       const estimatedCost = Number(
-        utils.formatEther(BigNumber.from(gasCost).mul(gasPrice))
+        utils.formatEther(BigNumber.from(gasCost).mul(BigNumber.from(gasPrice)))
       );
 
       // Get native price in USD
@@ -380,7 +392,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         setEstimatedGasCostInToken(estimatedCostInTokenFixed);
 
         // Check if user has enough balance
-        const userBalance = parseFloat(selectedFeeAsset.balance || '0');
+        const userBalance = selectedFeeAsset.balance ?? 0;
         if (userBalance < estimatedCostInToken) {
           setError(
             `Insufficient ${selectedFeeAsset.asset.symbol} balance for gas fees. ` +
@@ -396,16 +408,16 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         // The approval will be the first transaction in the batch (before swap/deposit)
         // Even if user has existing allowance, re-approving ensures we have enough for gas fees
         try {
-          const requiredAmount = parseUnits(estimatedCostInTokenFixed, selectedFeeAsset.decimals);
+          const requiredAmount = parseUnits(
+            estimatedCostInTokenFixed,
+            selectedFeeAsset.decimals
+          );
 
           setApproveData(
             encodeFunctionData({
               abi: erc20Abi,
               functionName: 'approve',
-              args: [
-                selectedPaymasterAddress as Address,
-                requiredAmount,
-              ],
+              args: [selectedPaymasterAddress as Address, requiredAmount],
             })
           );
         } catch (approvalErr) {
@@ -445,6 +457,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
 
     // Generate approval data and calculate cost in token
     generateApprovalData(totalGasCost).catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGaslessSupported, selectedFeeAsset, gasPrice, selectedToken]);
 
   // eslint-disable-next-line @typescript-eslint/no-use-before-define

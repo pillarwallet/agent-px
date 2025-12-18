@@ -60,6 +60,22 @@ type UserOpStatus =
   | 'Failed'
   | 'Reverted';
 
+interface FeeAsset {
+  decimals: number;
+  balance: number;
+  tokenPrice?: string;
+  asset: {
+    symbol: string;
+    contract: string;
+    name: string;
+    decimals: number;
+    balance: number;
+    price?: number;
+  };
+  paymasterAddress?: string;
+  [key: string]: unknown;
+}
+
 interface PreviewTopUpProps {
   onBack: () => void;
   selectedToken: SelectedToken | null;
@@ -73,7 +89,7 @@ interface PreviewTopUpProps {
   markOnboardingComplete: () => void;
   // Gasless transaction support
   isGaslessSupported?: boolean;
-  selectedFeeAsset?: any;
+  selectedFeeAsset?: FeeAsset | null;
   approveData?: string;
   paymasterAddress?: string;
   estimatedGasCostInToken?: string;
@@ -673,6 +689,31 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     );
   }
 
+  // Determine gas fee content based on payment method
+  const showGaslessGasPrice =
+    isGaslessSupported && selectedFeeAsset && estimatedGasCostInToken;
+
+  const nativeGasFeeDisplay =
+    gasCostNative && nativeTokenSymbol
+      ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
+      : '≈ 0.00';
+
+  // eslint-disable-next-line no-nested-ternary
+  const gasFeeContent = isEstimatingGas ? (
+    <div className="flex items-center">
+      <TailSpin color="#FFFFFF" height={12} width={12} />
+    </div>
+  ) : showGaslessGasPrice ? (
+    <span className="text-white text-[13px] tracking-tight">
+      ≈ {truncateDecimals(estimatedGasCostInToken, 6)}{' '}
+      {selectedFeeAsset.asset.symbol}
+    </span>
+  ) : (
+    <span className="text-white text-[13px] tracking-tight">
+      {nativeGasFeeDisplay}
+    </span>
+  );
+
   return (
     <div className="w-full max-w-[358px] mx-auto">
       <div className="w-full flex flex-col bg-[#1E1D24] rounded-2xl p-0 relative">
@@ -749,24 +790,7 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
           <span className="text-white opacity-50 text-[13px] tracking-tight">
             Gas fee:
           </span>
-          {isEstimatingGas ? (
-            <div className="flex items-center">
-              <TailSpin color="#FFFFFF" height={12} width={12} />
-            </div>
-          ) : isGaslessSupported &&
-            selectedFeeAsset &&
-            estimatedGasCostInToken ? (
-            <span className="text-white text-[13px] tracking-tight">
-              ≈ {truncateDecimals(estimatedGasCostInToken, 6)}{' '}
-              {selectedFeeAsset.asset.symbol}
-            </span>
-          ) : (
-            <span className="text-white text-[13px] tracking-tight">
-              {gasCostNative && nativeTokenSymbol
-                ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-                : '≈ 0.00'}
-            </span>
-          )}
+          {gasFeeContent}
         </div>
 
         {/* Setup Error Display (Module Installation / EIP-7702 Upgrade) */}

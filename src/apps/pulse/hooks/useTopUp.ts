@@ -18,6 +18,22 @@ interface Transactions {
   target: string;
 }
 
+interface FeeAsset {
+  decimals: number;
+  balance: number;
+  tokenPrice?: string;
+  asset: {
+    symbol: string;
+    contract: string;
+    name: string;
+    decimals: number;
+    balance: number;
+    price?: number;
+  };
+  paymasterAddress?: string;
+  [key: string]: unknown;
+}
+
 export interface TopUpParams {
   selectedToken: SelectedToken;
   amount: string; // USD amount
@@ -27,7 +43,7 @@ export interface TopUpParams {
   additionalTransactions?: Transactions[];
   // Gasless transaction support
   isGaslessSupported?: boolean;
-  selectedFeeAsset?: any;
+  selectedFeeAsset?: FeeAsset | null;
   approveData?: string;
   paymasterAddress?: string;
 }
