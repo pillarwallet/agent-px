@@ -1,5 +1,4 @@
 import { render, screen, within } from '@testing-library/react';
-import renderer from 'react-test-renderer';
 import { vi } from 'vitest';
 
 // store
@@ -168,7 +167,6 @@ describe('<CardsSwap />', () => {
     store.dispatch(setUsdPriceSwapToken(0.1));
     store.dispatch(setUsdPriceReceiveToken(100));
   });
-
 
   describe('Default State Rendering', () => {
     it('renders the component container', () => {
