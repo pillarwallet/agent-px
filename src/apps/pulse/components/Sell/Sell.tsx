@@ -301,7 +301,7 @@ const Sell = (props: SellProps) => {
           >
             {token ? (
               <div
-                className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
+                className="relative w-[157px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
                 data-testid={`pulse-sell-token-selected-${token.chainId}-${token.name}`}
               >
                 {/* Logo */}
@@ -328,13 +328,50 @@ const Sell = (props: SellProps) => {
                 </div>
 
                 {/* Top Row: Symbol and Name */}
-                <div className="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[50px]">
+                <div className="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]">
                   <p
-                    className="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[40px]"
+                    className="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
                     data-testid="pulse-sell-token-selector-symbol"
                   >
                     {token.symbol}
                   </p>
+                  <p
+                    className="font-['Poppins'] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
+                    data-testid="pulse-sell-token-selector-name"
+                  >
+                    {token.name}
+                  </p>
+                </div>
+
+                {/* Bottom Row: Price and Change */}
+                <div className="absolute left-[36px] top-[20px] flex items-center gap-[6px]">
+                  <p
+                    className="font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
+                    data-testid="pulse-sell-token-selector-price"
+                  >
+                    ${formatExponentialSmallNumber(token.usdValue)}
+                  </p>
+
+                  <div className="flex items-center gap-[2px]">
+                    {/* Triangle Indicator */}
+                    {token.dailyPriceChange !== 0 && (
+                      <div
+                        className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent ${token.dailyPriceChange >= 0
+                          ? 'border-b-[6px] border-b-[#5CFF93]'
+                          : 'border-t-[6px] border-t-[#FF366C]'
+                          } opacity-50`}
+                      />
+                    )}
+
+                    <p
+                      className={`font-['Poppins'] font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${token.dailyPriceChange >= 0
+                        ? 'text-[#5CFF93]'
+                        : 'text-[#FF366C]'
+                        }`}
+                    >
+                      {Math.abs(token.dailyPriceChange).toFixed(1)}%
+                    </p>
+                  </div>
                 </div>
 
                 {/* Chevron */}
@@ -347,7 +384,7 @@ const Sell = (props: SellProps) => {
                 </div>
               </div>
             ) : (
-              <div className="relative flex items-center justify-center w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px]">
+              <div className="relative flex items-center justify-center w-[157px] h-[36px] bg-[#1E1D24] rounded-[6px]">
                 <div
                   className="flex font-normal text-sm text-white/50"
                   data-testid="pulse-sell-token-selector-placeholder"
