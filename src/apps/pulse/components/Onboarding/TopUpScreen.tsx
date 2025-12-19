@@ -373,12 +373,38 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         utils.formatEther(BigNumber.from(gasCost).mul(BigNumber.from(gasPrice)))
       );
 
-      // Get native price in USD
+      // Get native price in USD from paymaster API
       const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
       const nativePriceResponse = await fetch(
         `${paymasterUrl}/getNativePriceUSD?chainId=${selectedToken.chainId}`
       );
+
+      // Validate HTTP response
+      if (!nativePriceResponse.ok) {
+        const errorMessage = `Failed to fetch native token price: ${nativePriceResponse.status} ${nativePriceResponse.statusText}`;
+        console.error(errorMessage);
+        setError(
+          'Unable to calculate gas fees. Please check your network connection and try again.'
+        );
+        setApproveData('');
+        return;
+      }
+
       const nativePriceData = await nativePriceResponse.json();
+
+      // Validate response data contains the required price field
+      if (
+        typeof nativePriceData.priceUSD !== 'number' ||
+        nativePriceData.priceUSD <= 0
+      ) {
+        console.error('Invalid native price data received:', nativePriceData);
+        setError(
+          'Unable to calculate gas fees due to invalid price data. Please try again.'
+        );
+        setApproveData('');
+        return;
+      }
+
       const costAsFiat = estimatedCost * nativePriceData.priceUSD;
 
       const feeTokenPrice = parseFloat(selectedFeeAsset.tokenPrice || '0');
@@ -422,11 +448,17 @@ export default function TopUpScreen(props: TopUpScreenProps) {
           );
         } catch (approvalErr) {
           console.error('Failed to generate approval:', approvalErr);
+          setError(
+            'Failed to generate approval for gas fee token. Please try again later'
+          );
           setApproveData('');
         }
       }
     } catch (err) {
       console.error('Failed to generate approval data:', err);
+      setError(
+        'Failed to calculate gas fee token approval. Please try again later'
+      );
       setApproveData('');
     }
   };
@@ -456,7 +488,7 @@ export default function TopUpScreen(props: TopUpScreenProps) {
     });
 
     // Generate approval data and calculate cost in token
-    generateApprovalData(totalGasCost).catch(console.error);
+    generateApprovalData(totalGasCost);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGaslessSupported, selectedFeeAsset, gasPrice, selectedToken]);
 
