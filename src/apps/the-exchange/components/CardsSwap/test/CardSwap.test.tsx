@@ -150,7 +150,7 @@ vi.mock('../../../../../hooks/useDeployWallet', () => ({
   }),
 }));
 
-describe.skip('<CardsSwap />', () => {
+describe('<CardsSwap />', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset store state to initial values
