@@ -258,16 +258,16 @@ export const calculatePnL = (
 
   // Return comprehensive PnL metrics for the token position
   return {
-    realisedPnLUSDC,      // Actual profit/loss from completed sells
-    realisedPnLPct,       // Realized PnL as percentage of cost basis
-    unrealisedPnLUSDC,    // Theoretical profit/loss on remaining position
-    unrealisedPnLPct,     // Unrealized PnL as percentage of current cost basis
-    avgBuyPrice: avgBuyPriceHistorical,   // Average execution price across all buys
+    realisedPnLUSDC, // Actual profit/loss from completed sells
+    realisedPnLPct, // Realized PnL as percentage of cost basis
+    unrealisedPnLUSDC, // Theoretical profit/loss on remaining position
+    unrealisedPnLPct, // Unrealized PnL as percentage of current cost basis
+    avgBuyPrice: avgBuyPriceHistorical, // Average execution price across all buys
     avgSellPrice: avgSellPriceHistorical, // Average execution price across all sells
-    totalBoughtUSDC: totalHistoricalBuyUSDC,  // Sum of all buy amounts in USD
-    totalSoldUSDC: totalHistoricalSellUSDC,   // Sum of all sell amounts in USD
-    balanceToken: totalTokens,             // Current token holdings
-    balanceUSDC: currentValueUSDC,        // Current position value in USD at market price
+    totalBoughtUSDC: totalHistoricalBuyUSDC, // Sum of all buy amounts in USD
+    totalSoldUSDC: totalHistoricalSellUSDC, // Sum of all sell amounts in USD
+    balanceToken: totalTokens, // Current token holdings
+    balanceUSDC: currentValueUSDC, // Current position value in USD at market price
   };
 };
 
