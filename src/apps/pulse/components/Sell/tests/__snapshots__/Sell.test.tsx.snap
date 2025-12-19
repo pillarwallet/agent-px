@@ -18,57 +18,69 @@ exports[`<Sell /> > renders correctly and matches snapshot 1`] = `
           type="button"
         >
           <div
-            class="flex items-center mobile:w-32 xs:w-28 desktop:w-36 h-9 bg-[#1E1D24] rounded-md"
+            class="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
             data-testid="pulse-sell-token-selected-1-Test Token"
           >
             <div
-              class="relative inline-block"
+              class="absolute left-[6px] top-[6px] w-[24px] h-[24px]"
             >
               <img
                 alt="Main"
-                class="w-6 h-6 ml-1 mr-1 rounded-full"
-                data-testid="pulse-sell-token-selector-logo"
+                class="w-full h-full rounded-full"
                 src="test-logo.png"
               />
               <img
                 alt="Chain Logo"
-                class="absolute w-2.5 h-2.5 bottom-[-2px] right-[2px] rounded-full"
-                data-testid="pulse-sell-token-selector-chain-logo"
+                class="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 rounded-full ring-1 ring-[#1E1D24]"
                 src="/src/assets/images/logo-ethereum.png"
               />
             </div>
             <div
-              class="flex flex-col mt-2.5 h-10 w-[91px]"
+              class="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]"
             >
-              <div
-                class="flex"
+              <p
+                class="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
+                data-testid="pulse-sell-token-selector-symbol"
               >
-                <p
-                  class="desktop:text-sm mobile:text-xs xs:text-xs font-normal"
-                  data-testid="pulse-sell-token-selector-symbol"
-                >
-                  TEST
-                </p>
-              </div>
-              <div
-                class="flex"
+                TEST
+              </p>
+              <p
+                class="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
+                data-testid="pulse-sell-token-selector-name"
               >
+                Test Token
+              </p>
+            </div>
+            <div
+              class="absolute left-[36px] top-[20px] flex items-center gap-[6px]"
+            >
+              <p
+                class="font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
+                data-testid="pulse-sell-token-selector-price"
+              >
+                $
+                100
+              </p>
+              <div
+                class="flex items-center gap-[2px]"
+              >
+                <div
+                  class="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[6px] border-b-[#5CFF93] opacity-50"
+                />
                 <p
-                  class="text-[10px] font-normal text-white h-[10px] opacity-50"
-                  data-testid="pulse-sell-token-selector-price"
+                  class="font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 text-[#5CFF93]"
                 >
-                  $
-                  100
+                  0.05
+                  %
                 </p>
               </div>
             </div>
             <div
-              class="flex ml-1.5"
-              data-testid="pulse-sell-token-selector-arrow"
+              class="absolute right-[12px] top-[15px]"
             >
               <img
                 alt="arrow-down"
-                class="w-2 h-1"
+                class="w-[12px] h-[6px] opacity-50"
                 src="data:image/svg+xml,%3csvg%20width='10'%20height='6'%20viewBox='0%200%2010%206'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20opacity='0.5'%20d='M1%201L4.64645%204.64645C4.84171%204.84171%205.15829%204.84171%205.35355%204.64645L9%201'%20stroke='white'%20stroke-width='1.25'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e"
               />
             </div>

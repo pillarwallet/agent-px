@@ -315,7 +315,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
             onClick={() => handleSort('price')}
             data-testid="pulse-portfolio-header-token"
           >
-            <p className="font-['Poppins'] text-[13px] font-normal text-white opacity-50 tracking-[-0.02em]">
+            <p className="text-[13px] font-normal text-white opacity-50 tracking-[-0.02em]">
               Token/Price
             </p>
             <SortIndicator
@@ -330,7 +330,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
             onClick={() => handleSort('balance')}
             data-testid="pulse-portfolio-header-balance"
           >
-            <p className="font-['Poppins'] text-[13px] font-normal text-white opacity-50 tracking-[-0.02em]">
+            <p className="text-[13px] font-normal text-white opacity-50 tracking-[-0.02em]">
               Balance
             </p>
             <SortIndicator
@@ -345,7 +345,7 @@ const PortfolioTokenList = (props: PortfolioTokenListProps) => {
             onClick={() => handleSort('pnl')}
             data-testid="pulse-portfolio-header-pnl"
           >
-            <p className="font-['Poppins'] text-[13px] font-normal text-white opacity-50 tracking-[-0.02em] whitespace-nowrap">
+            <p className="text-[13px] font-normal text-white opacity-50 tracking-[-0.02em] whitespace-nowrap">
               Unrealized PnL/%
             </p>
             <SortIndicator
