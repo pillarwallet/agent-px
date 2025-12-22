@@ -417,18 +417,6 @@ export default function TopUpScreen(props: TopUpScreenProps) {
 
         setEstimatedGasCostInToken(estimatedCostInTokenFixed);
 
-        // Log the calculated gasless fee for debugging
-        console.log(
-          `[Gasless Fee Estimate] ${selectedFeeAsset.asset.symbol}: ` +
-            `Gas Cost (wei): ${gasCost}, ` +
-            `Gas Price: ${gasPrice}, ` +
-            `Estimated Cost (ETH): ${estimatedCost}, ` +
-            `Native Price (USD): ${nativePriceData.priceUSD}, ` +
-            `Cost in Fiat (USD): ${costAsFiat}, ` +
-            `Fee Token Price: ${feeTokenPrice}, ` +
-            `Final Cost in ${selectedFeeAsset.asset.symbol}: ${estimatedCostInTokenFixed}`
-        );
-
         // Check if user has enough balance for both topup amount AND gas fee
         const userBalance = selectedFeeAsset.balance ?? 0;
         const tokenPrice = parseFloat(selectedFeeAsset.tokenPrice || '0') || 1; // Default to 1 if price unavailable
@@ -437,7 +425,8 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         // calculate remaining balance after deducting the topup amount
         // Convert topup amount from USD to token units using token price
         const topUpAmountUSD = parseFloat(amount) || 0;
-        const topUpAmountInTokens = tokenPrice > 0 ? topUpAmountUSD / tokenPrice : 0;
+        const topUpAmountInTokens =
+          tokenPrice > 0 ? topUpAmountUSD / tokenPrice : 0;
 
         const isFeeSameAsToken =
           selectedFeeAsset.asset.contract.toLowerCase() ===
@@ -449,16 +438,17 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         }
 
         if (availableBalanceForFee < estimatedCostInToken) {
-          const totalNeededInTokens = topUpAmountInTokens + estimatedCostInToken;
+          const totalNeededInTokens =
+            topUpAmountInTokens + estimatedCostInToken;
           setError(
             isFeeSameAsToken
               ? `Insufficient ${selectedFeeAsset.asset.symbol} balance. ` +
-                `Need ${topUpAmountInTokens.toFixed(selectedFeeAsset.decimals)} to top up + ` +
-                `${estimatedCostInTokenFixed} for gas = ${totalNeededInTokens.toFixed(selectedFeeAsset.decimals)} total, ` +
-                `but only have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
+                  `Need ${topUpAmountInTokens.toFixed(selectedFeeAsset.decimals)} to top up + ` +
+                  `${estimatedCostInTokenFixed} for gas = ${totalNeededInTokens.toFixed(selectedFeeAsset.decimals)} total, ` +
+                  `but only have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
               : `Insufficient ${selectedFeeAsset.asset.symbol} balance for gas fees. ` +
-                `Need ${estimatedCostInTokenFixed} ${selectedFeeAsset.asset.symbol}, ` +
-                `have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
+                  `Need ${estimatedCostInTokenFixed} ${selectedFeeAsset.asset.symbol}, ` +
+                  `have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
           );
           setApproveData(''); // Clear approval data
           return;
@@ -628,7 +618,8 @@ export default function TopUpScreen(props: TopUpScreenProps) {
 
     // Convert topup amount (USD) to token units
     const topUpAmountUSD = parseFloat(amount) || 0;
-    const topUpAmountInTokens = tokenPrice > 0 ? topUpAmountUSD / tokenPrice : 0;
+    const topUpAmountInTokens =
+      tokenPrice > 0 ? topUpAmountUSD / tokenPrice : 0;
 
     // Check if fee token is the same as topup token
     const isFeeSameAsToken =
@@ -647,12 +638,12 @@ export default function TopUpScreen(props: TopUpScreenProps) {
       setError(
         isFeeSameAsToken
           ? `Insufficient ${selectedFeeAsset.asset.symbol} balance. ` +
-            `Need ${topUpAmountInTokens.toFixed(selectedFeeAsset.decimals)} to top up + ` +
-            `${estimatedGasCostInToken} for gas = ${totalNeededInTokens.toFixed(selectedFeeAsset.decimals)} total, ` +
-            `but only have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
+              `Need ${topUpAmountInTokens.toFixed(selectedFeeAsset.decimals)} to top up + ` +
+              `${estimatedGasCostInToken} for gas = ${totalNeededInTokens.toFixed(selectedFeeAsset.decimals)} total, ` +
+              `but only have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
           : `Insufficient ${selectedFeeAsset.asset.symbol} balance for gas fees. ` +
-            `Need ${estimatedGasCostInToken} ${selectedFeeAsset.asset.symbol}, ` +
-            `have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
+              `Need ${estimatedGasCostInToken} ${selectedFeeAsset.asset.symbol}, ` +
+              `have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
       );
       return false;
     }
@@ -1012,7 +1003,9 @@ export default function TopUpScreen(props: TopUpScreenProps) {
           <div className="m-2.5 p-3 bg-[#1E1D24] rounded-[10px] border border-[#29292F]">
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <span className="text-white/70 text-xs">Estimated Gas Fee:</span>
+                <span className="text-white/70 text-xs">
+                  Estimated Gas Fee:
+                </span>
                 <span className="text-white font-medium text-sm">
                   ≈ {estimatedGasCostInToken} {selectedFeeAsset.asset.symbol}
                 </span>
@@ -1020,7 +1013,9 @@ export default function TopUpScreen(props: TopUpScreenProps) {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/50">Total needed:</span>
                 <span className="text-white">
-                  {(parseFloat(amount) + parseFloat(estimatedGasCostInToken)).toFixed(selectedFeeAsset.decimals)}{' '}
+                  {(
+                    parseFloat(amount) + parseFloat(estimatedGasCostInToken)
+                  ).toFixed(selectedFeeAsset.decimals)}{' '}
                   {selectedFeeAsset.asset.symbol}
                 </span>
               </div>
