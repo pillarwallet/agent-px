@@ -315,7 +315,7 @@ export default function LandingPage() {
               </div>
               <div className="home_app__download__cta">
                 <a
-                  href="https://www.apple.com/app-store/"
+                  href="https://apps.apple.com/app/apple-store/id1346582238"
                   target="_blank"
                   rel="noreferrer"
                   className="plausible-event-name=Download+App+Store"
@@ -326,7 +326,7 @@ export default function LandingPage() {
                   />
                 </a>
                 <a
-                  href="https://play.google.com/store/apps/"
+                  href="https://play.google.com/store/apps/details?id=com.pillarproject.wallet"
                   target="_blank"
                   rel="noreferrer"
                   className="plausible-event-name=Download+Google+Play"
