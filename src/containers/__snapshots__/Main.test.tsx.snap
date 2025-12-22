@@ -404,7 +404,7 @@ exports[`<Main /> > renders correctly 1`] = `
           >
             <a
               className="plausible-event-name=Download+App+Store"
-              href="https://www.apple.com/app-store/"
+              href="https://apps.apple.com/app/apple-store/id1346582238"
               rel="noreferrer"
               target="_blank"
             >
@@ -415,7 +415,7 @@ exports[`<Main /> > renders correctly 1`] = `
             </a>
             <a
               className="plausible-event-name=Download+Google+Play"
-              href="https://play.google.com/store/apps/"
+              href="https://play.google.com/store/apps/details?id=com.pillarproject.wallet"
               rel="noreferrer"
               target="_blank"
             >
