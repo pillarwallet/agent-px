@@ -1,5 +1,7 @@
 import { Dispatch, SetStateAction, useState, useEffect } from 'react';
 import { TailSpin } from 'react-loader-spinner';
+import { BigNumber, utils } from 'ethers';
+import { Address, encodeFunctionData, erc20Abi, parseUnits } from 'viem';
 
 // assets
 import BackArrow from '../../assets/back-arrow.svg';
@@ -16,6 +18,13 @@ import { STABLE_CURRENCIES } from '../../constants/tokens';
 
 // hooks
 import useRelaySell, { SellOffer } from '../../hooks/useRelaySell';
+import useDeployWallet from '../../../../hooks/useDeployWallet';
+
+// services
+import {
+  getAllGaslessPaymasters,
+  Paymasters,
+} from '../../../../services/gasless';
 
 // types
 import { SelectedToken } from '../../types/tokens';
@@ -23,6 +32,25 @@ import {
   PortfolioToken,
   chainIdToChainNameTokensData,
 } from '../../../../services/tokensData';
+
+// utils
+import { calculateTopUpGasCost } from '../../utils/gasCalculation';
+
+interface FeeAsset {
+  decimals: number;
+  balance: number;
+  tokenPrice?: string;
+  asset: {
+    symbol: string;
+    contract: string;
+    name: string;
+    decimals: number;
+    balance: number;
+    price?: number;
+  };
+  paymasterAddress?: string;
+  [key: string]: unknown;
+}
 
 interface TopUpScreenProps {
   onBack: () => void;
@@ -55,12 +83,24 @@ export default function TopUpScreen(props: TopUpScreenProps) {
   const [sellOffer, setSellOffer] = useState<SellOffer | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [isGaslessSupported, setIsGaslessSupported] = useState<boolean>(false);
+  const [selectedFeeAsset, setSelectedFeeAsset] = useState<FeeAsset | null>(
+    null
+  );
+  const [gasPrice, setGasPrice] = useState<string>('');
+  const [estimatedGasCostInToken, setEstimatedGasCostInToken] =
+    useState<string>('');
+  const [approveData, setApproveData] = useState<string>('');
+  const [selectedPaymasterAddress, setSelectedPaymasterAddress] =
+    useState<string>('');
 
   const {
     getBestSellOffer,
     isInitialized: isRelayInitialized,
     error: relayError,
   } = useRelaySell();
+
+  const { getGasPrice } = useDeployWallet();
 
   // Check if selected token is USDC
   const isSelectedTokenUSDC = (): boolean => {
@@ -221,6 +261,90 @@ export default function TopUpScreen(props: TopUpScreenProps) {
     getBestSellOffer,
   ]);
 
+  // Fetch gasless paymasters and check if selected token supports gasless
+  useEffect(() => {
+    const fetchGaslessPaymasters = async () => {
+      if (!selectedToken || !portfolioTokens.length) {
+        setIsGaslessSupported(false);
+        setSelectedFeeAsset(null);
+        setSelectedPaymasterAddress('');
+        return;
+      }
+
+      try {
+        const paymasterObject = await getAllGaslessPaymasters(
+          selectedToken.chainId,
+          portfolioTokens
+        );
+
+        if (!paymasterObject || paymasterObject.length === 0) {
+          // No gasless support - fall back to native
+          setIsGaslessSupported(false);
+          setSelectedFeeAsset(null);
+          setSelectedPaymasterAddress('');
+          return;
+        }
+
+        // Check if selected token supports gasless
+        const matchingPaymaster = paymasterObject.find(
+          (item: Paymasters) =>
+            item.gasToken.toLowerCase() === selectedToken.address.toLowerCase()
+        );
+
+        if (matchingPaymaster) {
+          // Selected token supports gasless!
+          const tokenData = portfolioTokens.find(
+            (token) =>
+              token.contract.toLowerCase() ===
+              selectedToken.address.toLowerCase()
+          );
+
+          if (tokenData) {
+            setIsGaslessSupported(true);
+            setSelectedFeeAsset({
+              id: `${matchingPaymaster.gasToken}-${matchingPaymaster.chainId}-${matchingPaymaster.paymasterAddress}-${tokenData.decimals}`,
+              type: 'token',
+              title: tokenData.name,
+              imageSrc: tokenData.logo,
+              chainId: matchingPaymaster.chainId,
+              value: tokenData.balance?.toString() || '0',
+              price: tokenData.price?.toString() || '0',
+              balance: tokenData.balance || 0,
+              tokenPrice: tokenData.price?.toString(),
+              decimals: tokenData.decimals || 18,
+              asset: {
+                name: tokenData.name,
+                symbol: tokenData.symbol,
+                contract: matchingPaymaster.gasToken,
+                decimals: tokenData.decimals || 18,
+                balance: tokenData.balance || 0,
+                price: tokenData.price,
+              },
+              paymasterAddress: matchingPaymaster.paymasterAddress,
+            });
+            setSelectedPaymasterAddress(matchingPaymaster.paymasterAddress);
+
+            // Fetch gas price for calculations
+            const price = await getGasPrice(selectedToken.chainId);
+            if (price) setGasPrice(price);
+          }
+        } else {
+          // Selected token doesn't support gasless - fall back to native
+          setIsGaslessSupported(false);
+          setSelectedFeeAsset(null);
+          setSelectedPaymasterAddress('');
+        }
+      } catch (err) {
+        console.error('Failed to fetch gasless paymasters:', err);
+        setIsGaslessSupported(false);
+        setSelectedFeeAsset(null);
+      }
+    };
+
+    fetchGaslessPaymasters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedToken, portfolioTokens]);
+
   // Get chain name from chain ID
   const getChainName = (chainId: number): string => {
     const chainNames: { [key: number]: string } = {
@@ -233,6 +357,140 @@ export default function TopUpScreen(props: TopUpScreenProps) {
     };
     return chainNames[chainId] || 'Unknown';
   };
+
+  // Generate approval data for fee token
+  const generateApprovalData = async (gasCost: number) => {
+    if (
+      !selectedFeeAsset ||
+      !gasPrice ||
+      !selectedToken ||
+      !selectedPaymasterAddress
+    )
+      return;
+
+    try {
+      const estimatedCost = Number(
+        utils.formatEther(BigNumber.from(gasCost).mul(BigNumber.from(gasPrice)))
+      );
+
+      // Get native price in USD from paymaster API
+      const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+      const nativePriceResponse = await fetch(
+        `${paymasterUrl}/getNativePriceUSD?chainId=${selectedToken.chainId}`
+      );
+
+      // Validate HTTP response
+      if (!nativePriceResponse.ok) {
+        const errorMessage = `Failed to fetch native token price: ${nativePriceResponse.status} ${nativePriceResponse.statusText}`;
+        console.error(errorMessage);
+        setError(
+          'Unable to calculate gas fees. Please check your network connection and try again.'
+        );
+        setApproveData('');
+        return;
+      }
+
+      const nativePriceData = await nativePriceResponse.json();
+
+      // Validate response data contains the required price field
+      if (
+        typeof nativePriceData.priceUSD !== 'number' ||
+        nativePriceData.priceUSD <= 0
+      ) {
+        console.error('Invalid native price data received:', nativePriceData);
+        setError(
+          'Unable to calculate gas fees due to invalid price data. Please try again.'
+        );
+        setApproveData('');
+        return;
+      }
+
+      const costAsFiat = estimatedCost * nativePriceData.priceUSD;
+
+      const feeTokenPrice = parseFloat(selectedFeeAsset.tokenPrice || '0');
+
+      if (feeTokenPrice > 0) {
+        const estimatedCostInToken = costAsFiat / feeTokenPrice;
+        const estimatedCostInTokenFixed = estimatedCostInToken.toFixed(
+          selectedFeeAsset.decimals
+        );
+
+        setEstimatedGasCostInToken(estimatedCostInTokenFixed);
+
+        // Check if user has enough balance
+        const userBalance = selectedFeeAsset.balance ?? 0;
+        if (userBalance < estimatedCostInToken) {
+          setError(
+            `Insufficient ${selectedFeeAsset.asset.symbol} balance for gas fees. ` +
+              `Need ${estimatedCostInTokenFixed} ${selectedFeeAsset.asset.symbol}, ` +
+              `have ${userBalance.toFixed(selectedFeeAsset.decimals)} ${selectedFeeAsset.asset.symbol}`
+          );
+          setApproveData(''); // Clear approval data
+          return;
+        }
+
+        // Generate approval transaction for the fee token
+        // Strategy: Always include approval to ensure sufficient allowance
+        // The approval will be the first transaction in the batch (before swap/deposit)
+        // Even if user has existing allowance, re-approving ensures we have enough for gas fees
+        try {
+          const requiredAmount = parseUnits(
+            estimatedCostInTokenFixed,
+            selectedFeeAsset.decimals
+          );
+
+          setApproveData(
+            encodeFunctionData({
+              abi: erc20Abi,
+              functionName: 'approve',
+              args: [selectedPaymasterAddress as Address, requiredAmount],
+            })
+          );
+        } catch (approvalErr) {
+          console.error('Failed to generate approval:', approvalErr);
+          setError(
+            'Failed to generate approval for gas fee token. Please try again later'
+          );
+          setApproveData('');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to generate approval data:', err);
+      setError(
+        'Failed to calculate gas fee token approval. Please try again later'
+      );
+      setApproveData('');
+    }
+  };
+
+  // Calculate gas cost and generate approval when gasless is supported
+  useEffect(() => {
+    if (
+      !isGaslessSupported ||
+      !selectedFeeAsset ||
+      !gasPrice ||
+      !selectedToken
+    ) {
+      setEstimatedGasCostInToken('');
+      setApproveData('');
+      return;
+    }
+
+    // Check if modules need to be installed (need access to state from parent)
+    // For now, assume module installation may be needed
+    const needsModuleInstall = true; // This should come from parent props
+    const needsSwap = !isSelectedTokenUSDC();
+
+    const totalGasCost = calculateTopUpGasCost({
+      chainId: selectedToken.chainId,
+      needsModuleInstall,
+      needsSwap,
+    });
+
+    // Generate approval data and calculate cost in token
+    generateApprovalData(totalGasCost);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGaslessSupported, selectedFeeAsset, gasPrice, selectedToken]);
 
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   const handleUsdAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,6 +611,12 @@ export default function TopUpScreen(props: TopUpScreenProps) {
       return;
     }
 
+    // If using gasless, check if we have approval data (which means balance is sufficient)
+    if (isGaslessSupported && selectedFeeAsset && !approveData) {
+      // Error already set in generateApprovalData
+      return;
+    }
+
     // Clear any previous errors
     setError(null);
 
@@ -438,6 +702,12 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         userPortfolio={portfolioTokens}
         setOnboardingScreen={setOnboardingScreen}
         markOnboardingComplete={markOnboardingComplete}
+        // Gasless transaction support props
+        isGaslessSupported={isGaslessSupported}
+        selectedFeeAsset={selectedFeeAsset}
+        approveData={approveData}
+        paymasterAddress={selectedPaymasterAddress}
+        estimatedGasCostInToken={estimatedGasCostInToken}
       />
     );
   }

@@ -17,6 +17,7 @@ import {
   formatExponentialSmallNumber,
   limitDigitsNumber,
 } from '../../../../utils/number';
+import { truncateDecimals } from '../../utils/number';
 
 // constants
 import { STABLE_CURRENCIES } from '../../constants/tokens';
@@ -59,6 +60,22 @@ type UserOpStatus =
   | 'Failed'
   | 'Reverted';
 
+interface FeeAsset {
+  decimals: number;
+  balance: number;
+  tokenPrice?: string;
+  asset: {
+    symbol: string;
+    contract: string;
+    name: string;
+    decimals: number;
+    balance: number;
+    price?: number;
+  };
+  paymasterAddress?: string;
+  [key: string]: unknown;
+}
+
 interface PreviewTopUpProps {
   onBack: () => void;
   selectedToken: SelectedToken | null;
@@ -70,6 +87,12 @@ interface PreviewTopUpProps {
     React.SetStateAction<'welcome' | 'topup' | null>
   >;
   markOnboardingComplete: () => void;
+  // Gasless transaction support
+  isGaslessSupported?: boolean;
+  selectedFeeAsset?: FeeAsset | null;
+  approveData?: string;
+  paymasterAddress?: string;
+  estimatedGasCostInToken?: string;
 }
 
 export default function PreviewTopUp(props: PreviewTopUpProps) {
@@ -82,6 +105,12 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     userPortfolio,
     setOnboardingScreen,
     markOnboardingComplete,
+    // Gasless transaction support
+    isGaslessSupported = false,
+    selectedFeeAsset,
+    approveData,
+    paymasterAddress,
+    estimatedGasCostInToken,
   } = props;
   const [isLoading, setIsLoading] = useState(false);
   const [isWaitingForSignature, setIsWaitingForSignature] = useState(false);
@@ -221,24 +250,33 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
       }
 
       // Step 3: Execute the top-up transaction
-      const userOperationHash = await executeTopUp({
+      const result = await executeTopUp({
         selectedToken,
         amount,
         allocateAmount,
         sellOffer,
         userPortfolio,
         additionalTransactions,
+        // Gasless transaction support
+        isGaslessSupported,
+        selectedFeeAsset,
+        approveData,
+        paymasterAddress,
       });
+
+      const userOperationHash = result?.userOperationHash;
 
       if (userOperationHash) {
         setIsWaitingForSignature(false);
         setIsLoading(false);
 
-        // Ensure we have a valid gas fee string for the transaction status
-        const gasFeeString =
-          gasCostNative && nativeTokenSymbol
-            ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-            : '≈ 0.00';
+        // Determine gas fee string based on gasless or native payment
+        let gasFeeString = '≈ 0.00';
+        if (isGaslessSupported && selectedFeeAsset && estimatedGasCostInToken) {
+          gasFeeString = `≈ ${truncateDecimals(estimatedGasCostInToken, 6)} ${selectedFeeAsset.asset.symbol}`;
+        } else if (gasCostNative && nativeTokenSymbol) {
+          gasFeeString = `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`;
+        }
 
         // Set transaction data and show transaction status
         setUserOpHash(userOperationHash);
@@ -651,6 +689,31 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     );
   }
 
+  // Determine gas fee content based on payment method
+  const showGaslessGasPrice =
+    isGaslessSupported && selectedFeeAsset && estimatedGasCostInToken;
+
+  const nativeGasFeeDisplay =
+    gasCostNative && nativeTokenSymbol
+      ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
+      : '≈ 0.00';
+
+  // eslint-disable-next-line no-nested-ternary
+  const gasFeeContent = isEstimatingGas ? (
+    <div className="flex items-center">
+      <TailSpin color="#FFFFFF" height={12} width={12} />
+    </div>
+  ) : showGaslessGasPrice ? (
+    <span className="text-white text-[13px] tracking-tight">
+      ≈ {truncateDecimals(estimatedGasCostInToken, 6)}{' '}
+      {selectedFeeAsset.asset.symbol}
+    </span>
+  ) : (
+    <span className="text-white text-[13px] tracking-tight">
+      {nativeGasFeeDisplay}
+    </span>
+  );
+
   return (
     <div className="w-full max-w-[358px] mx-auto">
       <div className="w-full flex flex-col bg-[#1E1D24] rounded-2xl p-0 relative">
@@ -727,17 +790,7 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
           <span className="text-white opacity-50 text-[13px] tracking-tight">
             Gas fee:
           </span>
-          {isEstimatingGas ? (
-            <div className="flex items-center">
-              <TailSpin color="#FFFFFF" height={12} width={12} />
-            </div>
-          ) : (
-            <span className="text-white text-[13px] tracking-tight">
-              {gasCostNative && nativeTokenSymbol
-                ? `≈ ${formatExponentialSmallNumber(limitDigitsNumber(parseFloat(gasCostNative)))} ${nativeTokenSymbol}`
-                : '≈ 0.00'}
-            </span>
-          )}
+          {gasFeeContent}
         </div>
 
         {/* Setup Error Display (Module Installation / EIP-7702 Upgrade) */}

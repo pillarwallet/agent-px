@@ -18,6 +18,22 @@ interface Transactions {
   target: string;
 }
 
+interface FeeAsset {
+  decimals: number;
+  balance: number;
+  tokenPrice?: string;
+  asset: {
+    symbol: string;
+    contract: string;
+    name: string;
+    decimals: number;
+    balance: number;
+    price?: number;
+  };
+  paymasterAddress?: string;
+  [key: string]: unknown;
+}
+
 export interface TopUpParams {
   selectedToken: SelectedToken;
   amount: string; // USD amount
@@ -25,6 +41,11 @@ export interface TopUpParams {
   sellOffer: SellOffer | null; // Only needed for non-USDC tokens
   userPortfolio?: Token[];
   additionalTransactions?: Transactions[];
+  // Gasless transaction support
+  isGaslessSupported?: boolean;
+  selectedFeeAsset?: FeeAsset | null;
+  approveData?: string;
+  paymasterAddress?: string;
 }
 
 export default function useTopUp() {
@@ -154,7 +175,9 @@ export default function useTopUp() {
    * Note: EIP-7702 upgrade and module installation should be handled before calling this
    */
   const executeTopUp = useCallback(
-    async (params: TopUpParams): Promise<string | null> => {
+    async (
+      params: TopUpParams
+    ): Promise<{ userOperationHash: string } | null> => {
       if (!kit) {
         setError('Transaction kit not available. please relogin.');
         return null;
@@ -164,7 +187,14 @@ export default function useTopUp() {
       setError(null);
 
       try {
-        const { selectedToken, additionalTransactions } = params;
+        const {
+          selectedToken,
+          additionalTransactions,
+          isGaslessSupported,
+          selectedFeeAsset,
+          approveData,
+          paymasterAddress,
+        } = params;
         const { chainId } = selectedToken;
 
         // Build all transactions
@@ -172,7 +202,8 @@ export default function useTopUp() {
 
         if (
           transactions.length === 0 &&
-          (!additionalTransactions || additionalTransactions.length === 0)
+          (!additionalTransactions || additionalTransactions.length === 0) &&
+          !approveData
         ) {
           setIsLoading(false);
           setError('No transactions to execute. Please try again.');
@@ -189,7 +220,31 @@ export default function useTopUp() {
           // Batch may not exist, which is fine
         }
 
-        // Add additional transactions first
+        // Add approval transaction FIRST if using gasless
+        if (
+          isGaslessSupported &&
+          approveData &&
+          selectedFeeAsset &&
+          paymasterAddress
+        ) {
+          transactionDebugLog(
+            'Adding approval transaction for gasless fee token',
+            {
+              to: selectedFeeAsset.asset.contract,
+              paymasterAddress,
+            }
+          );
+          kit
+            .transaction({
+              to: selectedFeeAsset.asset.contract,
+              data: approveData,
+              chainId,
+            })
+            .name({ transactionName: 'approve-paymaster-fee' })
+            .addToBatch({ batchName });
+        }
+
+        // Add additional transactions (module installation, etc.)
         if (additionalTransactions) {
           transactionDebugLog(
             'Adding additional transactions to batch:',
@@ -247,9 +302,30 @@ export default function useTopUp() {
           chainId
         );
 
+        // Prepare paymaster details if using gasless
+        const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL;
+        const safePaymasterUrl = paymasterUrl?.endsWith('/')
+          ? paymasterUrl.slice(0, -1)
+          : paymasterUrl;
+
+        const paymasterDetails =
+          isGaslessSupported &&
+          paymasterAddress &&
+          safePaymasterUrl &&
+          selectedFeeAsset
+            ? {
+                url: `${safePaymasterUrl}?chainId=${chainId}`,
+                context: {
+                  mode: 'commonerc20',
+                  token: selectedFeeAsset.asset.contract,
+                },
+              }
+            : undefined;
+
         const batchSend = await kit.sendBatches({
           onlyBatchNames: [batchName],
           authorization: authorization || undefined,
+          paymasterDetails,
         });
 
         const sentBatch = batchSend.batches[batchName];
@@ -266,7 +342,7 @@ export default function useTopUp() {
             }
 
             setIsLoading(false);
-            return userOpHash;
+            return { userOperationHash: userOpHash };
           }
 
           throw new Error('No userOpHash returned after batch send');
