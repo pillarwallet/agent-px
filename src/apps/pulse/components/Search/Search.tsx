@@ -53,6 +53,18 @@ import BackArrowIcon from '../../assets/back-arrow-icon.svg';
 import ClearSearchIcon from '../../assets/clear-search-icon.svg';
 import SearchIcon from '../../assets/seach-icon.svg';
 
+const getDailyPriceChange = (item: Asset | Token): number => {
+  const assetItem = item as { priceChange24h?: number | null };
+  if (typeof assetItem.priceChange24h === 'number')
+    return assetItem.priceChange24h;
+
+  const tokenItem = item as { price_change_24h?: number | null };
+  if (typeof tokenItem.price_change_24h === 'number')
+    return tokenItem.price_change_24h;
+
+  return 0;
+};
+
 interface SearchProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
   isBuy: boolean;
@@ -446,8 +458,7 @@ export default function Search({
           usdValue: formatExponentialSmallNumber(
             limitDigitsNumber(item.price || 0)
           ),
-          dailyPriceChange:
-            'priceChange24h' in item ? item.priceChange24h || 0.0 : 0.0,
+          dailyPriceChange: getDailyPriceChange(item),
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,
@@ -465,8 +476,7 @@ export default function Search({
           usdValue: formatExponentialSmallNumber(
             limitDigitsNumber(item.price || 0)
           ),
-          dailyPriceChange:
-            (item as any).price_change_24h || (item as any).priceChange24h || 0,
+          dailyPriceChange: getDailyPriceChange(item),
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,
@@ -480,8 +490,7 @@ export default function Search({
         usdValue: formatExponentialSmallNumber(
           limitDigitsNumber(item.price || 0)
         ),
-        dailyPriceChange:
-          (item as any).priceChange24h || (item as any).price_change_24h || 0,
+        dailyPriceChange: getDailyPriceChange(item),
         decimals: item.decimals,
         address: item.contract,
       };
@@ -536,10 +545,11 @@ export default function Search({
     >
       <div
         ref={searchModalRef}
-        className={`flex flex-col bg-[#1E1D24] p-3 ${isMobile
-          ? 'fixed inset-0 z-50 w-full h-full'
-          : 'w-[446px] h-[512px] border border-white/[0.05] rounded-2xl shadow-[0px_2px_15px_0px_rgba(18,17,22,0.5)]'
-          }`}
+        className={`flex flex-col bg-[#1E1D24] p-3 ${
+          isMobile
+            ? 'fixed inset-0 z-50 w-full h-full'
+            : 'w-[446px] h-[512px] border border-white/[0.05] rounded-2xl shadow-[0px_2px_15px_0px_rgba(18,17,22,0.5)]'
+        }`}
         data-testid="pulse-search-modal"
       >
         <div className="flex-shrink-0">
@@ -655,11 +665,11 @@ export default function Search({
             >
               {(isBuy
                 ? [
-                  '🔥 Trending',
-                  '🌱 Fresh',
-                  '🚀 Top Gainers',
-                  '💰 My Holdings',
-                ]
+                    '🔥 Trending',
+                    '🌱 Fresh',
+                    '🚀 Top Gainers',
+                    '💰 My Holdings',
+                  ]
                 : ['My Holdings']
               ).map((item, index) => {
                 // For sell screen, always map to MyHoldings index (3)
@@ -703,10 +713,11 @@ export default function Search({
                     }}
                   >
                     <div
-                      className={`w-full h-full rounded-md py-1.5 px-2 flex items-center justify-center ${isActive
-                        ? 'bg-[#2E2A4A] text-white'
-                        : 'bg-[#1E1D24] text-white/60 group-hover:bg-[#2A2A2A]'
-                        }`}
+                      className={`w-full h-full rounded-md py-1.5 px-2 flex items-center justify-center ${
+                        isActive
+                          ? 'bg-[#2E2A4A] text-white'
+                          : 'bg-[#1E1D24] text-white/60 group-hover:bg-[#2A2A2A]'
+                      }`}
                     >
                       {item}
                     </div>

@@ -306,9 +306,17 @@ export type TokenAtlasInfoData = {
   circulating_supply: string;
 };
 
+export type PerpsInfoData = TokenAtlasInfoData;
+
 export type TokenAtlasInfoApiResponse = {
   result: {
     data: TokenAtlasInfoData;
+  };
+};
+
+export type PerpsInfoApiResponse = {
+  result: {
+    data: PerpsInfoData;
   };
 };
 
@@ -327,6 +335,10 @@ export type TokenMarketHistory = {
 };
 
 export type TokenAtlasGraphApiResponse = {
+  data?: TokenMarketHistory;
+};
+
+export type PerpsGraphApiResponse = {
   data?: TokenMarketHistory;
 };
 

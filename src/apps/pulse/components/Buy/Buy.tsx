@@ -200,17 +200,17 @@ export default function Buy(props: BuyProps) {
   } = useTokenPnL(
     token && accountAddress && portfolioToken
       ? {
-        token: {
-          contract: token.address || '',
-          symbol: token.symbol,
-          decimals: token.decimals || 18,
-          balance: portfolioToken.balance || 0,
-          price: portfolioToken.price || 0,
-        },
-        transactionsData,
-        walletAddress: accountAddress,
-        chainId: token.chainId,
-      }
+          token: {
+            contract: token.address || '',
+            symbol: token.symbol,
+            decimals: token.decimals || 18,
+            balance: portfolioToken.balance || 0,
+            price: portfolioToken.price || 0,
+          },
+          transactionsData,
+          walletAddress: accountAddress,
+          chainId: token.chainId,
+        }
       : null
   );
 
@@ -245,7 +245,7 @@ export default function Buy(props: BuyProps) {
     const nativeToken = portfolioTokens.find(
       (t) =>
         Number(getChainId(t.blockchain as MobulaChainNames)) ===
-        maxStableCoinBalance.chainId && isNativeToken(t.contract)
+          maxStableCoinBalance.chainId && isNativeToken(t.contract)
     );
 
     if (!nativeToken) {
@@ -690,18 +690,20 @@ export default function Buy(props: BuyProps) {
                       {/* Triangle Indicator */}
                       {token.dailyPriceChange !== 0 && (
                         <div
-                          className={`w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent ${token.dailyPriceChange >= 0
-                            ? 'border-b-[4px] border-b-[#5CFF93]'
-                            : 'border-t-[4px] border-t-[#FF366C]'
-                            } opacity-50`}
+                          className={`w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent ${
+                            token.dailyPriceChange >= 0
+                              ? 'border-b-[4px] border-b-[#5CFF93]'
+                              : 'border-t-[4px] border-t-[#FF366C]'
+                          } opacity-50`}
                         />
                       )}
 
                       <p
-                        className={`font-normal text-[10px] leading-tight tracking-[-0.02em] opacity-50 truncate ${token.dailyPriceChange >= 0
-                          ? 'text-[#5CFF93]'
-                          : 'text-[#FF366C]'
-                          }`}
+                        className={`font-normal text-[10px] leading-tight tracking-[-0.02em] opacity-50 truncate ${
+                          token.dailyPriceChange >= 0
+                            ? 'text-[#5CFF93]'
+                            : 'text-[#FF366C]'
+                        }`}
                       >
                         {Math.abs(token.dailyPriceChange).toFixed(2)}%
                       </p>
@@ -853,10 +855,11 @@ export default function Buy(props: BuyProps) {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
-                  ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
-                  : 'bg-[#121116] text-white cursor-pointer'
-                  }`}
+                className={`flex-1 items-center justify-center rounded-[10px] ${
+                  isDisabled
+                    ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
+                    : 'bg-[#121116] text-white cursor-pointer'
+                }`}
                 onClick={() => {
                   if (!isDisabled) {
                     if (isMax) {
