@@ -31,25 +31,12 @@ export function TradeSignals({ onCopySignal }: TradeSignalsProps) {
   const loadSignals = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('https://wussashljunaxrfuinbn.supabase.co/functions/v1/webhook-receiver');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch signals');
-      }
+      // TODO: Replace with your own trade signals API endpoint
+      // const response = await fetch('YOUR_API_ENDPOINT_HERE');
 
-      const data = await response.json();
-      
-      // Handle different response formats
-      if (Array.isArray(data)) {
-        setSignals(data);
-      } else if (data.signals && Array.isArray(data.signals)) {
-        setSignals(data.signals);
-      } else if (data.data && Array.isArray(data.data)) {
-        setSignals(data.data);
-      } else {
-        console.warn('Unexpected data format:', data);
-        setSignals([]);
-      }
+      // For now, return empty signals
+      console.warn('Trade signals API not configured');
+      setSignals([]);
     } catch (error: any) {
       console.error('Failed to load signals:', error);
       toast.error('Failed to load trade signals');
@@ -118,11 +105,10 @@ export function TradeSignals({ onCopySignal }: TradeSignalsProps) {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <div className={`p-1.5 rounded ${
-                        signal.side === 'long' 
-                          ? 'bg-success/10 text-success' 
+                      <div className={`p-1.5 rounded ${signal.side === 'long'
+                          ? 'bg-success/10 text-success'
                           : 'bg-destructive/10 text-destructive'
-                      }`}>
+                        }`}>
                         {signal.side === 'long' ? (
                           <TrendingUp className="h-4 w-4" />
                         ) : (
@@ -131,7 +117,7 @@ export function TradeSignals({ onCopySignal }: TradeSignalsProps) {
                       </div>
                       <div>
                         <h4 className="font-semibold">{signal.symbol}</h4>
-                        <Badge 
+                        <Badge
                           variant={signal.side === 'long' ? 'default' : 'destructive'}
                           className="text-xs"
                         >
