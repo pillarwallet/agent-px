@@ -100,17 +100,17 @@ const Sell = (props: SellProps) => {
   const { pnl, isLoading: isPnLLoading } = useTokenPnL(
     token && accountAddress && portfolioToken
       ? {
-          token: {
-            contract: token.address || '',
-            symbol: token.symbol,
-            decimals: token.decimals || 18,
-            balance: portfolioToken.balance || 0,
-            price: portfolioToken.price || 0,
-          },
-          transactionsData,
-          walletAddress: accountAddress,
-          chainId: token.chainId,
-        }
+        token: {
+          contract: token.address || '',
+          symbol: token.symbol,
+          decimals: token.decimals || 18,
+          balance: portfolioToken.balance || 0,
+          price: portfolioToken.price || 0,
+        },
+        transactionsData,
+        walletAddress: accountAddress,
+        chainId: token.chainId,
+      }
       : null
   );
 
@@ -301,11 +301,11 @@ const Sell = (props: SellProps) => {
           >
             {token ? (
               <div
-                className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
+                className="flex items-center gap-2.5 p-1.5 bg-[#1E1D24] rounded-[6px] min-w-[120px] max-w-full"
                 data-testid={`pulse-sell-token-selected-${token.chainId}-${token.name}`}
               >
                 {/* Logo */}
-                <div className="absolute left-[6px] top-[6px] w-[24px] h-[24px]">
+                <div className="relative w-6 h-6 flex-shrink-0">
                   {token.logo ? (
                     <img
                       src={token.logo}
@@ -327,60 +327,61 @@ const Sell = (props: SellProps) => {
                   />
                 </div>
 
-                {/* Top Row: Symbol and Name */}
-                <div className="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]">
-                  <p
-                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
-                    data-testid="pulse-sell-token-selector-symbol"
-                  >
-                    {token.symbol}
-                  </p>
-                  <p
-                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
-                    data-testid="pulse-sell-token-selector-name"
-                  >
-                    {token.name}
-                  </p>
-                </div>
-
-                {/* Bottom Row: Price and Change */}
-                <div className="absolute left-[36px] top-[20px] flex items-center gap-[6px]">
-                  <p
-                    className="font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
-                    data-testid="pulse-sell-token-selector-price"
-                  >
-                    ${formatExponentialSmallNumber(token.usdValue)}
-                  </p>
-
-                  <div className="flex items-center gap-[2px]">
-                    {/* Triangle Indicator */}
-                    {token.dailyPriceChange !== 0 && (
-                      <div
-                        className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent ${
-                          token.dailyPriceChange >= 0
-                            ? 'border-b-[6px] border-b-[#5CFF93]'
-                            : 'border-t-[6px] border-t-[#FF366C]'
-                        } opacity-50`}
-                      />
-                    )}
-
+                {/* Text Container */}
+                <div className="flex flex-col items-start min-w-0 flex-1">
+                  {/* Top Row: Symbol and Name */}
+                  <div className="flex items-center gap-1 w-full overflow-hidden">
                     <p
-                      className={`font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
-                        token.dailyPriceChange >= 0
-                          ? 'text-[#5CFF93]'
-                          : 'text-[#FF366C]'
-                      }`}
+                      className="font-normal text-[12px] leading-tight tracking-[-0.02em] text-white truncate max-w-[60px]"
+                      data-testid="pulse-sell-token-selector-symbol"
                     >
-                      {Math.abs(token.dailyPriceChange).toFixed(2)}%
+                      {token.symbol}
                     </p>
+                    <p
+                      className="font-normal text-[12px] leading-tight tracking-[-0.02em] text-white opacity-30 truncate"
+                      data-testid="pulse-sell-token-selector-name"
+                    >
+                      {token.name}
+                    </p>
+                  </div>
+
+                  {/* Bottom Row: Price and Change */}
+                  <div className="flex items-center gap-1.5 w-full">
+                    <p
+                      className="font-normal text-[10px] leading-tight tracking-[-0.02em] text-white opacity-50 whitespace-nowrap"
+                      data-testid="pulse-sell-token-selector-price"
+                    >
+                      ${formatExponentialSmallNumber(token.usdValue)}
+                    </p>
+
+                    <div className="flex items-center gap-0.5 min-w-0">
+                      {/* Triangle Indicator */}
+                      {token.dailyPriceChange !== 0 && (
+                        <div
+                          className={`w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent ${token.dailyPriceChange >= 0
+                              ? 'border-b-[4px] border-b-[#5CFF93]'
+                              : 'border-t-[4px] border-t-[#FF366C]'
+                            } opacity-50`}
+                        />
+                      )}
+
+                      <p
+                        className={`font-normal text-[10px] leading-tight tracking-[-0.02em] opacity-50 truncate ${token.dailyPriceChange >= 0
+                            ? 'text-[#5CFF93]'
+                            : 'text-[#FF366C]'
+                          }`}
+                      >
+                        {Math.abs(token.dailyPriceChange).toFixed(2)}%
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 {/* Chevron */}
-                <div className="absolute right-[12px] top-[15px]">
+                <div className="flex-shrink-0 px-0.5">
                   <img
                     src={ArrowDown}
-                    className="w-[12px] h-[6px] opacity-50"
+                    className="w-3 h-1.5 opacity-50"
                     alt="arrow-down"
                   />
                 </div>
@@ -465,11 +466,10 @@ const Sell = (props: SellProps) => {
                 </>
               ) : (
                 <input
-                  className={`no-spinner flex mobile:text-4xl xs:text-4xl desktop:text-4xl tablet:text-4xl font-medium text-right ${
-                    token
+                  className={`no-spinner flex mobile:text-4xl xs:text-4xl desktop:text-4xl tablet:text-4xl font-medium text-right ${token
                       ? 'flex-1 desktop:w-40 tablet:w-40 mobile:w-32 xs:w-full'
                       : 'flex-1 desktop:w-60 tablet:w-60 mobile:w-56 xs:w-full'
-                  }`}
+                    }`}
                   placeholder={inputPlaceholder}
                   onChange={handleTokenAmountChange}
                   value={tokenAmount}
@@ -564,11 +564,10 @@ const Sell = (props: SellProps) => {
               className="flex bg-black ml-2.5 mr-2.5 w-[75px] h-[30px] rounded-[10px] p-0.5 pb-1 pt-0.5"
             >
               <button
-                className={`flex-1 items-center justify-center rounded-[10px] ${
-                  isDisabled
+                className={`flex-1 items-center justify-center rounded-[10px] ${isDisabled
                     ? 'bg-[#1E1D24] text-grey cursor-not-allowed'
                     : 'bg-[#121116] text-white cursor-pointer'
-                }`}
+                  }`}
                 onClick={() => {
                   if (!isDisabled) {
                     setShowNumInP(true);
