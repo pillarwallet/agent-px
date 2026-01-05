@@ -929,7 +929,7 @@ const AuthLayout = () => {
       },
       {
         path: '*',
-        element: <NotFound />,
+        element: <Navigate to="/" replace />,
       },
     ];
 

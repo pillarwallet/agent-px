@@ -301,79 +301,105 @@ const Sell = (props: SellProps) => {
           >
             {token ? (
               <div
-                className="flex items-center mobile:w-32 xs:w-28 desktop:w-36 h-9 bg-[#1E1D24] rounded-md"
+                className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
                 data-testid={`pulse-sell-token-selected-${token.chainId}-${token.name}`}
               >
-                <div className="relative inline-block">
+                {/* Logo */}
+                <div className="absolute left-[6px] top-[6px] w-[24px] h-[24px]">
                   {token.logo ? (
                     <img
                       src={token.logo}
                       alt="Main"
-                      className="w-6 h-6 ml-1 mr-1 rounded-full"
-                      data-testid="pulse-sell-token-selector-logo"
+                      className="w-full h-full rounded-full"
                     />
                   ) : (
-                    <div className="w-full h-full overflow-hidden rounded-full w-[34px] h-6 ml-1 mr-1">
+                    <div className="w-full h-full overflow-hidden rounded-full">
                       <RandomAvatar name={token.name || ''} />
-                      <span className="absolute inset-0 flex items-center justify-center text-white text-xs">
+                      <span className="absolute inset-0 flex items-center justify-center text-white text-[10px]">
                         {token.name?.slice(0, 2)}
                       </span>
                     </div>
                   )}
                   <img
                     src={getLogoForChainId(token.chainId)}
-                    className="absolute w-2.5 h-2.5 bottom-[-2px] right-[2px] rounded-full"
+                    className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 rounded-full ring-1 ring-[#1E1D24]"
                     alt="Chain Logo"
-                    data-testid="pulse-sell-token-selector-chain-logo"
                   />
                 </div>
-                <div className="flex flex-col mt-2.5 h-10 w-[91px]">
-                  <div className="flex">
+
+                {/* Top Row: Symbol and Name */}
+                <div className="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]">
+                  <p
+                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
+                    data-testid="pulse-sell-token-selector-symbol"
+                  >
+                    {token.symbol}
+                  </p>
+                  <p
+                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
+                    data-testid="pulse-sell-token-selector-name"
+                  >
+                    {token.name}
+                  </p>
+                </div>
+
+                {/* Bottom Row: Price and Change */}
+                <div className="absolute left-[36px] top-[20px] flex items-center gap-[6px]">
+                  <p
+                    className="font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
+                    data-testid="pulse-sell-token-selector-price"
+                  >
+                    ${formatExponentialSmallNumber(token.usdValue)}
+                  </p>
+
+                  <div className="flex items-center gap-[2px]">
+                    {/* Triangle Indicator */}
+                    {token.dailyPriceChange !== 0 && (
+                      <div
+                        className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent ${
+                          token.dailyPriceChange >= 0
+                            ? 'border-b-[6px] border-b-[#5CFF93]'
+                            : 'border-t-[6px] border-t-[#FF366C]'
+                        } opacity-50`}
+                      />
+                    )}
+
                     <p
-                      className="desktop:text-sm mobile:text-xs xs:text-xs font-normal"
-                      data-testid="pulse-sell-token-selector-symbol"
+                      className={`font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
+                        token.dailyPriceChange >= 0
+                          ? 'text-[#5CFF93]'
+                          : 'text-[#FF366C]'
+                      }`}
                     >
-                      {token.symbol}
-                    </p>
-                    {token.name &&
-                      token.symbol.length + token.name.length <= 13 && (
-                        <p
-                          className="opacity-30 desktop:text-sm mobile:text-xs xs:text-xs font-normal ml-1 text-white"
-                          data-testid="pulse-sell-token-selector-name"
-                        >
-                          {token.name}
-                        </p>
-                      )}
-                  </div>
-                  <div className="flex">
-                    <p
-                      className="text-[10px] font-normal text-white h-[10px] opacity-50"
-                      data-testid="pulse-sell-token-selector-price"
-                    >
-                      ${formatExponentialSmallNumber(token.usdValue)}
+                      {Math.abs(token.dailyPriceChange).toFixed(2)}%
                     </p>
                   </div>
                 </div>
-                <div
-                  className="flex ml-1.5"
-                  data-testid="pulse-sell-token-selector-arrow"
-                >
-                  <img src={ArrowDown} className="w-2 h-1" alt="arrow-down" />
+
+                {/* Chevron */}
+                <div className="absolute right-[12px] top-[15px]">
+                  <img
+                    src={ArrowDown}
+                    className="w-[12px] h-[6px] opacity-50"
+                    alt="arrow-down"
+                  />
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center max-w-[150px] w-32 h-9 bg-[#1E1D24] rounded-[10px]">
+              <div className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px]">
                 <div
-                  className="flex ml-1.5 font-normal desktop:text-sm tablet:text-sm mobile:text-xs xs:text-xs justify-items-end"
+                  className="absolute left-[12px] top-[12px] font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white"
                   data-testid="pulse-sell-token-selector-placeholder"
                 >
                   Select token
                 </div>
-                <div
-                  className="flex ml-1.5"
-                  data-testid="pulse-sell-token-selector-arrow-placeholder"
-                >
-                  <img src={ArrowDown} className="w-2 h-1" alt="arrow-down" />
+                {/* Chevron */}
+                <div className="absolute right-[12px] top-[15px]">
+                  <img
+                    src={ArrowDown}
+                    className="w-[12px] h-[6px] opacity-50"
+                    alt="arrow-down"
+                  />
                 </div>
               </div>
             )}

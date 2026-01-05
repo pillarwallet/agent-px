@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { isAddress } from 'viem';
 import useTransactionKit from '../../../../hooks/useTransactionKit';
 import { useGetWalletPortfolioQuery } from '../../../../services/pillarXApiWalletPortfolio';
@@ -19,8 +19,10 @@ export default function AppWrapper() {
   >(null);
   const [topupToken, setTopupToken] = useState<SelectedToken | null>(null);
   const [isSearchingFromTopup, setIsSearchingFromTopup] = useState(false);
+  const [cameFromPillarXHome, setCameFromPillarXHome] = useState(false);
 
   const { walletAddress: accountAddress } = useTransactionKit();
+  const navigate = useNavigate();
 
   const {
     data: walletPortfolioData,
@@ -46,6 +48,14 @@ export default function AppWrapper() {
   useEffect(() => {
     const tokenAddress = query.get('asset');
     const from = query.get('from');
+    const searchingParam = query.get('searching');
+
+    // Check if we should open search directly (from PillarX home page)
+    if (searchingParam === 'true') {
+      setSearching(true);
+      setCameFromPillarXHome(true);
+      return;
+    }
 
     // If coming from token-atlas, don't show search modal - let Buy component handle everything
     if (from === 'token-atlas' && tokenAddress) {
@@ -64,9 +74,21 @@ export default function AppWrapper() {
     }
   }, [setSearching, query]);
 
+  // Custom setSearching wrapper that navigates back if came from PillarX
+  const handleSetSearching = (value: React.SetStateAction<boolean>) => {
+    const newValue = typeof value === 'function' ? value(searching) : value;
+
+    if (!newValue && cameFromPillarXHome) {
+      // Navigate back to home page
+      navigate('/');
+      setCameFromPillarXHome(false);
+    }
+    setSearching(newValue);
+  };
+
   return searching ? (
     <Search
-      setSearching={setSearching}
+      setSearching={handleSetSearching}
       isBuy={isBuy}
       setBuyToken={setBuyToken}
       setSellToken={setSellToken}

@@ -240,7 +240,13 @@ export default function Search({
       setSearchType(undefined);
     }
     setSearching(false);
-    removeQueryParams();
+
+    // Don't call removeQueryParams if we have the 'searching' parameter
+    // This allows AppWrapper to handle navigation back to home
+    const searchingParam = query.get('searching');
+    if (searchingParam !== 'true') {
+      removeQueryParams();
+    }
   };
 
   // Click outside to close functionality
@@ -459,7 +465,8 @@ export default function Search({
           usdValue: formatExponentialSmallNumber(
             limitDigitsNumber(item.price || 0)
           ),
-          dailyPriceChange: 0.0,
+          dailyPriceChange:
+            'price_change_24h' in item ? item.price_change_24h || 0.0 : 0.0,
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,

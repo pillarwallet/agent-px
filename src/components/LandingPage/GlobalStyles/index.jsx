@@ -790,7 +790,7 @@ ul li:last-child {
 
 @media only screen and (max-width: 767px) {
   .home_hero__wrapper {
-    padding: calc(var(--padding) * 5) 0;
+    padding: calc(var(--padding) * 8) 0 calc(var(--padding) * 5) 0;
     gap: 4rem;
   }
 }
@@ -1295,7 +1295,6 @@ ul li:last-child {
   margin-top: -14rem;
   position: relative;
   pointer-events: none;
-  display: none;
 }
 
 .home_app__download::before {
@@ -2705,7 +2704,7 @@ ul li:last-child {
 
 @media only screen and (max-width: 767px) {
   .advertising_hero__wrapper {
-    padding: calc(var(--padding) * 5) 0;
+    padding: calc(var(--padding) * 8) 0 calc(var(--padding) * 5) 0;
     gap: 5rem;
   }
 }
