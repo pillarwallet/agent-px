@@ -13,7 +13,7 @@
     "test:ci": "vitest run --coverage",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org pillar-project --project x ./build && sentry-cli sourcemaps upload --org pillar-project --project x ./build",
     "postinstall": "patch-package && npm run copy-files",
-    "copy-files": "cp -R node_modules/charting_library/charting_library public/ && cp -R node_modules/charting_library/charting_library src/",
+    "copy-files": "cp -R node_modules/charting_library/charting_library public/ && cp -R node_modules/charting_library/charting_library src/ && cp -R node_modules/charting_library/datafeeds public/",
     "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{js,jsx,ts,tsx}' --fix",
     "format": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'"
