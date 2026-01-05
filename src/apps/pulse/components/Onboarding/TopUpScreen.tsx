@@ -1002,37 +1002,47 @@ export default function TopUpScreen(props: TopUpScreenProps) {
         {isGaslessSupported && selectedFeeAsset && estimatedGasCostInToken && (
           <div className="m-2.5 p-3 bg-[#1E1D24] rounded-[10px] border border-[#29292F]">
             <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-white/70 text-xs">
-                  Estimated Gas Fee:
-                </span>
-                <span className="text-white font-medium text-sm">
-                  ≈ {estimatedGasCostInToken} {selectedFeeAsset.asset.symbol}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-white/50">Total needed:</span>
-                <span className="text-white">
-                  {(
-                    parseFloat(amount) + parseFloat(estimatedGasCostInToken)
-                  ).toFixed(selectedFeeAsset.decimals)}{' '}
-                  {selectedFeeAsset.asset.symbol}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-white/50">Your balance:</span>
-                <span
-                  className={
-                    selectedFeeAsset.balance >=
-                    parseFloat(amount) + parseFloat(estimatedGasCostInToken)
-                      ? 'text-[#10B981]'
-                      : 'text-[#EF4444]'
-                  }
-                >
-                  {selectedFeeAsset.balance.toFixed(selectedFeeAsset.decimals)}{' '}
-                  {selectedFeeAsset.asset.symbol}
-                </span>
-              </div>
+              {(() => {
+                // Convert USD amount to token units using token price
+                const tokenPrice = parseFloat(selectedFeeAsset.tokenPrice || '0') || 1;
+                const topUpAmountInTokens = parseFloat(amount) / tokenPrice;
+                const gasInTokens = parseFloat(estimatedGasCostInToken);
+                const totalNeededInTokens = topUpAmountInTokens + gasInTokens;
+                const hasEnoughBalance = selectedFeeAsset.balance >= totalNeededInTokens;
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/70 text-xs">
+                        Estimated Gas Fee:
+                      </span>
+                      <span className="text-white font-medium text-sm">
+                        ≈ {estimatedGasCostInToken} {selectedFeeAsset.asset.symbol}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/50">Total needed:</span>
+                      <span className="text-white">
+                        {totalNeededInTokens.toFixed(selectedFeeAsset.decimals)}{' '}
+                        {selectedFeeAsset.asset.symbol}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/50">Your balance:</span>
+                      <span
+                        className={
+                          hasEnoughBalance
+                            ? 'text-[#10B981]'
+                            : 'text-[#EF4444]'
+                        }
+                      >
+                        {selectedFeeAsset.balance.toFixed(selectedFeeAsset.decimals)}{' '}
+                        {selectedFeeAsset.asset.symbol}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
