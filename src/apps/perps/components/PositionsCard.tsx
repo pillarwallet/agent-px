@@ -17,16 +17,16 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
 
   const fetchPositions = async () => {
     if (!masterAddress) return;
-    
+
     setIsLoading(true);
     try {
       const userState = await getUserState(masterAddress);
-      
+
       if (userState?.assetPositions) {
         const openPositions = userState.assetPositions
           .map((pos: any) => pos.position)
           .filter((p: any) => parseFloat(p.szi) !== 0);
-        
+
         setPositions(openPositions);
       }
     } catch (error) {
@@ -85,48 +85,100 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
                 No open positions
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-2">Coin</th>
-                      <th className="text-right py-2 px-2">Size</th>
-                      <th className="text-right py-2 px-2">Entry</th>
-                      <th className="text-right py-2 px-2">Mark</th>
-                      <th className="text-right py-2 px-2">PNL (ROE%)</th>
-                      <th className="text-right py-2 px-2">Liq. Price</th>
-                      <th className="text-right py-2 px-2">Leverage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {positions.map((position, index) => {
-                      const pnl = formatPnl(position.unrealizedPnl);
-                      const roe = (parseFloat(position.unrealizedPnl) / parseFloat(position.marginUsed)) * 100;
-                      const isLong = parseFloat(position.szi) > 0;
-                      
-                      return (
-                        <tr key={index} className="border-b last:border-0">
-                          <td className="py-2 px-2 font-medium">{position.coin}</td>
-                          <td className="text-right py-2 px-2">
-                            <span className={isLong ? 'text-green-600' : 'text-red-600'}>
-                              {isLong ? '+' : ''}{formatNumber(position.szi, 4)}
-                            </span>
-                          </td>
-                          <td className="text-right py-2 px-2">${formatNumber(position.entryPx)}</td>
-                          <td className="text-right py-2 px-2">${formatNumber(Math.abs(parseFloat(position.markPx || '0', 10)), 2)}</td>
-                          <td className={`text-right py-2 px-2 ${pnl.className}`}>
-                            ${pnl.formatted} ({formatNumber(roe, 2)}%)
-                          </td>
-                          <td className="text-right py-2 px-2">
-                            {position.liquidationPx ? `$${formatNumber(position.liquidationPx)}` : '-'}
-                          </td>
-                          <td className="text-right py-2 px-2">{calculateLeverage(position)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-2">Coin</th>
+                        <th className="text-right py-2 px-2">Size</th>
+                        <th className="text-right py-2 px-2">Entry</th>
+                        <th className="text-right py-2 px-2">Mark</th>
+                        <th className="text-right py-2 px-2">PNL (ROE%)</th>
+                        <th className="text-right py-2 px-2">Liq. Price</th>
+                        <th className="text-right py-2 px-2">Leverage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {positions.map((position, index) => {
+                        const pnl = formatPnl(position.unrealizedPnl);
+                        const roe = (parseFloat(position.unrealizedPnl) / parseFloat(position.marginUsed)) * 100;
+                        const isLong = parseFloat(position.szi) > 0;
+
+                        return (
+                          <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
+                            <td className="py-2 px-2 font-medium">{position.coin}</td>
+                            <td className="text-right py-2 px-2">
+                              <span className={isLong ? 'text-green-600' : 'text-red-600'}>
+                                {isLong ? '+' : ''}{formatNumber(position.szi, 4)}
+                              </span>
+                            </td>
+                            <td className="text-right py-2 px-2">${formatNumber(position.entryPx)}</td>
+                            <td className="text-right py-2 px-2">${formatNumber(Math.abs(parseFloat(position.markPx || '0')), 2)}</td>
+                            <td className={`text-right py-2 px-2 ${pnl.className}`}>
+                              ${pnl.formatted} ({formatNumber(roe, 2)}%)
+                            </td>
+                            <td className="text-right py-2 px-2">
+                              {position.liquidationPx ? `$${formatNumber(position.liquidationPx)}` : '-'}
+                            </td>
+                            <td className="text-right py-2 px-2">{calculateLeverage(position)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {positions.map((position, index) => {
+                    const pnl = formatPnl(position.unrealizedPnl);
+                    const roe = (parseFloat(position.unrealizedPnl) / parseFloat(position.marginUsed)) * 100;
+                    const isLong = parseFloat(position.szi) > 0;
+
+                    return (
+                      <div key={index} className="border rounded-md p-3 space-y-3 bg-card">
+                        {/* Header: Coin and Size */}
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-base">{position.coin}</span>
+                          <span className={`${isLong ? 'text-green-600' : 'text-red-600'} font-medium`}>
+                            {isLong ? 'Long' : 'Short'} {formatNumber(Math.abs(parseFloat(position.szi)), 4)}
+                          </span>
+                        </div>
+
+                        {/* Data Grid */}
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          <div>
+                            <span className="text-xs text-muted-foreground block">Entry Price</span>
+                            <span className="font-medium">${formatNumber(position.entryPx)}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs text-muted-foreground block">Mark Price</span>
+                            <span className="font-medium">${formatNumber(Math.abs(parseFloat(position.markPx || '0')), 2)}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block">Liq. Price</span>
+                            <span className="font-medium">{position.liquidationPx ? `$${formatNumber(position.liquidationPx)}` : '-'}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs text-muted-foreground block">Leverage</span>
+                            <span className="font-medium">{calculateLeverage(position)}</span>
+                          </div>
+                        </div>
+
+                        {/* Footer: PNL */}
+                        <div className="pt-2 border-t flex justify-between items-center">
+                          <span className="text-sm font-medium text-muted-foreground">PNL (ROE%)</span>
+                          <div className={`text-right font-medium ${pnl.className}`}>
+                            ${pnl.formatted} <span className="opacity-80">({formatNumber(roe, 2)}%)</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </CardContent>
         </CollapsibleContent>

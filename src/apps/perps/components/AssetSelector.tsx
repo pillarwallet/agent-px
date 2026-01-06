@@ -194,8 +194,8 @@ export function AssetSelector({ selectedSymbol, onSelect }: AssetSelectorProps) 
                   key={asset.symbol}
                   onClick={() => onSelect(asset.symbol, asset)}
                   className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${selectedSymbol === asset.symbol
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-secondary'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-secondary'
                     }`}
                 >
                   <div className="flex items-center gap-3">
@@ -208,26 +208,26 @@ export function AssetSelector({ selectedSymbol, onSelect }: AssetSelectorProps) 
 
                     {/* Token Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center mb-0.5">
                         <span className="font-semibold">{asset.symbol}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {asset.maxLeverage}x max
-                        </span>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>
                           Vol {formatVolume(asset.volume)}
                         </span>
-                        <span className={isPositive ? 'text-green-600' : 'text-red-600'}>
-                          {isPositive ? '+' : ''}{asset.priceChangePercent.toFixed(2)}%
+                        <span>
+                          {asset.maxLeverage}x max
                         </span>
                       </div>
                     </div>
 
-                    {/* Price */}
+                    {/* Price & Change */}
                     <div className="text-right flex-shrink-0">
                       <div className="font-semibold">
                         ${formatPrice(asset.price)}
+                      </div>
+                      <div className={`text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                        {isPositive ? '+' : ''}{asset.priceChangePercent.toFixed(2)}%
                       </div>
                     </div>
                   </div>

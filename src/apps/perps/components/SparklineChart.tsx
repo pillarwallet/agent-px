@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { AssetInfo } from '../lib/hyperliquid/types';
 import { Card, CardContent } from './ui/card';
+import { useIsMobile } from '../hooks/use-mobile';
 
 interface SparklineChartProps {
     selectedAsset: AssetInfo | null;
@@ -175,6 +176,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
         return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     };
 
+    const isMobile = useIsMobile();
     const percentChange = getPercentageChange();
     const isPositive = percentChange >= 0;
 
@@ -194,65 +196,139 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
         <Card>
             <CardContent className="p-6">
                 {/* Header with current price and market data */}
-                <div className="mb-6 flex flex-col md:flex-row justify-between items-start gap-6">
-                    {/* Left: Current Price */}
-                    <div>
-                        <div className="text-sm text-muted-foreground mb-2">
-                            {selectedAsset.symbol} Price (12H)
+                <div className="mb-6">
+                    {/* --- MOBILE LAYOUT (< 1024px) --- */}
+                    {isMobile ? (
+                        <div className="flex flex-col gap-6">
+                            {/* Top Row: Symbol (Left) vs Price (Right) */}
+                            <div className="flex justify-between items-start">
+                                {/* Left: Symbol & Badge */}
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-2xl font-bold">{selectedAsset.symbol}</span>
+                                        <span className="text-xs font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">Perp</span>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Price (12H)
+                                    </div>
+                                </div>
+
+                                {/* Right: Price & Change */}
+                                <div className="text-right">
+                                    {currentPrice !== null && (
+                                        <>
+                                            <div className={`text-2xl font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                                ${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </div>
+                                            <div className={`text-sm font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                                {isPositive ? '+' : ''}{percentChange.toFixed(2)}%
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Bottom Row: 2x2 Data Grid */}
+                            {marketData && (
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-4 text-xs">
+                                    {/* 1. Mark / Oracle */}
+                                    <div>
+                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Mark / Oracle</div>
+                                        <div className="font-semibold">
+                                            {formatNumber(marketData.markPx)} / {formatNumber(marketData.oraclePx)}
+                                        </div>
+                                    </div>
+
+                                    {/* 2. 24H Volume */}
+                                    <div>
+                                        <div className="text-muted-foreground mb-1">24H Volume</div>
+                                        <div className="font-semibold">{formatVolume(marketData.dayNtlVlm)}</div>
+                                    </div>
+
+                                    {/* 3. Open Interest */}
+                                    <div>
+                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Open Interest</div>
+                                        <div className="font-semibold">${formatNumber(marketData.openInterest, 2)}</div>
+                                    </div>
+
+                                    {/* 4. Funding / Countdown */}
+                                    <div>
+                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Funding / Countdown</div>
+                                        <div className="flex items-center justify-start gap-2">
+                                            <span className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {(parseFloat(marketData.funding) * 100).toFixed(4)}%
+                                            </span>
+                                            <span className="text-muted-foreground">
+                                                00:51:51
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        {currentPrice !== null && (
-                            <div className="flex items-baseline gap-3">
-                                <div className="text-4xl font-bold">
-                                    ${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ) : (
+                        /* --- DESKTOP LAYOUT (>= 1024px) --- */
+                        <div className="flex flex-row justify-between items-start gap-6">
+                            {/* Left: Current Price */}
+                            <div>
+                                <div className="text-sm text-muted-foreground mb-2">
+                                    {selectedAsset.symbol} Price (12H)
                                 </div>
-                                <div className={`text-lg font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                    {isPositive ? '+' : ''}{percentChange.toFixed(2)}%
+                                {currentPrice !== null && (
+                                    <div className="flex items-baseline gap-3">
+                                        <div className="text-4xl font-bold">
+                                            ${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                        <div className={`text-lg font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                            {isPositive ? '+' : ''}{percentChange.toFixed(2)}%
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right: Market Data Ticker */}
+                            {marketData && (
+                                <div className="flex gap-x-8 text-sm text-right">
+                                    <div>
+                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Mark</div>
+                                        <div className="font-semibold">${formatNumber(marketData.markPx)}</div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Oracle</div>
+                                        <div className="font-semibold">${formatNumber(marketData.oraclePx)}</div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-muted-foreground mb-2">24H Change</div>
+                                        <div className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                            {formatNumber(String(parseFloat(marketData.markPx) - parseFloat(marketData.prevDayPx)))} / {percentChange.toFixed(2)}%
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-muted-foreground mb-2">24H Volume</div>
+                                        <div className="font-semibold">{formatVolume(marketData.dayNtlVlm)}</div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Open Interest</div>
+                                        <div className="font-semibold">${formatNumber(marketData.openInterest, 2)}</div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Funding / Countdown</div>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <span className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {(parseFloat(marketData.funding) * 100).toFixed(4)}%
+                                            </span>
+                                            <span className="text-muted-foreground">
+                                                00:51:51
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Right: Market Data Ticker */}
-                    {marketData && (
-                        <div className="flex flex-wrap items-start w-full md:w-auto justify-start md:justify-end gap-x-4 gap-y-2 md:gap-x-8 md:gap-y-4 text-xs md:text-sm">
-                            <div className="text-left md:text-right">
-                                <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1 md:mb-2">Mark</div>
-                                <div className="font-semibold">${formatNumber(marketData.markPx)}</div>
-                            </div>
-
-                            <div className="text-left md:text-right">
-                                <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1 md:mb-2">Oracle</div>
-                                <div className="font-semibold">${formatNumber(marketData.oraclePx)}</div>
-                            </div>
-
-                            <div className="text-left md:text-right">
-                                <div className="text-muted-foreground mb-1 md:mb-2">24H Change</div>
-                                <div className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                    {formatNumber(String(parseFloat(marketData.markPx) - parseFloat(marketData.prevDayPx)))} / {percentChange.toFixed(2)}%
-                                </div>
-                            </div>
-
-                            <div className="text-left md:text-right">
-                                <div className="text-muted-foreground mb-1 md:mb-2">24H Volume</div>
-                                <div className="font-semibold">{formatVolume(marketData.dayNtlVlm)}</div>
-                            </div>
-
-                            <div className="text-left md:text-right">
-                                <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1 md:mb-2">Open Interest</div>
-                                <div className="font-semibold">${formatNumber(marketData.openInterest, 2)}</div>
-                            </div>
-
-                            <div className="text-left md:text-right">
-                                <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1 md:mb-2">Funding / Countdown</div>
-                                <div className="flex items-center justify-start md:justify-end gap-2">
-                                    <span className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {(parseFloat(marketData.funding) * 100).toFixed(4)}%
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                        00:51:51
-                                    </span>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </div>
