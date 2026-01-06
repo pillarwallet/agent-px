@@ -173,8 +173,12 @@ export default function useRelayBuy() {
         try {
           if (maxTokenAmount) {
             // Use maxTokenAmount directly (e.g., for MAX selections)
-            if (Number.isNaN(maxTokenAmount)) {
-              throw new Error('Invalid maxTokenAmount');
+            // Validate that maxTokenAmount is a valid number string
+            const numeric = Number(maxTokenAmount);
+            if (Number.isNaN(numeric) || numeric <= 0) {
+              throw new Error(
+                'Invalid maxTokenAmount: must be a positive number'
+              );
             }
 
             // Convert to wei using USDC decimals (e.g., 6 on Ethereum, 18 on BSC)
