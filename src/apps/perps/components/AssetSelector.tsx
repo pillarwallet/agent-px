@@ -42,21 +42,31 @@ export function AssetSelector({ selectedSymbol, onSelect }: AssetSelectorProps) 
     setIsLoading(true);
     try {
       const data = await getMetaAndAssetCtxs();
-      if (data?.universe) {
-        const enhancedAssets: EnhancedAsset[] = data.universe.map((asset: any, index: number) => ({
-          id: index,
-          symbol: asset.name,
-          szDecimals: asset.szDecimals || 3,
-          maxLeverage: asset.maxLeverage || 50,
-          price: parseFloat(asset.markPx || '0'),
-          volume: parseFloat(asset.dayNtlVlm || '0'),
-          priceChange: parseFloat(asset.prevDayPx || '0') > 0
-            ? parseFloat(asset.markPx || '0') - parseFloat(asset.prevDayPx || '0')
-            : 0,
-          priceChangePercent: parseFloat(asset.prevDayPx || '0') > 0
-            ? ((parseFloat(asset.markPx || '0') - parseFloat(asset.prevDayPx || '0')) / parseFloat(asset.prevDayPx || '0')) * 100
-            : 0,
-        }));
+
+      // API returns [metadata, assetContexts]
+      // data[0] = { universe: [...], ... }
+      // data[1] = [ctx0, ctx1, ...] with price/volume data
+      if (data && Array.isArray(data) && data[0]?.universe && Array.isArray(data[1])) {
+        const universe = data[0].universe;
+        const assetCtxs = data[1];
+
+        const enhancedAssets: EnhancedAsset[] = universe.map((asset: any, index: number) => {
+          const ctx = assetCtxs[index] || {};
+          const markPx = parseFloat(ctx.markPx || '0');
+          const prevDayPx = parseFloat(ctx.prevDayPx || '0');
+
+          return {
+            id: index,
+            symbol: asset.name,
+            szDecimals: asset.szDecimals || 3,
+            maxLeverage: asset.maxLeverage || 50,
+            price: markPx,
+            volume: parseFloat(ctx.dayNtlVlm || '0'),
+            priceChange: prevDayPx > 0 ? markPx - prevDayPx : 0,
+            priceChangePercent: prevDayPx > 0 ? ((markPx - prevDayPx) / prevDayPx) * 100 : 0,
+          };
+        });
+
         setAssets(enhancedAssets);
       }
     } catch (error) {
