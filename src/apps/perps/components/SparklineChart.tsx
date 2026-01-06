@@ -194,7 +194,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
         <Card>
             <CardContent className="p-6">
                 {/* Header with current price and market data */}
-                <div className="mb-6 flex flex-col xl:flex-row xl:justify-between xl:items-start gap-6">
+                <div className="mb-6 flex flex-col xl:flex-row xl:justify-between xl:items-end gap-6">
                     {/* Left: Current Price */}
                     <div>
                         <div className="text-sm text-muted-foreground mb-2">
@@ -214,7 +214,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
 
                     {/* Right: Market Data Ticker */}
                     {marketData && (
-                        <div className="flex flex-wrap items-start justify-end gap-x-8 gap-y-4 text-sm">
+                        <div className="flex flex-wrap items-end justify-end gap-x-8 gap-y-4 text-sm pb-1">
                             <div className="text-right">
                                 <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Mark</div>
                                 <div className="font-semibold">${formatNumber(marketData.markPx)}</div>
