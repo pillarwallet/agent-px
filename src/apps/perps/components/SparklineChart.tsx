@@ -11,11 +11,51 @@ interface CandleData {
     close: number;
 }
 
+interface MarketData {
+    funding: string;
+    openInterest: string;
+    prevDayPx: string;
+    dayNtlVlm: string;
+    premium: string;
+    oraclePx: string;
+    markPx: string;
+    midPx: string;
+    impactPxs: string[];
+    dayBaseVlm: string;
+}
+
 export function SparklineChart({ selectedAsset }: SparklineChartProps) {
     const [candles, setCandles] = useState<CandleData[]>([]);
     const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+    const [marketData, setMarketData] = useState<MarketData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const fetchMarketData = useCallback(async (symbol: string) => {
+        try {
+            const response = await fetch('https://api.hyperliquid.xyz/info', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch market data');
+
+            const data = await response.json();
+            if (data && Array.isArray(data) && data[0]?.universe && Array.isArray(data[1])) {
+                const universe = data[0].universe;
+                const assetCtxs = data[1];
+
+                // Find the index of our asset
+                const assetIndex = universe.findIndex((a: any) => a.name === symbol);
+                if (assetIndex !== -1 && assetCtxs[assetIndex]) {
+                    setMarketData(assetCtxs[assetIndex]);
+                }
+            }
+        } catch (err) {
+            console.error('[Sparkline] Error fetching market data:', err);
+        }
+    }, []);
 
     const fetchCandles = useCallback(async (symbol: string) => {
         try {
@@ -23,12 +63,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
             setError(null);
 
             const now = Date.now();
-            const twelveHoursAgo = now - (12 * 60 * 60 * 1000); // 12 hours in milliseconds
-
-            console.log('[Sparkline] Fetching candles for', symbol, {
-                startTime: new Date(twelveHoursAgo).toISOString(),
-                endTime: new Date(now).toISOString()
-            });
+            const twelveHoursAgo = now - (12 * 60 * 60 * 1000);
 
             const response = await fetch('https://api.hyperliquid.xyz/info', {
                 method: 'POST',
@@ -45,15 +80,12 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('[Sparkline] API error:', { status: response.status, error: errorText });
                 throw new Error(`API error: ${response.status}`);
             }
 
             const raw = await response.json();
 
             if (!Array.isArray(raw)) {
-                console.error('[Sparkline] Invalid response format:', raw);
                 throw new Error('Invalid response format');
             }
 
@@ -65,40 +97,33 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                 }))
                 .sort((a, b) => a.time - b.time);
 
-            console.log('[Sparkline] Fetched candles:', {
-                count: candleData.length,
-                first: candleData[0] ? new Date(candleData[0].time).toISOString() : null,
-                last: candleData[candleData.length - 1] ? new Date(candleData[candleData.length - 1].time).toISOString() : null,
-                firstPrice: candleData[0]?.close,
-                lastPrice: candleData[candleData.length - 1]?.close,
-            });
-
             setCandles(candleData);
 
-            // Set current price to the most recent close price
             if (candleData.length > 0) {
                 setCurrentPrice(candleData[candleData.length - 1].close);
             }
+
+            // Fetch market data
+            await fetchMarketData(symbol);
         } catch (err) {
             console.error('[Sparkline] Error fetching candles:', err);
             setError(err instanceof Error ? err.message : 'Failed to fetch data');
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [fetchMarketData]);
 
-    // Fetch data on mount and when asset changes
     useEffect(() => {
         if (!selectedAsset) {
             setCandles([]);
             setCurrentPrice(null);
+            setMarketData(null);
             return;
         }
 
         fetchCandles(selectedAsset.symbol);
     }, [selectedAsset, fetchCandles]);
 
-    // Refresh every 2 seconds
     useEffect(() => {
         if (!selectedAsset) return;
 
@@ -109,7 +134,6 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
         return () => clearInterval(interval);
     }, [selectedAsset, fetchCandles]);
 
-    // Calculate SVG path for sparkline
     const getSparklinePath = () => {
         if (candles.length < 2) return '';
 
@@ -136,6 +160,19 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
         const firstPrice = candles[0].close;
         const lastPrice = candles[candles.length - 1].close;
         return ((lastPrice - firstPrice) / firstPrice) * 100;
+    };
+
+    const formatVolume = (volume: string): string => {
+        const num = parseFloat(volume);
+        if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
+        if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
+        if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`;
+        return `$${num.toFixed(2)}`;
+    };
+
+    const formatNumber = (value: string, decimals: number = 2): string => {
+        const num = parseFloat(value);
+        return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     };
 
     const percentChange = getPercentageChange();
@@ -193,7 +230,6 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                             preserveAspectRatio="none"
                             className="w-full"
                         >
-                            {/* Sparkline path */}
                             <path
                                 d={getSparklinePath()}
                                 fill="none"
@@ -201,15 +237,12 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                                 strokeWidth="2"
                                 vectorEffect="non-scaling-stroke"
                             />
-
-                            {/* Area under the line */}
                             <path
                                 d={`${getSparklinePath()} L 800,100 L 0,100 Z`}
                                 fill={isPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'}
                             />
                         </svg>
 
-                        {/* Time labels */}
                         <div className="flex justify-between mt-2 text-xs text-muted-foreground">
                             <span>12h ago</span>
                             <span>Now</span>
@@ -217,7 +250,61 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                     </div>
                 )}
 
-
+                {/* Market Data Grid */}
+                {marketData && (
+                    <div className="mt-6 pt-6 border-t border-border">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Mark Price</div>
+                                <div className="text-sm font-semibold">${formatNumber(marketData.markPx)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Oracle Price</div>
+                                <div className="text-sm font-semibold">${formatNumber(marketData.oraclePx)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Mid Price</div>
+                                <div className="text-sm font-semibold">${formatNumber(marketData.midPx)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">24h Volume</div>
+                                <div className="text-sm font-semibold">{formatVolume(marketData.dayNtlVlm)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Base Volume</div>
+                                <div className="text-sm font-semibold">{parseFloat(marketData.dayBaseVlm).toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Open Interest</div>
+                                <div className="text-sm font-semibold">{formatNumber(marketData.openInterest, 4)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Funding Rate</div>
+                                <div className={`text-sm font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {(parseFloat(marketData.funding) * 100).toFixed(4)}%
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Premium</div>
+                                <div className={`text-sm font-semibold ${parseFloat(marketData.premium) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {(parseFloat(marketData.premium) * 100).toFixed(4)}%
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Prev Day Price</div>
+                                <div className="text-sm font-semibold">${formatNumber(marketData.prevDayPx)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-muted-foreground mb-1">Impact Prices</div>
+                                <div className="text-xs font-mono">
+                                    {marketData.impactPxs.map((p, i) => (
+                                        <div key={i}>${formatNumber(p)}</div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
