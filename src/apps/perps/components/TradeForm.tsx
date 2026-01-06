@@ -15,6 +15,7 @@ import useTransactionKit from '../../../hooks/useTransactionKit';
 import { computeSizeUSD, splitTPs, roundToSzDecimals } from '../lib/hyperliquid/order';
 import { placeMarketOrderAgent, placeLimitOrderAgent } from '../lib/hyperliquid/sdk';
 import { parsePositionForSymbol } from '../lib/hyperliquid/parsers';
+import { PasteStrategyButton } from './PasteStrategyButton';
 import type { AssetInfo } from '../lib/hyperliquid/types';
 
 const tradeSchema = z.object({
@@ -52,6 +53,7 @@ type TradeFormData = z.infer<typeof tradeSchema>;
 interface TradeFormProps {
   selectedAsset: AssetInfo | null;
   onTradeComplete?: () => void;
+  onTickerChange?: (ticker: string) => void;
   prefilledData?: {
     side?: 'long' | 'short';
     entryPrice?: number;
@@ -60,7 +62,7 @@ interface TradeFormProps {
   };
 }
 
-export function TradeForm({ selectedAsset, onTradeComplete, prefilledData }: TradeFormProps) {
+export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, prefilledData }: TradeFormProps) {
   const { walletAddress: masterAddress } = useTransactionKit();
   const [isMarketOrder, setIsMarketOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,6 +119,21 @@ export function TradeForm({ selectedAsset, onTradeComplete, prefilledData }: Tra
       }
     }
   }, [prefilledData, setValue]);
+
+  // Handle pasted strategy
+  const handleStrategyPasted = (strategy: { ticker: string; side: 'long' | 'short'; entryPrice: number; stopLoss: number; takeProfits: string }) => {
+    // Notify parent to switch ticker
+    if (onTickerChange) {
+      onTickerChange(strategy.ticker);
+    }
+
+    // Populate form fields
+    setValue('side', strategy.side);
+    setValue('entryPrice', strategy.entryPrice);
+    setValue('stopLoss', strategy.stopLoss);
+    setValue('takeProfits', strategy.takeProfits);
+    setIsMarketOrder(false); // Always use limit order for pasted strategies
+  };
 
   // Check if amount is below minimum
   const isBelowMinimum = minUSD !== null && amountUSD > 0 && amountUSD < minUSD;
@@ -298,7 +315,7 @@ export function TradeForm({ selectedAsset, onTradeComplete, prefilledData }: Tra
       <form onSubmit={handleSubmit(onSubmit, () => toast.error('Please fix the form errors'))} className="space-y-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Trade {selectedAsset.symbol}</h3>
-          <span className="text-sm text-muted-foreground">Max {selectedAsset.maxLeverage}x</span>
+          <PasteStrategyButton onStrategyPasted={handleStrategyPasted} />
         </div>
 
         <div>

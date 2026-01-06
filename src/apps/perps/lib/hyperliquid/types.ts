@@ -74,3 +74,10 @@ export interface AssetInfo {
   szDecimals: number;
   maxLeverage: number;
 }
+
+export interface EnhancedAsset extends AssetInfo {
+  price: number;
+  volume: number;
+  priceChange: number;
+  priceChangePercent: number;
+}

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { AssetInfo } from '../lib/hyperliquid/types';
 import { Card, CardContent } from './ui/card';
 import { useIsMobile } from '../hooks/use-mobile';
+import { TokenIcon } from './TokenIcon';
 
 interface SparklineChartProps {
     selectedAsset: AssetInfo | null;
@@ -31,6 +32,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
     const [marketData, setMarketData] = useState<MarketData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [hoverData, setHoverData] = useState<{ x: number; y: number; price: number; time: number } | null>(null);
 
     const fetchMarketData = useCallback(async (symbol: string) => {
         try {
@@ -193,8 +195,8 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
     }
 
     return (
-        <Card>
-            <CardContent className="p-6">
+        <Card className="h-full">
+            <CardContent className="p-6 flex flex-col h-full">
                 {/* Header with current price and market data */}
                 <div className="mb-6">
                     {/* --- MOBILE LAYOUT (< 1024px) --- */}
@@ -205,8 +207,9 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                                 {/* Left: Symbol & Badge */}
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
+                                        <TokenIcon symbol={selectedAsset.symbol} size={28} />
                                         <span className="text-2xl font-bold">{selectedAsset.symbol}</span>
-                                        <span className="text-xs font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">Perp</span>
+                                        <span className="text-xs font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">{selectedAsset.maxLeverage}x</span>
                                     </div>
                                     <div className="text-xs text-muted-foreground">
                                         Price (12H)
@@ -230,35 +233,35 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
 
                             {/* Bottom Row: 2x2 Data Grid */}
                             {marketData && (
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-4 text-xs">
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                                     {/* 1. Mark / Oracle */}
                                     <div>
-                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Mark / Oracle</div>
-                                        <div className="font-semibold">
+                                        <div className="text-[10px] text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">Mark / Oracle</div>
+                                        <div className="text-[11px] font-medium">
                                             {formatNumber(marketData.markPx)} / {formatNumber(marketData.oraclePx)}
                                         </div>
                                     </div>
 
                                     {/* 2. 24H Volume */}
                                     <div>
-                                        <div className="text-muted-foreground mb-1">24H Volume</div>
-                                        <div className="font-semibold">{formatVolume(marketData.dayNtlVlm)}</div>
+                                        <div className="text-[10px] text-muted-foreground mb-0.5">24H Volume</div>
+                                        <div className="text-[11px] font-medium">{formatVolume(marketData.dayNtlVlm)}</div>
                                     </div>
 
                                     {/* 3. Open Interest */}
                                     <div>
-                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Open Interest</div>
-                                        <div className="font-semibold">${formatNumber(marketData.openInterest, 2)}</div>
+                                        <div className="text-[10px] text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">Open Interest</div>
+                                        <div className="text-[11px] font-medium">${formatNumber(marketData.openInterest, 2)}</div>
                                     </div>
 
                                     {/* 4. Funding / Countdown */}
                                     <div>
-                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Funding / Countdown</div>
+                                        <div className="text-[10px] text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">Funding / Countdown</div>
                                         <div className="flex items-center justify-start gap-2">
-                                            <span className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            <span className={`text-[11px] font-medium ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                                 {(parseFloat(marketData.funding) * 100).toFixed(4)}%
                                             </span>
-                                            <span className="text-muted-foreground">
+                                            <span className="text-[10px] text-muted-foreground">
                                                 00:51:51
                                             </span>
                                         </div>
@@ -268,63 +271,57 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                         </div>
                     ) : (
                         /* --- DESKTOP LAYOUT (>= 1024px) --- */
-                        <div className="flex flex-row justify-between items-start gap-6">
-                            {/* Left: Current Price */}
-                            <div>
-                                <div className="text-sm text-muted-foreground mb-2">
-                                    {selectedAsset.symbol} Price (12H)
-                                </div>
+                        <div className="flex flex-row justify-between items-center gap-4">
+                            {/* Left: Logo + Symbol + Price + Change - All on same line */}
+                            <div className="flex items-center gap-3">
+                                <TokenIcon symbol={selectedAsset.symbol} size={32} />
+                                <div className="text-2xl font-bold">{selectedAsset.symbol}</div>
                                 {currentPrice !== null && (
-                                    <div className="flex items-baseline gap-3">
-                                        <div className="text-4xl font-bold">
-                                            ${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </div>
-                                        <div className={`text-lg font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                    <>
+                                        <span className="text-2xl font-bold">
+                                            ${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span className={`text-sm font-semibold mb-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                                             {isPositive ? '+' : ''}{percentChange.toFixed(2)}%
-                                        </div>
-                                    </div>
+                                        </span>
+                                    </>
                                 )}
                             </div>
 
-                            {/* Right: Market Data Ticker */}
+                            {/* Right: Compact Market Data */}
                             {marketData && (
-                                <div className="flex gap-x-8 text-sm text-right">
-                                    <div>
-                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Mark</div>
+                                <div className="flex gap-x-4 text-[10px]">
+                                    <div className="text-right">
+                                        <div className="text-muted-foreground mb-1">Mark</div>
                                         <div className="font-semibold">${formatNumber(marketData.markPx)}</div>
                                     </div>
 
-                                    <div>
-                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Oracle</div>
-                                        <div className="font-semibold">${formatNumber(marketData.oraclePx)}</div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-muted-foreground mb-2">24H Change</div>
+                                    <div className="text-right">
+                                        <div className="text-muted-foreground mb-1">24H Change</div>
                                         <div className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                                             {formatNumber(String(parseFloat(marketData.markPx) - parseFloat(marketData.prevDayPx)))} / {percentChange.toFixed(2)}%
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <div className="text-muted-foreground mb-2">24H Volume</div>
+                                    <div className="text-right">
+                                        <div className="text-muted-foreground mb-1">24H Volume</div>
                                         <div className="font-semibold">{formatVolume(marketData.dayNtlVlm)}</div>
                                     </div>
 
-                                    <div>
-                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Open Interest</div>
+                                    <div className="text-right">
+                                        <div className="text-muted-foreground mb-1">Oracle</div>
+                                        <div className="font-semibold">${formatNumber(marketData.oraclePx)}</div>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <div className="text-muted-foreground mb-1">Open Interest</div>
                                         <div className="font-semibold">${formatNumber(marketData.openInterest, 2)}</div>
                                     </div>
 
-                                    <div>
-                                        <div className="text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-2">Funding / Countdown</div>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <span className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                {(parseFloat(marketData.funding) * 100).toFixed(4)}%
-                                            </span>
-                                            <span className="text-muted-foreground">
-                                                00:51:51
-                                            </span>
+                                    <div className="text-right">
+                                        <div className="text-muted-foreground mb-1">Funding</div>
+                                        <div className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {(parseFloat(marketData.funding) * 100).toFixed(4)}%
                                         </div>
                                     </div>
                                 </div>
@@ -343,13 +340,34 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                         {isLoading ? 'Loading chart data...' : 'No data available'}
                     </div>
                 ) : (
-                    <div className="relative">
+                    <div className="relative flex-1 min-h-[200px]"
+                        onMouseMove={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const svgWidth = rect.width;
+                            const dataIndex = Math.round((x / svgWidth) * (candles.length - 1));
+                            if (dataIndex >= 0 && dataIndex < candles.length) {
+                                const candle = candles[dataIndex];
+                                const prices = candles.map(c => c.close);
+                                const minPrice = Math.min(...prices);
+                                const maxPrice = Math.max(...prices);
+                                const normalizedY = ((candle.close - minPrice) / (maxPrice - minPrice)) * 100;
+                                setHoverData({
+                                    x: (dataIndex / (candles.length - 1)) * 100,
+                                    y: 100 - normalizedY,
+                                    price: candle.close,
+                                    time: candle.time
+                                });
+                            }
+                        }}
+                        onMouseLeave={() => setHoverData(null)}
+                    >
                         <svg
                             width="100%"
-                            height="100"
+                            height="100%"
                             viewBox="0 0 800 100"
                             preserveAspectRatio="none"
-                            className="w-full"
+                            className="w-full pointer-events-none"
                         >
                             <path
                                 d={getSparklinePath()}
@@ -363,6 +381,28 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                                 fill={isPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'}
                             />
                         </svg>
+
+                        {/* Hover Tooltip */}
+                        {hoverData && (
+                            <div
+                                className="absolute pointer-events-none"
+                                style={{
+                                    left: `${hoverData.x}%`,
+                                    top: `${hoverData.y}%`,
+                                    transform: 'translate(-50%, -100%)'
+                                }}
+                            >
+                                <div className="bg-popover border border-border rounded-md px-2 py-1 shadow-lg mb-2">
+                                    <div className="text-xs font-semibold">
+                                        ${hoverData.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground">
+                                        {new Date(hoverData.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                                <div className="w-2 h-2 bg-primary rounded-full mx-auto"></div>
+                            </div>
+                        )}
 
                         <div className="flex justify-between mt-2 text-xs text-muted-foreground">
                             <span>12h ago</span>

@@ -19,22 +19,25 @@ export async function placeMarketOrderAgent(
     isBuy: boolean;
     size: number;
     currentPrice: number;
+    reduceOnly?: boolean;
   }
 ): Promise<any> {
   const client = getExchangeClientForAgent(privateKey);
-  
+
   // Use 5% slippage to stay within Hyperliquid's 95% rule
-  const marketPrice = params.isBuy 
-    ? (params.currentPrice * 1.05).toString() 
+  // For closing positions (reduce-only), checking price might be less critical if we just want out,
+  // but we still need a limit price for the IOc order.
+  const marketPrice = params.isBuy
+    ? (params.currentPrice * 1.05).toString()
     : (params.currentPrice * 0.95).toString();
-  
+
   const orderRequest = {
     orders: [{
       a: params.coinId,
       b: params.isBuy,
       p: marketPrice,
       s: params.size.toString(),
-      r: false,
+      r: params.reduceOnly ?? false,
       t: { limit: { tif: 'Ioc' as const } }
     }],
     grouping: "na" as const
@@ -43,7 +46,7 @@ export async function placeMarketOrderAgent(
   console.log('[SDK] Placing market order:', orderRequest);
   const response = await client.order(orderRequest);
   console.log('[SDK] Order response:', response);
-  
+
   return response;
 }
 
@@ -61,7 +64,7 @@ export async function placeLimitOrderAgent(
   }
 ): Promise<any> {
   const client = getExchangeClientForAgent(privateKey);
-  
+
   const orderRequest = {
     orders: [{
       a: params.coinId,
@@ -77,7 +80,7 @@ export async function placeLimitOrderAgent(
   console.log('[SDK] Placing limit order:', orderRequest);
   const response = await client.order(orderRequest);
   console.log('[SDK] Order response:', response);
-  
+
   return response;
 }
 
@@ -95,6 +98,6 @@ export async function approveAgentSDK(
   console.log('[SDK] Approving agent:', agentAddress);
   const response = await client.approveAgent({ agentAddress, agentName });
   console.log('[SDK] Approve response:', response);
-  
+
   return response;
 }

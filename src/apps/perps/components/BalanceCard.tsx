@@ -19,51 +19,50 @@ export function BalanceCard({ userState, isLoading, onRefresh }: BalanceCardProp
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Account Balance</CardTitle>
-          {onRefresh && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRefresh}
-              disabled={isLoading}
-              className="gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <DepositModal userState={userState} />
+            {onRefresh && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onRefresh}
+                disabled={isLoading}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-start justify-between p-4 bg-secondary/50 rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <DollarSign className="h-5 w-5 text-primary" />
+      <CardContent className="space-y-3">
+        <div className="flex items-start justify-between p-3 bg-secondary/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-primary/10 rounded-lg">
+              <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Available USDC</p>
-              <p className="text-2xl font-bold font-mono-numbers">
+              <p className="text-xs text-muted-foreground">Available USDC</p>
+              <p className="text-xl font-bold font-mono-numbers">
                 ${availableUSDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-start justify-between p-4 bg-secondary/50 rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/10 rounded-lg">
-              <TrendingUp className="h-5 w-5 text-accent" />
+        <div className="flex items-start justify-between p-3 bg-secondary/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-accent/10 rounded-lg">
+              <TrendingUp className="h-4 w-4 text-accent" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Account Equity</p>
-              <p className="text-2xl font-bold font-mono-numbers">
+              <p className="text-xs text-muted-foreground">Account Equity</p>
+              <p className="text-xl font-bold font-mono-numbers">
                 ${accountEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
-        </div>
-
-        <div className="pt-2">
-          <DepositModal userState={userState} />
         </div>
       </CardContent>
     </Card>
