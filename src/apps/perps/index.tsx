@@ -27,7 +27,12 @@ const Index = () => {
     loadBalance,
   } = useHyperliquid();
 
-  const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>({
+    id: 0,
+    symbol: 'BTC',
+    szDecimals: 5,
+    maxLeverage: 50,
+  });
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
@@ -107,16 +112,7 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Status Banner */}
-        {address && (
-          <div className="mb-6">
-            <StatusBanner
-              status={setupStatus}
-              onSetup={setupHyperliquid}
-              isSettingUp={isLoading}
-            />
-          </div>
-        )}
+
 
         {/* Agent Controls */}
         {address && setupStatus === 'setup' && (
