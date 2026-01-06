@@ -1,23 +1,38 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Download } from 'lucide-react';
+import { Search, ArrowUpDown } from 'lucide-react';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
-import { getAllAssets } from '../lib/hyperliquid/client';
+import { getMetaAndAssetCtxs } from '../lib/hyperliquid/client';
 import type { AssetInfo } from '../lib/hyperliquid/types';
 import { Skeleton } from './ui/skeleton';
-import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 interface AssetSelectorProps {
   selectedSymbol: string | null;
   onSelect: (symbol: string, asset: AssetInfo) => void;
 }
 
+interface EnhancedAsset extends AssetInfo {
+  price: number;
+  volume: number;
+  priceChange: number;
+  priceChangePercent: number;
+}
+
+type SortBy = 'price' | 'volume' | 'change';
+
 export function AssetSelector({ selectedSymbol, onSelect }: AssetSelectorProps) {
-  const [assets, setAssets] = useState<AssetInfo[]>([]);
+  const [assets, setAssets] = useState<EnhancedAsset[]>([]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<SortBy>('volume');
 
   useEffect(() => {
     loadAssets();
@@ -26,8 +41,24 @@ export function AssetSelector({ selectedSymbol, onSelect }: AssetSelectorProps) 
   const loadAssets = async () => {
     setIsLoading(true);
     try {
-      const data = await getAllAssets();
-      setAssets(data);
+      const data = await getMetaAndAssetCtxs();
+      if (data?.universe) {
+        const enhancedAssets: EnhancedAsset[] = data.universe.map((asset: any, index: number) => ({
+          id: index,
+          symbol: asset.name,
+          szDecimals: asset.szDecimals || 3,
+          maxLeverage: asset.maxLeverage || 50,
+          price: parseFloat(asset.markPx || '0'),
+          volume: parseFloat(asset.dayNtlVlm || '0'),
+          priceChange: parseFloat(asset.prevDayPx || '0') > 0
+            ? parseFloat(asset.markPx || '0') - parseFloat(asset.prevDayPx || '0')
+            : 0,
+          priceChangePercent: parseFloat(asset.prevDayPx || '0') > 0
+            ? ((parseFloat(asset.markPx || '0') - parseFloat(asset.prevDayPx || '0')) / parseFloat(asset.prevDayPx || '0')) * 100
+            : 0,
+        }));
+        setAssets(enhancedAssets);
+      }
     } catch (error) {
       console.error('Failed to load assets:', error);
     } finally {
@@ -35,48 +66,62 @@ export function AssetSelector({ selectedSymbol, onSelect }: AssetSelectorProps) 
     }
   };
 
-  const filteredAssets = useMemo(() => {
-    if (!search) return assets;
-    const searchLower = search.toLowerCase();
-    return assets.filter(asset => 
-      asset.symbol.toLowerCase().includes(searchLower)
-    );
-  }, [assets, search]);
+  const filteredAndSortedAssets = useMemo(() => {
+    let filtered = assets;
 
-  const exportToCSV = () => {
-    if (assets.length === 0) {
-      toast.error('No assets to export');
-      return;
+    // Filter by search
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = assets.filter(asset =>
+        asset.symbol.toLowerCase().includes(searchLower)
+      );
     }
 
-    // Create CSV content
-    const headers = ['Symbol', 'ID', 'Max Leverage', 'Size Decimals'];
-    const rows = assets.map(asset => [
-      asset.symbol,
-      asset.id,
-      asset.maxLeverage,
-      asset.szDecimals
-    ]);
+    // Sort
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'price':
+          return b.price - a.price;
+        case 'volume':
+          return b.volume - a.volume;
+        case 'change':
+          return b.priceChangePercent - a.priceChangePercent;
+        default:
+          return 0;
+      }
+    });
+  }, [assets, search, sortBy]);
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+  const formatPrice = (price: number): string => {
+    if (price >= 1000) {
+      return price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+    return price.toFixed(2);
+  };
 
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    const date = new Date().toISOString().split('T')[0];
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `hyperliquid-assets-${date}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const formatVolume = (volume: number): string => {
+    if (volume >= 1e9) {
+      return `$${(volume / 1e9).toFixed(1)}B`;
+    }
+    if (volume >= 1e6) {
+      return `$${(volume / 1e6).toFixed(1)}M`;
+    }
+    if (volume >= 1e3) {
+      return `$${(volume / 1e3).toFixed(1)}K`;
+    }
+    return `$${volume.toFixed(0)}`;
+  };
 
-    toast.success(`Exported ${assets.length} assets to CSV`);
+  const getCoinColor = (symbol: string): string => {
+    const colors: Record<string, string> = {
+      'BTC': 'bg-orange-500',
+      'ETH': 'bg-gray-700',
+      'SOL': 'bg-purple-500',
+      'ATOM': 'bg-blue-600',
+      'MATIC': 'bg-purple-600',
+      'DYDX': 'bg-gray-600',
+    };
+    return colors[symbol] || 'bg-gradient-to-br from-cyan-500 to-blue-600';
   };
 
   if (isLoading) {
@@ -103,38 +148,83 @@ export function AssetSelector({ selectedSymbol, onSelect }: AssetSelectorProps) 
               className="pl-10"
             />
           </div>
-          <Button
-            onClick={exportToCSV}
-            disabled={isLoading || assets.length === 0}
-            variant="outline"
-            size="icon"
-            title="Export all assets to CSV"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+
+          {/* Sort Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Sort assets"
+              >
+                <ArrowUpDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setSortBy('price')}>
+                Sort by Price
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortBy('volume')}>
+                Sort by Volume
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortBy('change')}>
+                Sort by Change %
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <ScrollArea className="h-64">
           <div className="space-y-1">
-            {filteredAssets.map((asset) => (
-              <button
-                key={asset.symbol}
-                onClick={() => onSelect(asset.symbol, asset)}
-                className={`w-full text-left px-3 py-2 rounded-md transition-colors ${
-                  selectedSymbol === asset.symbol
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-secondary'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">{asset.symbol}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {asset.maxLeverage}x max
-                  </span>
-                </div>
-              </button>
-            ))}
-            {filteredAssets.length === 0 && (
+            {filteredAndSortedAssets.map((asset) => {
+              const isPositive = asset.priceChangePercent >= 0;
+
+              return (
+                <button
+                  key={asset.symbol}
+                  onClick={() => onSelect(asset.symbol, asset)}
+                  className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${selectedSymbol === asset.symbol
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-secondary'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Token Logo */}
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${getCoinColor(asset.symbol)}`}>
+                      <span className="text-white font-bold text-xs">
+                        {asset.symbol.slice(0, 1)}
+                      </span>
+                    </div>
+
+                    {/* Token Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-semibold">{asset.symbol}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {asset.maxLeverage}x max
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Vol {formatVolume(asset.volume)}
+                        </span>
+                        <span className={isPositive ? 'text-green-600' : 'text-red-600'}>
+                          {isPositive ? '+' : ''}{asset.priceChangePercent.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Price */}
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-semibold">
+                        ${formatPrice(asset.price)}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {filteredAndSortedAssets.length === 0 && (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 No assets found
               </div>
