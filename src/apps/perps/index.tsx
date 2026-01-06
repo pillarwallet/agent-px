@@ -11,7 +11,6 @@ import { useHyperliquid } from './hooks/useHyperliquid';
 import { getAgentWallet } from './lib/hyperliquid/keystore';
 import { getUserState } from './lib/hyperliquid/client';
 import type { AssetInfo, UserState } from './lib/hyperliquid/types';
-import MobileIndex from './pages/MobileIndex';
 
 import './styles/perps.css';
 
@@ -36,18 +35,6 @@ const Index = () => {
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   // Load imported account from global storage
   useEffect(() => {
@@ -91,12 +78,6 @@ const Index = () => {
     loadBalance();
   };
 
-  // NOW we can conditionally render based on mobile
-  if (isMobile) {
-    return <MobileIndex />;
-  }
-
-  // Desktop version
   return (
     <div className="min-h-screen bg-gradient-bg">
       <div className="container mx-auto px-4 py-8 pb-24 md:pb-8 max-w-7xl">
