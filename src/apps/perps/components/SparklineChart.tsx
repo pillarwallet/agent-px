@@ -214,7 +214,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
 
                     {/* Right: Market Data Ticker */}
                     {marketData && (
-                        <div className="flex flex-wrap items-start justify-end gap-x-8 gap-y-4 text-sm mt-2">
+                        <div className="flex flex-wrap items-start justify-end gap-x-8 gap-y-4 text-sm pt-0 mt-0">
                             <div className="text-right">
                                 <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-1">Mark</div>
                                 <div className="font-semibold">${formatNumber(marketData.markPx)}</div>
