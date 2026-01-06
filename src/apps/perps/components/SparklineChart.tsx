@@ -194,7 +194,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
         <Card>
             <CardContent className="p-6">
                 {/* Header with current price and market data */}
-                <div className="mb-6 flex flex-col xl:flex-row xl:justify-between xl:items-start gap-6">
+                <div className="mb-6 flex flex-col md:flex-row justify-between items-start gap-6">
                     {/* Left: Current Price */}
                     <div>
                         <div className="text-sm text-muted-foreground mb-2">
