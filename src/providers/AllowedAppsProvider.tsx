@@ -82,12 +82,18 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
           }
         );
         if (expired || !data?.length) {
+          setAllowed([{ appId: 'perps', title: 'Perps', id: 'perps' }]);
           setIsLoading(false);
           return;
         }
-        setAllowed(data?.map((app: ApiAllowedApp) => app));
+        const apps = data?.map((app: ApiAllowedApp) => app);
+        if (!apps.find((a: ApiAllowedApp) => a.appId === 'perps')) {
+          apps.push({ appId: 'perps', title: 'Perps', id: 'perps' });
+        }
+        setAllowed(apps);
       } catch (e) {
         console.warn('Error calling PillarX apps API', e);
+        setAllowed([{ appId: 'perps', title: 'Perps', id: 'perps' }]);
       }
       setIsLoading(false);
     })();

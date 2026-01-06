@@ -5,10 +5,12 @@ import { AgentControls } from './components/AgentControls';
 import { BalanceCard } from './components/BalanceCard';
 import { AssetSelector } from './components/AssetSelector';
 import { TradeForm } from './components/TradeForm';
-import { TradingChart } from './components/TradingChart';
+import { SparklineChart } from './components/SparklineChart';
 import { PositionsCard } from './components/PositionsCard';
 import { useHyperliquid } from './hooks/useHyperliquid';
-import type { AssetInfo } from './lib/hyperliquid/types';
+import { getAgentWallet } from './lib/hyperliquid/keystore';
+import { getUserState } from './lib/hyperliquid/client';
+import type { AssetInfo, UserState } from './lib/hyperliquid/types';
 
 import './styles/perps.css';
 
@@ -24,6 +26,9 @@ const Index = () => {
   } = useHyperliquid();
 
   const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>(null);
+  const [agentAddress, setAgentAddress] = useState<string | null>(null);
+  const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
+  const [isLoadingAgent, setIsLoadingAgent] = useState(false);
 
   useEffect(() => {
     // Load assets and set default to BTC
@@ -53,6 +58,42 @@ const Index = () => {
       loadBalance();
     }
   }, [setupStatus, loadBalance]);
+
+  // Load imported account from global storage (persists after refresh)
+  useEffect(() => {
+    const loadImportedAccount = async () => {
+      try {
+        const { getImportedAccount } = await import('./lib/hyperliquid/keystore');
+        const imported = getImportedAccount();
+
+        if (imported) {
+          setAgentAddress(imported.accountAddress);
+          console.log('[Index] Imported account loaded:', imported.accountAddress);
+
+          // Fetch account's user state
+          setIsLoadingAgent(true);
+          const state = await getUserState(imported.accountAddress);
+          setAgentUserState(state);
+          console.log('[Index] Account state loaded:', {
+            address: imported.accountAddress,
+            balance: state?.marginSummary?.totalRawUsd,
+            positions: state?.assetPositions?.length || 0,
+          });
+        } else {
+          setAgentAddress(null);
+          setAgentUserState(null);
+        }
+      } catch (error) {
+        console.error('[Index] Error loading imported account:', error);
+        setAgentAddress(null);
+        setAgentUserState(null);
+      } finally {
+        setIsLoadingAgent(false);
+      }
+    };
+
+    loadImportedAccount();
+  }, []); // Run once on mount
 
   // Only override if not already selected (handled in loadAssets)
   const handleAssetSelect = (symbol: string, asset: AssetInfo) => {
@@ -92,21 +133,34 @@ const Index = () => {
         {/* Agent Controls */}
         {address && setupStatus === 'setup' && (
           <div className="mb-6">
-            <AgentControls onStatusChange={loadBalance} />
+            <AgentControls onStatusChange={async () => {
+              // Reload agent data when status changes
+              if (address) {
+                const agent = await getAgentWallet(address);
+                if (agent && agent.approved) {
+                  setAgentAddress(agent.address);
+                  setIsLoadingAgent(true);
+                  const state = await getUserState(agent.address);
+                  setAgentUserState(state);
+                  setIsLoadingAgent(false);
+                }
+              }
+              loadBalance();
+            }} />
           </div>
         )}
 
-        {/* Trading Chart - Full Width */}
+        {/* Sparkline Chart - Full Width */}
         {address && setupStatus === 'setup' && (
           <div className="mb-6">
-            <TradingChart selectedAsset={selectedAsset} />
+            <SparklineChart selectedAsset={selectedAsset} />
           </div>
         )}
 
         {/* Open Positions - Full Width */}
-        {address && setupStatus === 'setup' && (
+        {(agentAddress || (address && setupStatus === 'setup')) && (
           <div className="mb-6">
-            <PositionsCard masterAddress={address} />
+            <PositionsCard masterAddress={agentAddress || address} />
           </div>
         )}
 
@@ -114,11 +168,20 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Column - Balance */}
           <div className="lg:col-span-1">
-            {address && setupStatus === 'setup' && userState && (
+            {(agentUserState || (address && setupStatus === 'setup' && userState)) && (
               <BalanceCard
-                userState={userState}
-                isLoading={isLoading}
-                onRefresh={loadBalance}
+                userState={agentUserState || userState}
+                isLoading={isLoadingAgent || isLoading}
+                onRefresh={async () => {
+                  if (agentAddress) {
+                    setIsLoadingAgent(true);
+                    const state = await getUserState(agentAddress);
+                    setAgentUserState(state);
+                    setIsLoadingAgent(false);
+                  } else {
+                    loadBalance();
+                  }
+                }}
               />
             )}
           </div>

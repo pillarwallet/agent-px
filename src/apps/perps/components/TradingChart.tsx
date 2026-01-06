@@ -223,7 +223,7 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
     };
   }, [selectedAsset, interval]);
 
-  // Initial Data Load (Rest API)
+  // Initial Data Load (Rest API) + 2-second refresh
   useEffect(() => {
     if (!selectedAsset || !candlestickSeriesRef.current) return;
 
@@ -236,7 +236,13 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
     };
 
     loadData();
-    // No polling needed anymore due to WS
+
+    // Refresh chart data every 2 seconds
+    const refreshInterval = setInterval(loadData, 2000);
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
   }, [selectedAsset, interval, fetchCandles]);
 
   const intervals: Interval[] = ['1m', '5m', '15m', '1h', '4h', '1d'];

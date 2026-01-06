@@ -5,7 +5,7 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Shield, CheckCircle2, AlertCircle, Copy, Download, Eye, EyeOff, Upload } from 'lucide-react';
+import { Shield, CheckCircle2, AlertCircle, Copy, Download, Eye, EyeOff, Upload, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createWalletClient, custom } from 'viem';
 import { arbitrum } from 'viem/chains';
@@ -16,6 +16,7 @@ import { generateAgentWallet } from '../lib/hyperliquid/signing';
 import { storeAgentWallet, getAgentWallet, updateAgentApprovalRemote, clearAgentWallet } from '../lib/hyperliquid/keystore';
 import { buildApproveAgentAction, getApproveAgentTypedData } from '../lib/hyperliquid/signing';
 import { postExchange } from '../lib/hyperliquid/client';
+import { ValidationStatus } from './ValidationStatus';
 
 type AgentStatus = 'none' | 'created' | 'approved';
 
@@ -35,32 +36,36 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
   const [agentPrivateKey, setAgentPrivateKey] = useState<string>('');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importPrivateKey, setImportPrivateKey] = useState('');
+  const [importAccountAddress, setImportAccountAddress] = useState('');
   const [isRemoving, setIsRemoving] = useState(false);
+  const [validationStatus, setValidationStatus] = useState<'idle' | 'validating' | 'success' | 'error'>('idle');
+  const [validationData, setValidationData] = useState<{
+    agentAddress?: string;
+    balance?: string;
+    openPositions?: number;
+    errorMessage?: string;
+  }>({});
 
-  // Auto-fetch agent wallet when master wallet connects
+  // Auto-fetch imported account from global storage
   useEffect(() => {
-    const loadAgent = async () => {
-      if (!address) {
-        setAgentStatus('none');
-        setAgentAddress('');
-        return;
-      }
-
+    const loadImportedAccount = async () => {
       setIsLoadingAgent(true);
       try {
-        const agent = await getAgentWallet(address);
-        if (agent) {
-          setAgentAddress(agent.address);
-          setAgentPrivateKey(agent.privateKey);
-          setAgentStatus(agent.approved ? 'approved' : 'created');
-          console.log('Agent wallet loaded:', agent.address);
+        const { getImportedAccount } = await import('../lib/hyperliquid/keystore');
+        const imported = getImportedAccount();
+
+        if (imported) {
+          setAgentAddress(imported.accountAddress);
+          setAgentPrivateKey(imported.privateKey);
+          setAgentStatus('approved');
+          console.log('[AgentControls] Imported account loaded:', imported.accountAddress);
         } else {
           setAgentStatus('none');
           setAgentAddress('');
           setAgentPrivateKey('');
         }
       } catch (error) {
-        console.error('Error loading agent:', error);
+        console.error('[AgentControls] Error loading imported account:', error);
         setAgentStatus('none');
         setAgentAddress('');
       } finally {
@@ -68,8 +73,8 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
       }
     };
 
-    loadAgent();
-  }, [address]);
+    loadImportedAccount();
+  }, []);
 
   const handleCreateAgent = async () => {
     console.log('handleCreateAgent called', { address });
@@ -327,9 +332,32 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
     }
   };
 
+  const handleRemoveAccount = async () => {
+    try {
+      const { clearImportedAccount } = await import('../lib/hyperliquid/keystore');
+      clearImportedAccount();
+
+      setAgentAddress('');
+      setAgentPrivateKey('');
+      setAgentStatus('none');
+      setValidationStatus('idle');
+      setValidationData({});
+
+      toast.success('Imported account removed');
+
+      // Trigger data refresh to clear displayed data
+      if (onStatusChange) {
+        onStatusChange();
+      }
+    } catch (error: any) {
+      console.error('[AgentControls] Error removing account:', error);
+      toast.error('Failed to remove account');
+    }
+  };
+
   const handleImportAgent = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet first');
+    if (!importAccountAddress.trim()) {
+      toast.error('Please enter an account address');
       return;
     }
 
@@ -338,7 +366,19 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
       return;
     }
 
+    // Show loading toast and set validating status
+    const loadingToast = toast.loading('Validating agent credentials...');
+    setValidationStatus('validating');
+    setValidationData({});
+
     try {
+      // Validate account address format
+      if (!importAccountAddress.trim().match(/^0x[a-fA-F0-9]{40}$/)) {
+        toast.dismiss(loadingToast);
+        toast.error('Invalid account address format');
+        return;
+      }
+
       // Validate and derive address from private key
       const formattedKey = importPrivateKey.trim().startsWith('0x')
         ? importPrivateKey.trim() as Hex
@@ -346,19 +386,82 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
 
       const account = privateKeyToAccount(formattedKey);
 
-      // Store the imported agent
-      await storeAgentWallet(address, account.address, formattedKey, false);
+      console.log('[Import Agent] Validating account on Hyperliquid...');
+      toast.loading('Checking Hyperliquid connection...', { id: loadingToast });
 
-      setAgentAddress(account.address);
-      setAgentPrivateKey(formattedKey);
-      setAgentStatus('created');
-      setShowImportDialog(false);
-      setImportPrivateKey('');
+      // Validate that the ACCOUNT ADDRESS exists on Hyperliquid (not the agent)
+      try {
+        const { getUserState } = await import('../lib/hyperliquid/client');
+        const accountState = await getUserState(importAccountAddress.trim());
 
-      toast.success('Agent wallet imported!', {
-        description: `Address: ${account.address.slice(0, 10)}...`,
-      });
+        if (!accountState) {
+          toast.dismiss(loadingToast);
+          toast.error('Account address not found on Hyperliquid', {
+            description: 'This address has no Hyperliquid account. Please use a valid account address.',
+          });
+          return;
+        }
+
+        console.log('[Import Agent] Account validated:', {
+          accountAddress: importAccountAddress.trim(),
+          agentAddress: account.address,
+          balance: accountState.marginSummary?.totalRawUsd,
+          positions: accountState.assetPositions?.length || 0,
+        });
+
+        toast.loading('Saving credentials...', { id: loadingToast });
+
+        // Store in GLOBAL storage (not tied to connected wallet)
+        const { storeImportedAccount } = await import('../lib/hyperliquid/keystore');
+        storeImportedAccount(importAccountAddress.trim(), formattedKey);
+
+        setAgentAddress(importAccountAddress.trim()); // Monitor account address
+        setAgentPrivateKey(formattedKey);
+        setAgentStatus('approved');
+        setShowImportDialog(false);
+        setImportPrivateKey('');
+        setImportAccountAddress('');
+
+        toast.dismiss(loadingToast);
+
+        const openPositions = accountState.assetPositions?.filter((p: any) => parseFloat(p.position.szi) !== 0).length || 0;
+
+        // Set success status with ACCOUNT data
+        setValidationStatus('success');
+        setValidationData({
+          agentAddress: importAccountAddress.trim(),
+          balance: parseFloat(accountState.marginSummary?.totalRawUsd || '0').toFixed(2),
+          openPositions,
+        });
+
+        toast.success('✅ Account imported and validated!', {
+          description: `Balance: $${parseFloat(accountState.marginSummary?.totalRawUsd || '0').toFixed(2)} | Open Positions: ${openPositions}`,
+          duration: 5000,
+        });
+
+        // Trigger data refresh
+        if (onStatusChange) {
+          console.log('[Import Agent] Triggering data refresh...');
+          onStatusChange();
+        }
+      } catch (validationError: any) {
+        toast.dismiss(loadingToast);
+        console.error('[Import Agent] Validation error:', validationError);
+
+        // Set error status
+        setValidationStatus('error');
+        setValidationData({
+          errorMessage: validationError.message || 'Could not fetch agent data. Please check your internet connection and try again.',
+        });
+
+        toast.error('❌ Failed to connect to Hyperliquid', {
+          description: validationError.message || 'Could not fetch agent data. Please check your internet connection and try again.',
+          duration: 5000,
+        });
+        return;
+      }
     } catch (error: any) {
+      toast.dismiss(loadingToast);
       console.error('Import error:', error);
       toast.error('Invalid private key', {
         description: error.message || 'Please check the format and try again',
@@ -500,6 +603,19 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
         </div>
       </div>
 
+      {/* Validation Status Display */}
+      {validationStatus !== 'idle' && (
+        <div className="mb-4">
+          <ValidationStatus
+            status={validationStatus}
+            agentAddress={validationData.agentAddress}
+            balance={validationData.balance}
+            openPositions={validationData.openPositions}
+            errorMessage={validationData.errorMessage}
+          />
+        </div>
+      )}
+
       {agentStatus === 'none' && (
         <>
           {!address ? (
@@ -538,17 +654,36 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
         </>
       )}
 
-      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+      <Dialog open={showImportDialog} onOpenChange={(open) => {
+        setShowImportDialog(open);
+        if (open) {
+          // Pre-fill with connected wallet address when dialog opens
+          setImportAccountAddress(address || '');
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Import Existing Agent</DialogTitle>
             <DialogDescription>
-              Enter the private key of your Hyperliquid agent wallet (e.g., the one you created as trading-agent)
+              Enter the private key of your Hyperliquid agent wallet and specify which account address to associate it with.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="privateKey">Private Key</Label>
+              <Label htmlFor="accountAddress">Account Address</Label>
+              <Input
+                id="accountAddress"
+                type="text"
+                placeholder="0x..."
+                value={importAccountAddress}
+                onChange={(e) => setImportAccountAddress(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                This is the PillarX account that will control the agent. You can change this to any address.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="privateKey">Agent Private Key</Label>
               <Input
                 id="privateKey"
                 type="password"
@@ -556,6 +691,9 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
                 value={importPrivateKey}
                 onChange={(e) => setImportPrivateKey(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                The private key of your Hyperliquid agent wallet
+              </p>
             </div>
             <div className="flex gap-2">
               <Button onClick={handleImportAgent} className="flex-1">
@@ -591,16 +729,27 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
 
       {agentStatus === 'approved' && (
         <div className="space-y-3">
-          <div className="text-sm text-success">
-            ✓ Agent is active and ready to trade
+          <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              <span className="text-sm font-medium text-success">Imported Account Active</span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Address:</span>
+              <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1">
+                {agentAddress}
+              </div>
+            </div>
           </div>
+
           <Button
-            onClick={handleRemoveAgent}
+            onClick={handleRemoveAccount}
             disabled={isRemoving}
-            variant="outline"
-            className="w-full text-xs"
+            variant="destructive"
+            className="w-full"
           >
-            {isRemoving ? 'Removing...' : 'Remove Agent'}
+            <Trash2 className="h-4 w-4 mr-2" />
+            {isRemoving ? 'Removing...' : 'Remove Imported Account'}
           </Button>
         </div>
       )}

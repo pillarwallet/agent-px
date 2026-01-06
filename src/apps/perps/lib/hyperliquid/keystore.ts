@@ -49,6 +49,43 @@ export function clearAgentWalletLocal(masterAddress: string): void {
   localStorage.removeItem(getStorageKey(masterAddress, 'approved'));
 }
 
+// Global imported account storage (not tied to connected wallet)
+const GLOBAL_ACCOUNT_KEY = 'hl_imported_account';
+
+export function storeImportedAccount(accountAddress: string, privateKey: Hex): void {
+  if (typeof window === 'undefined') return;
+
+  const data = {
+    accountAddress,
+    privateKey,
+    timestamp: Date.now(),
+  };
+
+  localStorage.setItem(GLOBAL_ACCOUNT_KEY, JSON.stringify(data));
+}
+
+export function getImportedAccount(): { accountAddress: string; privateKey: Hex } | null {
+  if (typeof window === 'undefined') return null;
+
+  const data = localStorage.getItem(GLOBAL_ACCOUNT_KEY);
+  if (!data) return null;
+
+  try {
+    const parsed = JSON.parse(data);
+    return {
+      accountAddress: parsed.accountAddress,
+      privateKey: parsed.privateKey as Hex,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function clearImportedAccount(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(GLOBAL_ACCOUNT_KEY);
+}
+
 // Remote storage functions removed as per user request to use Local Storage only.
 export async function storeAgentWalletRemote(
   masterAddress: string,

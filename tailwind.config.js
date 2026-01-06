@@ -54,6 +54,11 @@ module.exports = {
           foreground: 'hsl(var(--card-foreground))',
         },
       },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
       boxShadow: { xs: '0px 0px  30px 0px #ffffff0c' },
       fontFamily: {
         custom: ['Formular'],

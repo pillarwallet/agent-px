@@ -37,8 +37,28 @@ export const addReducer = (newReducer: {
   reducerPath: string;
   reducer: Reducer;
 }) => {
-  middlewareReducers[newReducer.reducerPath as string] = newReducer.reducer;
-  store.replaceReducer(combineReducers(middlewareReducers));
+  console.log('=== Adding reducer ===');
+  console.log('Full object:', newReducer);
+  console.log('Object keys:', Object.keys(newReducer));
+  console.log('reducerPath:', newReducer.reducerPath);
+  console.log('reducer type:', typeof newReducer.reducer);
+  console.log('reducer value:', newReducer.reducer);
+
+  const path = newReducer.reducerPath || (newReducer as any).name;
+  if (!path) {
+    console.error('Reducer path/name is missing for:', newReducer);
+  } else {
+    const actualReducer = newReducer.reducer;
+    if (!actualReducer) {
+      console.error('ERROR: Reducer is undefined/null for path:', path);
+      console.error('This will cause Redux store to fail!');
+      return; // Don't add invalid reducers
+    }
+    middlewareReducers[path] = actualReducer;
+    console.log('✓ Successfully added reducer for:', path);
+    console.log('Current reducers:', Object.keys(middlewareReducers));
+    store.replaceReducer(combineReducers(middlewareReducers));
+  }
 };
 
 /**
@@ -88,11 +108,11 @@ addMiddleware(pillarXApiPresence);
 addMiddleware(pillarXApiTransactionsHistory);
 addMiddleware(pillarXApiWalletTransactions);
 addMiddleware(relayApi);
-addReducer(swapSlice);
-addReducer(tokenAtlasSlice);
-addReducer(depositSlice);
-addReducer(walletPortfolioSlice);
-addReducer(leaderboardSlice);
+addReducer({ reducerPath: swapSlice.name, reducer: swapSlice.reducer });
+addReducer({ reducerPath: tokenAtlasSlice.name, reducer: tokenAtlasSlice.reducer });
+addReducer({ reducerPath: depositSlice.name, reducer: depositSlice.reducer });
+addReducer({ reducerPath: walletPortfolioSlice.name, reducer: walletPortfolioSlice.reducer });
+addReducer({ reducerPath: leaderboardSlice.name, reducer: leaderboardSlice.reducer });
 
 // optional, but required for refetchOnFocus/refetchOnReconnect behaviors
 // see `setupListeners` docs - takes an optional callback as the 2nd arg for customization
