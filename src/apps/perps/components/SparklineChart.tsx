@@ -129,7 +129,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
 
         const interval = setInterval(() => {
             fetchCandles(selectedAsset.symbol);
-        }, 2000);
+        }, 15000);
 
         return () => clearInterval(interval);
     }, [selectedAsset, fetchCandles]);
