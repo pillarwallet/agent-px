@@ -10,7 +10,11 @@ interface StatusBannerProps {
   isSettingUp?: boolean;
 }
 
-export function StatusBanner({ status, onSetup, isSettingUp }: StatusBannerProps) {
+export function StatusBanner({
+  status,
+  onSetup,
+  isSettingUp,
+}: StatusBannerProps) {
   const statusConfig = {
     unknown: {
       icon: HelpCircle,
@@ -50,7 +54,9 @@ export function StatusBanner({ status, onSetup, isSettingUp }: StatusBannerProps
                 {config.label}
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">{config.description}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {config.description}
+            </p>
           </div>
         </div>
         {status === 'not-setup' && onSetup && (

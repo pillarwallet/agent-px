@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useWallets } from '@privy-io/react-auth';
 
 // api
-import { useGetAllDeveloperAppsQuery, useDeleteDeveloperAppMutation, useUpdateDeveloperAppMutation } from '../api/developerAppsApi';
+import {
+  useGetAllDeveloperAppsQuery,
+  useDeleteDeveloperAppMutation,
+  useUpdateDeveloperAppMutation,
+} from '../api/developerAppsApi';
 
 // components
 import AppCard from './AppCard';
@@ -18,8 +22,11 @@ const AppsList: React.FC = () => {
   const { wallets } = useWallets();
   const eoaAddress = wallets?.[0]?.address;
 
-  const { data, isLoading, error } = useGetAllDeveloperAppsQuery({ eoaAddress });
-  const [deleteApp, { isLoading: isDeleting }] = useDeleteDeveloperAppMutation();
+  const { data, isLoading, error } = useGetAllDeveloperAppsQuery({
+    eoaAddress,
+  });
+  const [deleteApp, { isLoading: isDeleting }] =
+    useDeleteDeveloperAppMutation();
   const [updateApp] = useUpdateDeveloperAppMutation();
 
   const myApps = React.useMemo(() => {
@@ -53,9 +60,10 @@ const AppsList: React.FC = () => {
       }).unwrap();
     } catch (err: unknown) {
       console.error('Failed to delete app:', err);
-      const errorMessage = err && typeof err === 'object' && 'data' in err 
-        ? (err.data as { error?: string })?.error || 'Failed to delete app'
-        : 'Failed to delete app';
+      const errorMessage =
+        err && typeof err === 'object' && 'data' in err
+          ? (err.data as { error?: string })?.error || 'Failed to delete app'
+          : 'Failed to delete app';
       alert(errorMessage);
     }
   };
@@ -80,9 +88,11 @@ const AppsList: React.FC = () => {
       }).unwrap();
     } catch (err: unknown) {
       console.error('Failed to send app for review:', err);
-      const errorMessage = err && typeof err === 'object' && 'data' in err 
-        ? (err.data as { error?: string })?.error || 'Failed to send app for review'
-        : 'Failed to send app for review';
+      const errorMessage =
+        err && typeof err === 'object' && 'data' in err
+          ? (err.data as { error?: string })?.error ||
+            'Failed to send app for review'
+          : 'Failed to send app for review';
       alert(errorMessage);
     }
   };
@@ -93,9 +103,12 @@ const AppsList: React.FC = () => {
         <div className="w-20 h-20 mb-6 rounded-full bg-purple-900/20 border border-purple-700/30 flex items-center justify-center">
           <LockIcon className="w-10 h-10 text-purple-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Connect Your Wallet</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">
+          Connect Your Wallet
+        </h2>
         <p className="text-gray-400 max-w-md">
-          Please connect your wallet to view and manage your developer applications.
+          Please connect your wallet to view and manage your developer
+          applications.
         </p>
       </div>
     );
@@ -119,8 +132,12 @@ const AppsList: React.FC = () => {
           <div className="w-20 h-20 mb-6 rounded-full bg-red-900/20 border border-red-700/30 flex items-center justify-center mx-auto">
             <ErrorIcon className="w-10 h-10 text-red-400" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Error Loading Apps</h2>
-          <p className="text-gray-400">Failed to load your applications. Please try again.</p>
+          <h2 className="text-xl font-bold text-white mb-2">
+            Error Loading Apps
+          </h2>
+          <p className="text-gray-400">
+            Failed to load your applications. Please try again.
+          </p>
         </div>
       </div>
     );
@@ -134,7 +151,8 @@ const AppsList: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">No Apps Yet</h2>
         <p className="text-gray-400 mb-6 max-w-md">
-          You haven't registered any apps yet. Get started by creating your first application.
+          You haven't registered any apps yet. Get started by creating your
+          first application.
         </p>
         <button
           onClick={handleCreateNew}
@@ -151,9 +169,12 @@ const AppsList: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">My Applications</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            My Applications
+          </h1>
           <p className="text-gray-400">
-            Manage your {myApps.length} {myApps.length === 1 ? 'application' : 'applications'}
+            Manage your {myApps.length}{' '}
+            {myApps.length === 1 ? 'application' : 'applications'}
           </p>
         </div>
         <button
@@ -182,4 +203,3 @@ const AppsList: React.FC = () => {
 };
 
 export default AppsList;
-

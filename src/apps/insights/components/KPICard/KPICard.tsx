@@ -4,7 +4,12 @@
 
 import { motion } from 'framer-motion';
 import { Badge } from '../ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/tooltip';
 import { ResponsiveContainer, LineChart, Line } from 'recharts';
 
 interface KPICardProps {
@@ -16,13 +21,13 @@ interface KPICardProps {
   onClick?: () => void;
 }
 
-export const KPICard = ({ 
-  title, 
-  value, 
-  badge, 
+export const KPICard = ({
+  title,
+  value,
+  badge,
   badgeColor = 'blue',
   sparklineData,
-  onClick 
+  onClick,
 }: KPICardProps) => {
   const badgeColors = {
     blue: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -30,13 +35,10 @@ export const KPICard = ({
     slate: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
   };
 
-  const valueColor = value >= 0 
-    ? 'text-[hsl(142,76%,58%)]' 
-    : 'text-[hsl(348,83%,58%)]';
-  
-  const strokeColor = value >= 0 
-    ? 'hsl(142,76%,58%)' 
-    : 'hsl(348,83%,58%)';
+  const valueColor =
+    value >= 0 ? 'text-[hsl(142,76%,58%)]' : 'text-[hsl(348,83%,58%)]';
+
+  const strokeColor = value >= 0 ? 'hsl(142,76%,58%)' : 'hsl(348,83%,58%)';
 
   return (
     <motion.div
@@ -49,13 +51,12 @@ export const KPICard = ({
     >
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs md:text-sm text-muted-foreground">{title}</p>
-        <Badge className={`${badgeColors[badgeColor]} text-xs`}>
-          {badge}
-        </Badge>
+        <Badge className={`${badgeColors[badgeColor]} text-xs`}>{badge}</Badge>
       </div>
       <div className="flex items-center justify-between gap-4">
         <p className={`text-2xl md:text-4xl font-bold ${valueColor}`}>
-          {value >= 0 ? '+' : ''}{value.toFixed(2).replace('.', ',')}%
+          {value >= 0 ? '+' : ''}
+          {value.toFixed(2).replace('.', ',')}%
         </p>
         {sparklineData && sparklineData.length > 0 && (
           <TooltipProvider>
@@ -64,9 +65,9 @@ export const KPICard = ({
                 <div className="h-14 md:h-16 w-32 md:w-36">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={sparklineData}>
-                      <Line 
-                        type="monotone" 
-                        dataKey="value" 
+                      <Line
+                        type="monotone"
+                        dataKey="value"
                         stroke={strokeColor}
                         strokeWidth={2}
                         dot={false}
@@ -85,4 +86,3 @@ export const KPICard = ({
     </motion.div>
   );
 };
-

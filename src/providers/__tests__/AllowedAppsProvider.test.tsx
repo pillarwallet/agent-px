@@ -46,7 +46,10 @@ describe('AllowedAppsProvider', () => {
       expect(result.current.isLoading).toEqual(false);
     });
 
-    expect(result.current.allowed).toEqual(allowedAppsMock);
+    expect(result.current.allowed).toEqual([
+      ...allowedAppsMock,
+      { appId: 'perps', title: 'Perps', id: 'perps' },
+    ]);
   });
 
   afterEach(() => {

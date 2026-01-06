@@ -12,11 +12,11 @@ interface FiltersProps {
   onLeverageChange: (leverage: LeverageType) => void;
 }
 
-export const Filters = ({ 
-  activeTab, 
-  onTabChange, 
-  leverage, 
-  onLeverageChange 
+export const Filters = ({
+  activeTab,
+  onTabChange,
+  leverage,
+  onLeverageChange,
 }: FiltersProps) => {
   return (
     <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
@@ -27,8 +27,8 @@ export const Filters = ({
             key={tab}
             onClick={() => onTabChange(tab)}
             className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
-              activeTab === tab 
-                ? 'bg-primary text-primary-foreground glow-violet' 
+              activeTab === tab
+                ? 'bg-primary text-primary-foreground glow-violet'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -36,7 +36,7 @@ export const Filters = ({
           </button>
         ))}
       </div>
-      
+
       {/* Leverage Selector */}
       <div className="glass-card rounded-full p-2 flex gap-1.5 items-center">
         <span className="text-xs text-muted-foreground px-2">Leverage:</span>
@@ -45,8 +45,8 @@ export const Filters = ({
             key={lev}
             onClick={() => onLeverageChange(lev)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-              leverage === lev 
-                ? 'bg-primary text-primary-foreground' 
+              leverage === lev
+                ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -62,4 +62,3 @@ export const Filters = ({
     </div>
   );
 };
-

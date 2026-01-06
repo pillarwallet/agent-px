@@ -8,13 +8,20 @@ import type { SubscriptionApiResponse } from '../types';
 const getBaseUrl = () => {
   // In production, this should be the actual Firebase Functions URL
   // For now, using a placeholder - should be configured via environment variable
-  return import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 'http://localhost:5000/pillarx-staging/us-central1';
+  return (
+    import.meta.env.VITE_FIREBASE_FUNCTIONS_URL ||
+    'http://localhost:5000/pillarx-staging/us-central1'
+  );
 };
 
 /**
  * Fetch sparkline data for a trading signal
  */
-export const fetchSparklineData = async (ticker: string, startTime: number, endTime: number) => {
+export const fetchSparklineData = async (
+  ticker: string,
+  startTime: number,
+  endTime: number
+) => {
   try {
     const response = await fetch(`${getBaseUrl()}/insights/sparkline-data`, {
       method: 'POST',
@@ -69,12 +76,15 @@ export const getTradingSignals = async () => {
  */
 export const updateSignalPrices = async () => {
   try {
-    const response = await fetch(`${getBaseUrl()}/insights/update-signal-prices`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await fetch(
+      `${getBaseUrl()}/insights/update-signal-prices`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -94,7 +104,7 @@ export const updateSignalPrices = async () => {
 export const recalculateHistoricalPnL = async (signalId?: string) => {
   try {
     const url = `${getBaseUrl()}/insights/recalculate-historical-pnl`;
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -174,4 +184,3 @@ export const getSubscriptionStatus = async (
 
   return (await response.json()) as SubscriptionApiResponse;
 };
-

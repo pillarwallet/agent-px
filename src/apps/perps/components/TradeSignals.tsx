@@ -86,7 +86,9 @@ export function TradeSignals({ onCopySignal }: TradeSignalsProps) {
             disabled={isLoading}
             className="gap-2"
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+            />
             Refresh
           </Button>
         </div>
@@ -105,10 +107,13 @@ export function TradeSignals({ onCopySignal }: TradeSignalsProps) {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <div className={`p-1.5 rounded ${signal.side === 'long'
-                          ? 'bg-success/10 text-success'
-                          : 'bg-destructive/10 text-destructive'
-                        }`}>
+                      <div
+                        className={`p-1.5 rounded ${
+                          signal.side === 'long'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-destructive/10 text-destructive'
+                        }`}
+                      >
                         {signal.side === 'long' ? (
                           <TrendingUp className="h-4 w-4" />
                         ) : (
@@ -118,7 +123,9 @@ export function TradeSignals({ onCopySignal }: TradeSignalsProps) {
                       <div>
                         <h4 className="font-semibold">{signal.symbol}</h4>
                         <Badge
-                          variant={signal.side === 'long' ? 'default' : 'destructive'}
+                          variant={
+                            signal.side === 'long' ? 'default' : 'destructive'
+                          }
                           className="text-xs"
                         >
                           {signal.side.toUpperCase()}
@@ -150,10 +157,16 @@ export function TradeSignals({ onCopySignal }: TradeSignalsProps) {
                       </span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-muted-foreground">Take Profits:</span>
+                      <span className="text-muted-foreground">
+                        Take Profits:
+                      </span>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {signal.takeProfits.map((tp, tpIndex) => (
-                          <Badge key={tpIndex} variant="secondary" className="font-mono text-xs">
+                          <Badge
+                            key={tpIndex}
+                            variant="secondary"
+                            className="font-mono text-xs"
+                          >
                             {tp.toFixed(2)}
                           </Badge>
                         ))}

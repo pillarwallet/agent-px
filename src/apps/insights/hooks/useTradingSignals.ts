@@ -17,56 +17,66 @@ export const useTradingSignals = (options: UseTradingSignalsOptions = {}) => {
   const [error, setError] = useState<Error | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const fetchSignals = useCallback(async (isRefresh = false) => {
-    if (!enabled) {
-      return;
-    }
+  const fetchSignals = useCallback(
+    async (isRefresh = false) => {
+      if (!enabled) {
+        return;
+      }
 
-    try {
-      // Only set loading to true on initial load, not on refreshes
-      if (!isRefresh) {
-        setLoading(true);
+      try {
+        // Only set loading to true on initial load, not on refreshes
+        if (!isRefresh) {
+          setLoading(true);
+        }
+        const result = await getTradingSignals();
+        console.log('🔍 [useTradingSignals] API response:', result);
+
+        if (result.error) {
+          throw result.error;
+        }
+
+        // Firebase function returns { signals: [...] }
+        const signalsArray = (result.signals ||
+          result.data ||
+          []) as TradingSignal[];
+        console.log(
+          `✅ [useTradingSignals] Loaded ${signalsArray.length} signals:`,
+          signalsArray
+        );
+
+        // Log first signal structure for debugging
+        if (signalsArray.length > 0) {
+          const firstSignal = signalsArray[0];
+          console.log('📊 [useTradingSignals] First signal structure:', {
+            id: firstSignal.id,
+            ticker: firstSignal.ticker,
+            status: firstSignal.status,
+            profit_loss_percent: firstSignal.profit_loss_percent,
+            realized_pnl_percent: firstSignal.realized_pnl_percent,
+            current_price: firstSignal.current_price,
+            entry_price: firstSignal.entry_price,
+          });
+        }
+
+        setSignals(signalsArray);
+        setError(null);
+
+        // Mark initial load as complete
+        if (isInitialLoad) {
+          setIsInitialLoad(false);
+        }
+      } catch (err) {
+        console.error('❌ [useTradingSignals] Error fetching signals:', err);
+        setError(
+          err instanceof Error ? err : new Error('Failed to fetch signals')
+        );
+        setSignals([]); // Clear signals on error
+      } finally {
+        setLoading(false);
       }
-      const result = await getTradingSignals();
-      console.log('🔍 [useTradingSignals] API response:', result);
-      
-      if (result.error) {
-        throw result.error;
-      }
-      
-      // Firebase function returns { signals: [...] }
-      const signalsArray = (result.signals || result.data || []) as TradingSignal[];
-      console.log(`✅ [useTradingSignals] Loaded ${signalsArray.length} signals:`, signalsArray);
-      
-      // Log first signal structure for debugging
-      if (signalsArray.length > 0) {
-        const firstSignal = signalsArray[0];
-        console.log('📊 [useTradingSignals] First signal structure:', {
-          id: firstSignal.id,
-          ticker: firstSignal.ticker,
-          status: firstSignal.status,
-          profit_loss_percent: firstSignal.profit_loss_percent,
-          realized_pnl_percent: firstSignal.realized_pnl_percent,
-          current_price: firstSignal.current_price,
-          entry_price: firstSignal.entry_price,
-        });
-      }
-      
-      setSignals(signalsArray);
-      setError(null);
-      
-      // Mark initial load as complete
-      if (isInitialLoad) {
-        setIsInitialLoad(false);
-      }
-    } catch (err) {
-      console.error('❌ [useTradingSignals] Error fetching signals:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch signals'));
-      setSignals([]); // Clear signals on error
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled]);
+    },
+    [enabled]
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -94,4 +104,3 @@ export const useTradingSignals = (options: UseTradingSignalsOptions = {}) => {
     setSignals, // Allow manual updates
   };
 };
-

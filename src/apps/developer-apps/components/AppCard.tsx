@@ -16,7 +16,12 @@ interface AppCardProps {
   onSendForReview: (appId: string) => void;
 }
 
-const AppCard: React.FC<AppCardProps> = ({ app, onEdit, onDelete, onSendForReview }) => {
+const AppCard: React.FC<AppCardProps> = ({
+  app,
+  onEdit,
+  onDelete,
+  onSendForReview,
+}) => {
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -41,8 +46,12 @@ const AppCard: React.FC<AppCardProps> = ({ app, onEdit, onDelete, onSendForRevie
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-xl font-bold text-white mb-1 truncate">{app.name}</h3>
-          <p className="text-sm text-purple-400 font-mono truncate">{app.appId}</p>
+          <h3 className="text-xl font-bold text-white mb-1 truncate">
+            {app.name}
+          </h3>
+          <p className="text-sm text-purple-400 font-mono truncate">
+            {app.appId}
+          </p>
         </div>
       </div>
 
@@ -76,7 +85,9 @@ const AppCard: React.FC<AppCardProps> = ({ app, onEdit, onDelete, onSendForRevie
       </div>
 
       {/* Description */}
-      <p className="text-gray-300 text-sm mb-4 line-clamp-2">{app.shortDescription}</p>
+      <p className="text-gray-300 text-sm mb-4 line-clamp-2">
+        {app.shortDescription}
+      </p>
 
       {/* Tags */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -91,7 +102,10 @@ const AppCard: React.FC<AppCardProps> = ({ app, onEdit, onDelete, onSendForRevie
       </div>
 
       {/* Social Links */}
-      {(app.socialX || app.socialTelegram || app.socialFacebook || app.socialTiktok) && (
+      {(app.socialX ||
+        app.socialTelegram ||
+        app.socialFacebook ||
+        app.socialTiktok) && (
         <div className="flex gap-3 mb-4">
           {app.socialX && (
             <a
@@ -168,4 +182,3 @@ const AppCard: React.FC<AppCardProps> = ({ app, onEdit, onDelete, onSendForRevie
 };
 
 export default AppCard;
-

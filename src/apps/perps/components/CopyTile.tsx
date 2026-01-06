@@ -1,4 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { TrendingUp, TrendingDown, Target, Shield, Trophy } from 'lucide-react';
@@ -12,7 +18,12 @@ interface CopyTileProps {
   disabled: boolean;
 }
 
-export function CopyTile({ tile, onExecute, isExecuting, disabled }: CopyTileProps) {
+export function CopyTile({
+  tile,
+  onExecute,
+  isExecuting,
+  disabled,
+}: CopyTileProps) {
   const entryPrice = getEntryPrice(tile.entry);
   const isLong = tile.side === 'long';
 
@@ -30,7 +41,7 @@ export function CopyTile({ tile, onExecute, isExecuting, disabled }: CopyTilePro
     if (tile.takeProfits.length === 2 && !Array.isArray(tile.takeProfits[0])) {
       return `$${tile.takeProfits[0]} - $${tile.takeProfits[1]}`;
     }
-    return tile.takeProfits.map(tp => `$${tp}`).join(', ');
+    return tile.takeProfits.map((tp) => `$${tp}`).join(', ');
   };
 
   return (
@@ -42,7 +53,11 @@ export function CopyTile({ tile, onExecute, isExecuting, disabled }: CopyTilePro
               {tile.symbol}
               <Badge
                 variant="outline"
-                className={isLong ? 'text-success border-success' : 'text-destructive border-destructive'}
+                className={
+                  isLong
+                    ? 'text-success border-success'
+                    : 'text-destructive border-destructive'
+                }
               >
                 {isLong ? (
                   <>
@@ -57,7 +72,9 @@ export function CopyTile({ tile, onExecute, isExecuting, disabled }: CopyTilePro
                 )}
               </Badge>
             </CardTitle>
-            <CardDescription>Copy Trade • $10 Notional • 5× Leverage</CardDescription>
+            <CardDescription>
+              Copy Trade • $10 Notional • 5× Leverage
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -69,7 +86,9 @@ export function CopyTile({ tile, onExecute, isExecuting, disabled }: CopyTilePro
             </div>
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">Entry</p>
-              <p className="font-mono-numbers font-semibold">{formatPrice(tile.entry)}</p>
+              <p className="font-mono-numbers font-semibold">
+                {formatPrice(tile.entry)}
+              </p>
             </div>
           </div>
 
@@ -79,7 +98,9 @@ export function CopyTile({ tile, onExecute, isExecuting, disabled }: CopyTilePro
             </div>
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">Stop Loss</p>
-              <p className="font-mono-numbers font-semibold text-destructive">${tile.stopLoss}</p>
+              <p className="font-mono-numbers font-semibold text-destructive">
+                ${tile.stopLoss}
+              </p>
             </div>
           </div>
 
@@ -89,7 +110,9 @@ export function CopyTile({ tile, onExecute, isExecuting, disabled }: CopyTilePro
             </div>
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">Take Profits</p>
-              <p className="font-mono-numbers font-semibold text-success">{formatTakeProfits()}</p>
+              <p className="font-mono-numbers font-semibold text-success">
+                {formatTakeProfits()}
+              </p>
             </div>
           </div>
         </div>

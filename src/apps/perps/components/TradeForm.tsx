@@ -12,41 +12,57 @@ import { getAgentWallet } from '../lib/hyperliquid/keystore';
 import { getMarkPrice, getUserState } from '../lib/hyperliquid/client';
 import { useWalletClient } from 'wagmi';
 import useTransactionKit from '../../../hooks/useTransactionKit';
-import { computeSizeUSD, splitTPs, roundToSzDecimals } from '../lib/hyperliquid/order';
-import { placeMarketOrderAgent, placeLimitOrderAgent } from '../lib/hyperliquid/sdk';
+import {
+  computeSizeUSD,
+  splitTPs,
+  roundToSzDecimals,
+} from '../lib/hyperliquid/order';
+import {
+  placeMarketOrderAgent,
+  placeLimitOrderAgent,
+} from '../lib/hyperliquid/sdk';
 import { parsePositionForSymbol } from '../lib/hyperliquid/parsers';
 import { PasteStrategyButton } from './PasteStrategyButton';
 import type { AssetInfo } from '../lib/hyperliquid/types';
 
-const tradeSchema = z.object({
-  side: z.enum(['long', 'short']),
-  entryPrice: z.number().positive().optional(),
-  amountUSD: z.number().positive(),
-  leverage: z.number().min(1).max(50),
-  stopLoss: z.number().positive().optional(),
-  takeProfits: z.string().optional(),
-}).refine((data) => {
-  // Only validate if values are provided
-  if (data.entryPrice && data.stopLoss) {
-    if (data.side === 'long') {
-      return data.stopLoss < data.entryPrice;
-    } else {
-      return data.stopLoss > data.entryPrice;
+const tradeSchema = z
+  .object({
+    side: z.enum(['long', 'short']),
+    entryPrice: z.number().positive().optional(),
+    amountUSD: z.number().positive(),
+    leverage: z.number().min(1).max(50),
+    stopLoss: z.number().positive().optional(),
+    takeProfits: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      // Only validate if values are provided
+      if (data.entryPrice && data.stopLoss) {
+        if (data.side === 'long') {
+          return data.stopLoss < data.entryPrice;
+        } else {
+          return data.stopLoss > data.entryPrice;
+        }
+      }
+      if (data.entryPrice && data.takeProfits) {
+        const tps = data.takeProfits
+          .split(',')
+          .map((tp) => parseFloat(tp.trim()))
+          .filter((n) => !isNaN(n));
+        if (data.side === 'long') {
+          return tps.every((tp) => tp > data.entryPrice!);
+        } else {
+          return tps.every((tp) => tp < data.entryPrice!);
+        }
+      }
+      return true;
+    },
+    {
+      message:
+        'Stop loss and take profits must be valid for the trade direction',
+      path: ['stopLoss'],
     }
-  }
-  if (data.entryPrice && data.takeProfits) {
-    const tps = data.takeProfits.split(',').map(tp => parseFloat(tp.trim())).filter(n => !isNaN(n));
-    if (data.side === 'long') {
-      return tps.every(tp => tp > data.entryPrice!);
-    } else {
-      return tps.every(tp => tp < data.entryPrice!);
-    }
-  }
-  return true;
-}, {
-  message: "Stop loss and take profits must be valid for the trade direction",
-  path: ['stopLoss'],
-});
+  );
 
 type TradeFormData = z.infer<typeof tradeSchema>;
 
@@ -62,14 +78,25 @@ interface TradeFormProps {
   };
 }
 
-export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, prefilledData }: TradeFormProps) {
+export function TradeForm({
+  selectedAsset,
+  onTradeComplete,
+  onTickerChange,
+  prefilledData,
+}: TradeFormProps) {
   const { walletAddress: masterAddress } = useTransactionKit();
   const [isMarketOrder, setIsMarketOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [minUSD, setMinUSD] = useState<number | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<TradeFormData>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    watch,
+    setValue,
+  } = useForm<TradeFormData>({
     resolver: zodResolver(tradeSchema),
     defaultValues: {
       side: 'long',
@@ -85,7 +112,7 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
   // Fetch market price for minimum calculation
   useEffect(() => {
     if (selectedAsset && isMarketOrder) {
-      getMarkPrice(selectedAsset.symbol).then(price => {
+      getMarkPrice(selectedAsset.symbol).then((price) => {
         if (price) setMarketPrice(price);
       });
     }
@@ -121,7 +148,13 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
   }, [prefilledData, setValue]);
 
   // Handle pasted strategy
-  const handleStrategyPasted = (strategy: { ticker: string; side: 'long' | 'short'; entryPrice: number; stopLoss: number; takeProfits: string }) => {
+  const handleStrategyPasted = (strategy: {
+    ticker: string;
+    side: 'long' | 'short';
+    entryPrice: number;
+    stopLoss: number;
+    takeProfits: string;
+  }) => {
     // Notify parent to switch ticker
     if (onTickerChange) {
       onTickerChange(strategy.ticker);
@@ -146,7 +179,7 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
     delayMs = 1000
   ): Promise<boolean> => {
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
 
       const state = await getUserState(masterWalletAddress);
       if (!state) continue;
@@ -199,7 +232,12 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
       }
 
       // Calculate size
-      const size = computeSizeUSD(data.amountUSD, data.leverage, entryPrice, selectedAsset.szDecimals);
+      const size = computeSizeUSD(
+        data.amountUSD,
+        data.leverage,
+        entryPrice,
+        selectedAsset.szDecimals
+      );
 
       if (size <= 0) {
         const minSize = Math.pow(10, -selectedAsset.szDecimals);
@@ -212,7 +250,10 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
 
       // Parse take profits if provided
       const tpPrices = data.takeProfits
-        ? data.takeProfits.split(',').map(tp => parseFloat(tp.trim())).filter(n => !isNaN(n))
+        ? data.takeProfits
+            .split(',')
+            .map((tp) => parseFloat(tp.trim()))
+            .filter((n) => !isNaN(n))
         : [];
 
       // Place entry order via SDK
@@ -279,12 +320,15 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
         );
 
         if (positionOpened) {
-          toast.success('Position confirmed on exchange', { id: 'verify-position' });
+          toast.success('Position confirmed on exchange', {
+            id: 'verify-position',
+          });
           onTradeComplete?.();
         } else {
           toast.warning('Position not found on exchange', {
             id: 'verify-position',
-            description: 'The order was submitted but position is not visible yet. Check your orders manually.',
+            description:
+              'The order was submitted but position is not visible yet. Check your orders manually.',
             duration: 8000,
           });
           onTradeComplete?.(); // Still call this to refresh UI
@@ -312,9 +356,16 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
 
   return (
     <Card className="p-6">
-      <form onSubmit={handleSubmit(onSubmit, () => toast.error('Please fix the form errors'))} className="space-y-4">
+      <form
+        onSubmit={handleSubmit(onSubmit, () =>
+          toast.error('Please fix the form errors')
+        )}
+        className="space-y-4"
+      >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Trade {selectedAsset.symbol}</h3>
+          <h3 className="text-lg font-semibold">
+            Trade {selectedAsset.symbol}
+          </h3>
           <PasteStrategyButton onStrategyPasted={handleStrategyPasted} />
         </div>
 
@@ -359,11 +410,13 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
               step="any"
               placeholder="0.00"
               {...register('entryPrice', {
-                setValueAs: (v) => v === '' ? undefined : parseFloat(v)
+                setValueAs: (v) => (v === '' ? undefined : parseFloat(v)),
               })}
             />
             {errors.entryPrice && (
-              <p className="text-xs text-destructive mt-1">{errors.entryPrice.message}</p>
+              <p className="text-xs text-destructive mt-1">
+                {errors.entryPrice.message}
+              </p>
             )}
           </div>
         )}
@@ -379,7 +432,9 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
               {...register('amountUSD', { valueAsNumber: true })}
             />
             {errors.amountUSD && (
-              <p className="text-xs text-destructive mt-1">{errors.amountUSD.message}</p>
+              <p className="text-xs text-destructive mt-1">
+                {errors.amountUSD.message}
+              </p>
             )}
             {isBelowMinimum && minUSD && (
               <p className="text-xs text-destructive mt-1">
@@ -420,7 +475,9 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
               {...register('leverage', { valueAsNumber: true })}
             />
             {errors.leverage && (
-              <p className="text-xs text-destructive mt-1">{errors.leverage.message}</p>
+              <p className="text-xs text-destructive mt-1">
+                {errors.leverage.message}
+              </p>
             )}
           </div>
         </div>
@@ -431,26 +488,38 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
             id="stopLoss"
             type="number"
             step="any"
-            placeholder={side === 'long' ? '< Entry (optional)' : '> Entry (optional)'}
+            placeholder={
+              side === 'long' ? '< Entry (optional)' : '> Entry (optional)'
+            }
             {...register('stopLoss', {
-              setValueAs: (v) => v === '' ? undefined : parseFloat(v)
+              setValueAs: (v) => (v === '' ? undefined : parseFloat(v)),
             })}
           />
           {errors.stopLoss && (
-            <p className="text-xs text-destructive mt-1">{errors.stopLoss.message}</p>
+            <p className="text-xs text-destructive mt-1">
+              {errors.stopLoss.message}
+            </p>
           )}
         </div>
 
         <div>
-          <Label htmlFor="takeProfits">Take Profits (optional, comma-separated)</Label>
+          <Label htmlFor="takeProfits">
+            Take Profits (optional, comma-separated)
+          </Label>
           <Input
             id="takeProfits"
             type="text"
-            placeholder={side === 'long' ? 'e.g., 100, 110, 120 (optional)' : 'e.g., 90, 80, 70 (optional)'}
+            placeholder={
+              side === 'long'
+                ? 'e.g., 100, 110, 120 (optional)'
+                : 'e.g., 90, 80, 70 (optional)'
+            }
             {...register('takeProfits')}
           />
           {errors.takeProfits && (
-            <p className="text-xs text-destructive mt-1">{errors.takeProfits.message}</p>
+            <p className="text-xs text-destructive mt-1">
+              {errors.takeProfits.message}
+            </p>
           )}
         </div>
 
@@ -459,7 +528,9 @@ export function TradeForm({ selectedAsset, onTradeComplete, onTickerChange, pref
           disabled={isSubmitting || isBelowMinimum}
           className="w-full"
         >
-          {isSubmitting ? 'Placing Trade...' : `Place ${side === 'long' ? 'Long' : 'Short'} Order`}
+          {isSubmitting
+            ? 'Placing Trade...'
+            : `Place ${side === 'long' ? 'Long' : 'Short'} Order`}
         </Button>
       </form>
     </Card>

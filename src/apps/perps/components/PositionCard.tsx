@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { TrendingUp, TrendingDown, Target, Shield, Trophy, RefreshCw } from 'lucide-react';
-import { getUserState, getOpenOrders, getMarkPrice } from '../lib/hyperliquid/client';
-import { parsePositionForSymbol, parseReduceOnlyOrders } from '../lib/hyperliquid/parsers';
+import {
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Shield,
+  Trophy,
+  RefreshCw,
+} from 'lucide-react';
+import {
+  getUserState,
+  getOpenOrders,
+  getMarkPrice,
+} from '../lib/hyperliquid/client';
+import {
+  parsePositionForSymbol,
+  parseReduceOnlyOrders,
+} from '../lib/hyperliquid/parsers';
 import { computePnl, formatPrice, formatPnl } from '../lib/hyperliquid/pnl';
 import { cn } from '../lib/utils';
 
@@ -14,7 +28,7 @@ interface PositionCardProps {
 
 export function PositionCard({ symbol, address }: PositionCardProps) {
   const [loading, setLoading] = useState(false);
-  const [side, setSide] = useState<"long" | "short" | null>(null);
+  const [side, setSide] = useState<'long' | 'short' | null>(null);
   const [size, setSize] = useState(0);
   const [entryPx, setEntryPx] = useState(0);
   const [markPx, setMarkPx] = useState(0);
@@ -24,31 +38,36 @@ export function PositionCard({ symbol, address }: PositionCardProps) {
 
   useEffect(() => {
     if (!address || !symbol) return;
-    
+
     let alive = true;
-    
+
     async function load() {
       try {
         setLoading(true);
-        
+
         const [state, orders, mark] = await Promise.all([
           getUserState(address as string),
           getOpenOrders(address as string, symbol),
           getMarkPrice(symbol),
         ]);
-        
+
         if (!alive) return;
 
         // Parse position for the symbol
         const pos = state ? parsePositionForSymbol(state, symbol) : null;
-        
+
         if (pos) {
           setSide(pos.side);
           setSize(pos.size);
           setEntryPx(pos.entryPx);
-          
+
           // Parse SL/TP from reduce-only orders
-          const { sl, tps } = parseReduceOnlyOrders(orders, symbol, pos.side, pos.entryPx);
+          const { sl, tps } = parseReduceOnlyOrders(
+            orders,
+            symbol,
+            pos.side,
+            pos.entryPx
+          );
           setStopLoss(sl);
           setTakeProfits(tps);
         } else {
@@ -70,7 +89,7 @@ export function PositionCard({ symbol, address }: PositionCardProps) {
 
     load();
     const id = setInterval(load, 2000);
-    
+
     return () => {
       alive = false;
       clearInterval(id);
@@ -120,7 +139,9 @@ export function PositionCard({ symbol, address }: PositionCardProps) {
             <Badge
               variant="outline"
               className={cn(
-                isLong ? 'text-success border-success' : 'text-destructive border-destructive'
+                isLong
+                  ? 'text-success border-success'
+                  : 'text-destructive border-destructive'
               )}
             >
               {isLong ? (
@@ -138,11 +159,7 @@ export function PositionCard({ symbol, address }: PositionCardProps) {
           </CardTitle>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
-            {lastUpdate && (
-              <span>
-                {lastUpdate.toLocaleTimeString()}
-              </span>
-            )}
+            {lastUpdate && <span>{lastUpdate.toLocaleTimeString()}</span>}
           </div>
         </div>
       </CardHeader>
@@ -151,37 +168,53 @@ export function PositionCard({ symbol, address }: PositionCardProps) {
         <div className="grid grid-cols-2 gap-3">
           <div className="p-3 bg-secondary/50 rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">Size</p>
-            <p className="font-mono-numbers font-semibold">{formatPrice(size, 4)}</p>
+            <p className="font-mono-numbers font-semibold">
+              {formatPrice(size, 4)}
+            </p>
           </div>
           <div className="p-3 bg-secondary/50 rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">Entry Price</p>
-            <p className="font-mono-numbers font-semibold">${formatPrice(entryPx, 2)}</p>
+            <p className="font-mono-numbers font-semibold">
+              ${formatPrice(entryPx, 2)}
+            </p>
           </div>
         </div>
 
         {/* Mark Price */}
         <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
-          <p className="text-xs text-muted-foreground mb-1">Current Mark Price</p>
-          <p className="font-mono-numbers font-semibold text-lg">${formatPrice(markPx, 2)}</p>
+          <p className="text-xs text-muted-foreground mb-1">
+            Current Mark Price
+          </p>
+          <p className="font-mono-numbers font-semibold text-lg">
+            ${formatPrice(markPx, 2)}
+          </p>
         </div>
 
         {/* PnL */}
-        <div className={cn(
-          'p-4 rounded-lg border-2',
-          isProfitable ? 'bg-success/10 border-success/30' : 'bg-destructive/10 border-destructive/30'
-        )}>
+        <div
+          className={cn(
+            'p-4 rounded-lg border-2',
+            isProfitable
+              ? 'bg-success/10 border-success/30'
+              : 'bg-destructive/10 border-destructive/30'
+          )}
+        >
           <p className="text-xs text-muted-foreground mb-2">Unrealized PnL</p>
           <div className="flex items-baseline gap-3">
-            <p className={cn(
-              'font-mono-numbers font-bold text-2xl',
-              isProfitable ? 'text-success' : 'text-destructive'
-            )}>
+            <p
+              className={cn(
+                'font-mono-numbers font-bold text-2xl',
+                isProfitable ? 'text-success' : 'text-destructive'
+              )}
+            >
               {formatPnl(pnl.pnlUsd)}
             </p>
-            <p className={cn(
-              'font-mono-numbers font-semibold text-lg',
-              isProfitable ? 'text-success' : 'text-destructive'
-            )}>
+            <p
+              className={cn(
+                'font-mono-numbers font-semibold text-lg',
+                isProfitable ? 'text-success' : 'text-destructive'
+              )}
+            >
               ({formatPnl(pnl.pnlPct, true)})
             </p>
           </div>
@@ -209,10 +242,16 @@ export function PositionCard({ symbol, address }: PositionCardProps) {
                 <Trophy className="h-4 w-4 text-success" />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-muted-foreground mb-1">Take Profit Targets</p>
+                <p className="text-xs text-muted-foreground mb-1">
+                  Take Profit Targets
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {takeProfits.map((tp, idx) => (
-                    <Badge key={idx} variant="outline" className="text-success border-success font-mono-numbers">
+                    <Badge
+                      key={idx}
+                      variant="outline"
+                      className="text-success border-success font-mono-numbers"
+                    >
                       ${formatPrice(tp, 2)}
                     </Badge>
                   ))}

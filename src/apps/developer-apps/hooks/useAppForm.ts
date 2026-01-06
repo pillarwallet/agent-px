@@ -1,7 +1,10 @@
 import { useState, useCallback } from 'react';
 
 // types
-import { DeveloperApp, DeveloperAppCreateRequest } from '../api/developerAppsApi';
+import {
+  DeveloperApp,
+  DeveloperAppCreateRequest,
+} from '../api/developerAppsApi';
 
 // utils
 import { validateEmail, validateUrl, validateAppId } from '../utils/validation';
@@ -93,13 +96,15 @@ export const useAppForm = (existingApp?: DeveloperApp) => {
     if (!formData.appId.trim()) {
       newErrors.appId = 'App ID is required';
     } else if (!validateAppId(formData.appId)) {
-      newErrors.appId = 'App ID must be lowercase alphanumeric with hyphens/underscores (3-50 chars)';
+      newErrors.appId =
+        'App ID must be lowercase alphanumeric with hyphens/underscores (3-50 chars)';
     }
 
     if (!formData.shortDescription.trim()) {
       newErrors.shortDescription = 'Short description is required';
     } else if (formData.shortDescription.length > 200) {
-      newErrors.shortDescription = 'Short description must be 200 characters or less';
+      newErrors.shortDescription =
+        'Short description must be 200 characters or less';
     }
 
     if (!formData.tags.trim()) {
@@ -180,4 +185,3 @@ export const useAppForm = (existingApp?: DeveloperApp) => {
     setFormData,
   };
 };
-

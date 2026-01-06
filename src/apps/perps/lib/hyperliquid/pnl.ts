@@ -1,10 +1,10 @@
 export function computePnl(
-  side: "long" | "short",
+  side: 'long' | 'short',
   size: number,
   entryPx: number,
   markPx: number
 ) {
-  const m = side === "long" ? 1 : -1;
+  const m = side === 'long' ? 1 : -1;
   const pnlUsd = (markPx - entryPx) * size * m;
   const pnlPct = ((markPx - entryPx) / entryPx) * 100 * m;
   return { pnlUsd, pnlPct };

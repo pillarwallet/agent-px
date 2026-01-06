@@ -37,26 +37,19 @@ export const addReducer = (newReducer: {
   reducerPath: string;
   reducer: Reducer;
 }) => {
-  console.log('=== Adding reducer ===');
-  console.log('Full object:', newReducer);
-  console.log('Object keys:', Object.keys(newReducer));
-  console.log('reducerPath:', newReducer.reducerPath);
-  console.log('reducer type:', typeof newReducer.reducer);
-  console.log('reducer value:', newReducer.reducer);
-
-  const path = newReducer.reducerPath || (newReducer as any).name;
+  const path = newReducer.reducerPath;
   if (!path) {
-    console.error('Reducer path/name is missing for:', newReducer);
+    throw new Error(
+      `Reducer path is missing for reducer: ${JSON.stringify(newReducer)}`
+    );
   } else {
     const actualReducer = newReducer.reducer;
     if (!actualReducer) {
-      console.error('ERROR: Reducer is undefined/null for path:', path);
-      console.error('This will cause Redux store to fail!');
-      return; // Don't add invalid reducers
+      throw new Error(
+        `Reducer is undefined/null for path: ${path}. This will cause Redux store to fail!`
+      );
     }
     middlewareReducers[path] = actualReducer;
-    console.log('✓ Successfully added reducer for:', path);
-    console.log('Current reducers:', Object.keys(middlewareReducers));
     store.replaceReducer(combineReducers(middlewareReducers));
   }
 };
@@ -109,10 +102,19 @@ addMiddleware(pillarXApiTransactionsHistory);
 addMiddleware(pillarXApiWalletTransactions);
 addMiddleware(relayApi);
 addReducer({ reducerPath: swapSlice.name, reducer: swapSlice.reducer });
-addReducer({ reducerPath: tokenAtlasSlice.name, reducer: tokenAtlasSlice.reducer });
+addReducer({
+  reducerPath: tokenAtlasSlice.name,
+  reducer: tokenAtlasSlice.reducer,
+});
 addReducer({ reducerPath: depositSlice.name, reducer: depositSlice.reducer });
-addReducer({ reducerPath: walletPortfolioSlice.name, reducer: walletPortfolioSlice.reducer });
-addReducer({ reducerPath: leaderboardSlice.name, reducer: leaderboardSlice.reducer });
+addReducer({
+  reducerPath: walletPortfolioSlice.name,
+  reducer: walletPortfolioSlice.reducer,
+});
+addReducer({
+  reducerPath: leaderboardSlice.name,
+  reducer: leaderboardSlice.reducer,
+});
 
 // optional, but required for refetchOnFocus/refetchOnReconnect behaviors
 // see `setupListeners` docs - takes an optional callback as the 2nd arg for customization

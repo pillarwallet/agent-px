@@ -1,10 +1,23 @@
 import { useState, useCallback } from 'react';
 import { useWalletClient } from 'wagmi';
 import useTransactionKit from '../../../hooks/useTransactionKit';
-import { getUserState, postExchange, getAllAssets } from '../lib/hyperliquid/client';
-import { signUserAction, buildNoopAction, buildOrderAction } from '../lib/hyperliquid/signing';
+import {
+  getUserState,
+  postExchange,
+  getAllAssets,
+} from '../lib/hyperliquid/client';
+import {
+  signUserAction,
+  buildNoopAction,
+  buildOrderAction,
+} from '../lib/hyperliquid/signing';
 import type { UserState, CopyTile } from '../lib/hyperliquid/types';
-import { calculatePositionSize, roundToSzDecimals, getEntryPrice, validateCopyTrade } from '../lib/hyperliquid/math';
+import {
+  calculatePositionSize,
+  roundToSzDecimals,
+  getEntryPrice,
+  validateCopyTrade,
+} from '../lib/hyperliquid/math';
 import { toast } from 'sonner';
 
 type SetupStatus = 'unknown' | 'not-setup' | 'setup';
@@ -85,76 +98,83 @@ export function useHyperliquid() {
     }
   }, [address]);
 
-  const executeCopyTrade = useCallback(async (tile: CopyTile) => {
-    if (!walletClient || !address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
-    if (setupStatus !== 'setup') {
-      toast.error('Please setup your Hyperliquid account first');
-      return;
-    }
-
-    // Validate the trade
-    const validation = validateCopyTrade(tile);
-    if (!validation.valid) {
-      toast.error(validation.error);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Look up asset ID by symbol
-      const assets = await getAllAssets();
-      const asset = assets.find(a => a.symbol === tile.symbol);
-
-      if (!asset) {
-        toast.error(`Asset ${tile.symbol} not found`);
+  const executeCopyTrade = useCallback(
+    async (tile: CopyTile) => {
+      if (!walletClient || !address) {
+        toast.error('Please connect your wallet');
         return;
       }
 
-      const notional = 10; // $10
-      const leverage = 5; // 5x
-      const entryPrice = getEntryPrice(tile.entry);
-      const size = calculatePositionSize(notional, leverage, entryPrice);
-      const roundedSize = roundToSzDecimals(size, 3);
+      if (setupStatus !== 'setup') {
+        toast.error('Please setup your Hyperliquid account first');
+        return;
+      }
 
-      toast.info('Placing entry order...', { duration: 2000 });
+      // Validate the trade
+      const validation = validateCopyTrade(tile);
+      if (!validation.valid) {
+        toast.error(validation.error);
+        return;
+      }
 
-      // Place entry order with numeric asset ID
-      const entryAction = buildOrderAction({
-        coin: asset.id,
-        isBuy: tile.side === 'long',
-        sz: roundedSize,
-        limitPx: entryPrice,
-        orderType: { limit: { tif: 'Gtc' } },
-        reduceOnly: false,
-      });
+      setIsLoading(true);
+      try {
+        // Look up asset ID by symbol
+        const assets = await getAllAssets();
+        const asset = assets.find((a) => a.symbol === tile.symbol);
 
-      const entryNonce = Date.now();
-      const entrySignature = await signUserAction(walletClient, entryAction, entryNonce);
+        if (!asset) {
+          toast.error(`Asset ${tile.symbol} not found`);
+          return;
+        }
 
-      const entryResult = await postExchange({
-        action: entryAction,
-        nonce: entryNonce,
-        signature: entrySignature,
-      });
+        const notional = 10; // $10
+        const leverage = 5; // 5x
+        const entryPrice = getEntryPrice(tile.entry);
+        const size = calculatePositionSize(notional, leverage, entryPrice);
+        const roundedSize = roundToSzDecimals(size, 3);
 
-      console.log('Entry order result:', entryResult);
+        toast.info('Placing entry order...', { duration: 2000 });
 
-      // Note: In production, you would also place SL and TP orders here
-      // This is a simplified version for the MVP
+        // Place entry order with numeric asset ID
+        const entryAction = buildOrderAction({
+          coin: asset.id,
+          isBuy: tile.side === 'long',
+          sz: roundedSize,
+          limitPx: entryPrice,
+          orderType: { limit: { tif: 'Gtc' } },
+          reduceOnly: false,
+        });
 
-      toast.success('Copy trade executed successfully!');
-      await loadBalance();
-    } catch (error: any) {
-      console.error('Trade execution error:', error);
-      toast.error(error.message || 'Failed to execute trade');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [walletClient, address, setupStatus, loadBalance]);
+        const entryNonce = Date.now();
+        const entrySignature = await signUserAction(
+          walletClient,
+          entryAction,
+          entryNonce
+        );
+
+        const entryResult = await postExchange({
+          action: entryAction,
+          nonce: entryNonce,
+          signature: entrySignature,
+        });
+
+        console.log('Entry order result:', entryResult);
+
+        // Note: In production, you would also place SL and TP orders here
+        // This is a simplified version for the MVP
+
+        toast.success('Copy trade executed successfully!');
+        await loadBalance();
+      } catch (error: any) {
+        console.error('Trade execution error:', error);
+        toast.error(error.message || 'Failed to execute trade');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [walletClient, address, setupStatus, loadBalance]
+  );
 
   return {
     setupStatus,

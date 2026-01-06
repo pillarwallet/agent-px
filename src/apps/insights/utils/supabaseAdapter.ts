@@ -1,12 +1,16 @@
 /**
  * Supabase to Firebase API Adapter
- * 
+ *
  * This adapter provides a Supabase-compatible interface that translates
  * calls to Firebase Functions API. This allows the _lovable components
  * to work without modification while we migrate to Firebase.
  */
 
-import { fetchSparklineData, getTradingSignals, updateSignalPrices } from '../api/insightsApi';
+import {
+  fetchSparklineData,
+  getTradingSignals,
+  updateSignalPrices,
+} from '../api/insightsApi';
 
 /**
  * Mock Supabase client that translates calls to Firebase API
@@ -22,7 +26,9 @@ export const createSupabaseAdapter = () => {
     }
 
     const ascending = options?.ascending !== false;
-    const sentinel = ascending ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+    const sentinel = ascending
+      ? Number.POSITIVE_INFINITY
+      : Number.NEGATIVE_INFINITY;
 
     return data.sort((a: any, b: any) => {
       const aRaw = a?.[column];
@@ -75,7 +81,7 @@ export const createSupabaseAdapter = () => {
           };
 
           return {
-          eq: (filterColumn: string, value: any) =>
+            eq: (filterColumn: string, value: any) =>
               runQuery((item) => item[filterColumn] === value),
             exec: () => runQuery(),
           };
@@ -86,24 +92,27 @@ export const createSupabaseAdapter = () => {
       invoke: async (functionName: string, options?: { body?: any }) => {
         try {
           const body = options?.body;
-          
+
           if (functionName === 'fetch-sparkline-data') {
             const { ticker, startTime, endTime } = body || {};
             const result = await fetchSparklineData(ticker, startTime, endTime);
             return { data: result, error: null };
           }
-          
+
           if (functionName === 'update-signal-prices') {
             const result = await updateSignalPrices();
             return result;
           }
-          
+
           if (functionName === 'recalculate-historical-pnl') {
             // TODO: Implement when function is ready
             return { data: null, error: new Error('Not yet implemented') };
           }
-          
-          return { data: null, error: new Error(`Unknown function: ${functionName}`) };
+
+          return {
+            data: null,
+            error: new Error(`Unknown function: ${functionName}`),
+          };
         } catch (error: any) {
           return { data: null, error };
         }
@@ -120,4 +129,3 @@ export const createSupabaseAdapter = () => {
     removeChannel: () => {},
   };
 };
-

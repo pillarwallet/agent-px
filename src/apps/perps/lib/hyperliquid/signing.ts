@@ -1,4 +1,12 @@
-import { type Hex, hashTypedData, type WalletClient, keccak256, toHex, type PrivateKeyAccount, recoverTypedDataAddress } from 'viem';
+import {
+  type Hex,
+  hashTypedData,
+  type WalletClient,
+  keccak256,
+  toHex,
+  type PrivateKeyAccount,
+  recoverTypedDataAddress,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { HyperliquidAction } from './types';
 
@@ -48,7 +56,8 @@ export async function signUserAction(
       primaryType: 'Agent',
       message: {
         source: 'a',
-        connectionId: '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex,
+        connectionId:
+          '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex,
       },
     }),
   };
@@ -98,14 +107,16 @@ export function buildOrderAction(params: {
 }): HyperliquidAction {
   return {
     type: 'order',
-    orders: [{
-      a: params.coin,
-      b: params.isBuy,
-      p: params.limitPx.toString(),
-      s: params.sz.toString(),
-      r: params.reduceOnly,
-      t: params.orderType,
-    }],
+    orders: [
+      {
+        a: params.coin,
+        b: params.isBuy,
+        p: params.limitPx.toString(),
+        s: params.sz.toString(),
+        r: params.reduceOnly,
+        t: params.orderType,
+      },
+    ],
     grouping: 'na',
   };
 }
@@ -156,7 +167,12 @@ export function getApproveAgentTypedData(
     nonce: nonce,
   };
 
-  return { domain, types, primaryType: 'HyperliquidTransaction:ApproveAgent', message };
+  return {
+    domain,
+    types,
+    primaryType: 'HyperliquidTransaction:ApproveAgent',
+    message,
+  };
 }
 
 export async function signApproveAgentAction(
@@ -200,10 +216,15 @@ export async function signAgentAction(
 
   const phantomAgent = {
     source: 'a',
-    connectionId: keccak256(toHex(JSON.stringify({
-      source: 'a',
-      connectionId: '0x0000000000000000000000000000000000000000000000000000000000000000',
-    }))),
+    connectionId: keccak256(
+      toHex(
+        JSON.stringify({
+          source: 'a',
+          connectionId:
+            '0x0000000000000000000000000000000000000000000000000000000000000000',
+        })
+      )
+    ),
   };
 
   const signature = await account.signTypedData({
@@ -227,10 +248,15 @@ export async function verifyAgentSignature(
   try {
     const phantomAgent = {
       source: 'a',
-      connectionId: keccak256(toHex(JSON.stringify({
-        source: 'a',
-        connectionId: '0x0000000000000000000000000000000000000000000000000000000000000000',
-      }))),
+      connectionId: keccak256(
+        toHex(
+          JSON.stringify({
+            source: 'a',
+            connectionId:
+              '0x0000000000000000000000000000000000000000000000000000000000000000',
+          })
+        )
+      ),
     };
 
     const recoveredAddress = await recoverTypedDataAddress({
@@ -238,7 +264,8 @@ export async function verifyAgentSignature(
       types: HL_TYPES,
       primaryType: 'HyperliquidTransaction',
       message: phantomAgent,
-      signature: `${signature.r}${signature.s.slice(2)}${signature.v.toString(16).padStart(2, '0')}` as Hex,
+      signature:
+        `${signature.r}${signature.s.slice(2)}${signature.v.toString(16).padStart(2, '0')}` as Hex,
     });
 
     return recoveredAddress.toLowerCase() === agentAddress.toLowerCase();
@@ -252,7 +279,10 @@ export function generateAgentWallet(): { address: string; privateKey: Hex } {
   // Generate random private key
   const randomBytes = new Uint8Array(32);
   crypto.getRandomValues(randomBytes);
-  const privateKey = ('0x' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')) as Hex;
+  const privateKey = ('0x' +
+    Array.from(randomBytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')) as Hex;
 
   const account = privateKeyToAccount(privateKey);
   return {

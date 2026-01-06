@@ -36,7 +36,8 @@
 
 /* Animations */
 @keyframes gradient-shift {
-  0%, 100% {
+  0%,
+  100% {
     background-position: 0% 50%;
   }
   50% {
@@ -50,7 +51,7 @@
 }
 
 /* Card hover effects */
-.developers-app [class*="bg-gradient-to-br"]:hover {
+.developers-app [class*='bg-gradient-to-br']:hover {
   transform: translateY(-2px);
   transition: transform 0.3s ease;
 }
@@ -86,11 +87,20 @@
 
 /* Purple gradient backgrounds */
 .developers-app .bg-purple-gradient {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.1) 0%,
+    rgba(168, 85, 247, 0.05) 100%
+  );
 }
 
 .developers-app .border-purple-gradient {
-  border-image: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(168, 85, 247, 0.1)) 1;
+  border-image: linear-gradient(
+      135deg,
+      rgba(139, 92, 246, 0.3),
+      rgba(168, 85, 247, 0.1)
+    )
+    1;
 }
 
 /* Text gradients */
@@ -125,9 +135,8 @@
     background: white;
     color: black;
   }
-  
+
   .developers-app button {
     display: none;
   }
 }
-

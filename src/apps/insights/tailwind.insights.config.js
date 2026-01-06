@@ -1,9 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 // eslint-disable-next-line no-undef
 module.exports = {
-  content: [
-    './src/apps/insights/**/**/*.{js,ts,jsx,tsx,html,mdx}',
-  ],
+  content: ['./src/apps/insights/**/**/*.{js,ts,jsx,tsx,html,mdx}'],
   darkMode: ['class'],
   theme: {
     container: {
@@ -117,4 +115,3 @@ module.exports = {
   },
   plugins: [require('tailwindcss-animate')],
 };
-

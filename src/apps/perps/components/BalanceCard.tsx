@@ -10,9 +10,15 @@ interface BalanceCardProps {
   onRefresh?: () => void;
 }
 
-export function BalanceCard({ userState, isLoading, onRefresh }: BalanceCardProps) {
+export function BalanceCard({
+  userState,
+  isLoading,
+  onRefresh,
+}: BalanceCardProps) {
   const availableUSDC = parseFloat(userState.marginSummary?.totalRawUsd || '0');
-  const accountEquity = parseFloat(userState.marginSummary?.accountValue || '0');
+  const accountEquity = parseFloat(
+    userState.marginSummary?.accountValue || '0'
+  );
 
   return (
     <Card className="shadow-card">
@@ -29,7 +35,9 @@ export function BalanceCard({ userState, isLoading, onRefresh }: BalanceCardProp
                 disabled={isLoading}
                 className="gap-2"
               >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+                />
                 Refresh
               </Button>
             )}
@@ -45,7 +53,11 @@ export function BalanceCard({ userState, isLoading, onRefresh }: BalanceCardProp
             <div>
               <p className="text-xs text-muted-foreground">Available USDC</p>
               <p className="text-xl font-bold font-mono-numbers">
-                ${availableUSDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $
+                {availableUSDC.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
             </div>
           </div>
@@ -59,7 +71,11 @@ export function BalanceCard({ userState, isLoading, onRefresh }: BalanceCardProp
             <div>
               <p className="text-xs text-muted-foreground">Account Equity</p>
               <p className="text-xl font-bold font-mono-numbers">
-                ${accountEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $
+                {accountEquity.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
             </div>
           </div>

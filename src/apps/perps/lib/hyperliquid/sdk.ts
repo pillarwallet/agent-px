@@ -32,15 +32,17 @@ export async function placeMarketOrderAgent(
     : (params.currentPrice * 0.95).toString();
 
   const orderRequest = {
-    orders: [{
-      a: params.coinId,
-      b: params.isBuy,
-      p: marketPrice,
-      s: params.size.toString(),
-      r: params.reduceOnly ?? false,
-      t: { limit: { tif: 'Ioc' as const } }
-    }],
-    grouping: "na" as const
+    orders: [
+      {
+        a: params.coinId,
+        b: params.isBuy,
+        p: marketPrice,
+        s: params.size.toString(),
+        r: params.reduceOnly ?? false,
+        t: { limit: { tif: 'Ioc' as const } },
+      },
+    ],
+    grouping: 'na' as const,
   };
 
   console.log('[SDK] Placing market order:', orderRequest);
@@ -66,15 +68,17 @@ export async function placeLimitOrderAgent(
   const client = getExchangeClientForAgent(privateKey);
 
   const orderRequest = {
-    orders: [{
-      a: params.coinId,
-      b: params.isBuy,
-      p: params.limitPrice.toString(),
-      s: params.size.toString(),
-      r: params.reduceOnly ?? false,
-      t: { limit: { tif: 'Gtc' as const } }
-    }],
-    grouping: "na" as const
+    orders: [
+      {
+        a: params.coinId,
+        b: params.isBuy,
+        p: params.limitPrice.toString(),
+        s: params.size.toString(),
+        r: params.reduceOnly ?? false,
+        t: { limit: { tif: 'Gtc' as const } },
+      },
+    ],
+    grouping: 'na' as const,
   };
 
   console.log('[SDK] Placing limit order:', orderRequest);

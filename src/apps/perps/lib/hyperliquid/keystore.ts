@@ -19,22 +19,35 @@ function getStorageKey(masterAddress: string, suffix: string): string {
 }
 
 // Local storage functions (for fast access/caching)
-export function storeAgentWalletLocal(masterAddress: string, address: string, privateKey: Hex, approved?: boolean): void {
+export function storeAgentWalletLocal(
+  masterAddress: string,
+  address: string,
+  privateKey: Hex,
+  approved?: boolean
+): void {
   if (typeof window === 'undefined') return;
 
   localStorage.setItem(getStorageKey(masterAddress, 'address'), address);
   localStorage.setItem(getStorageKey(masterAddress, 'key'), privateKey);
   if (approved !== undefined) {
-    localStorage.setItem(getStorageKey(masterAddress, 'approved'), String(approved));
+    localStorage.setItem(
+      getStorageKey(masterAddress, 'approved'),
+      String(approved)
+    );
   }
 }
 
-export function getAgentWalletLocal(masterAddress: string): { address: string; privateKey: Hex; approved: boolean } | null {
+export function getAgentWalletLocal(
+  masterAddress: string
+): { address: string; privateKey: Hex; approved: boolean } | null {
   if (typeof window === 'undefined') return null;
 
   const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
-  const privateKey = localStorage.getItem(getStorageKey(masterAddress, 'key')) as Hex;
-  const approved = localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
+  const privateKey = localStorage.getItem(
+    getStorageKey(masterAddress, 'key')
+  ) as Hex;
+  const approved =
+    localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
 
   if (!address || !privateKey) return null;
 
@@ -52,7 +65,10 @@ export function clearAgentWalletLocal(masterAddress: string): void {
 // Global imported account storage (not tied to connected wallet)
 const GLOBAL_ACCOUNT_KEY = 'hl_imported_account';
 
-export function storeImportedAccount(accountAddress: string, privateKey: Hex): void {
+export function storeImportedAccount(
+  accountAddress: string,
+  privateKey: Hex
+): void {
   if (typeof window === 'undefined') return;
 
   const data = {
@@ -64,7 +80,10 @@ export function storeImportedAccount(accountAddress: string, privateKey: Hex): v
   localStorage.setItem(GLOBAL_ACCOUNT_KEY, JSON.stringify(data));
 }
 
-export function getImportedAccount(): { accountAddress: string; privateKey: Hex } | null {
+export function getImportedAccount(): {
+  accountAddress: string;
+  privateKey: Hex;
+} | null {
   if (typeof window === 'undefined') return null;
 
   const data = localStorage.getItem(GLOBAL_ACCOUNT_KEY);
@@ -109,7 +128,9 @@ export async function updateAgentApprovalRemote(
   // No-op
 }
 
-export async function deleteAgentWalletRemote(masterAddress: string): Promise<void> {
+export async function deleteAgentWalletRemote(
+  masterAddress: string
+): Promise<void> {
   // No-op
 }
 
@@ -124,7 +145,9 @@ export async function storeAgentWallet(
   storeAgentWalletLocal(masterAddress, address, privateKey, approved);
 }
 
-export async function getAgentWallet(masterAddress: string): Promise<{ address: string; privateKey: Hex; approved: boolean } | null> {
+export async function getAgentWallet(
+  masterAddress: string
+): Promise<{ address: string; privateKey: Hex; approved: boolean } | null> {
   // Return local cache
   return getAgentWalletLocal(masterAddress);
 }
@@ -141,9 +164,11 @@ export function clearAllAgentWalletsLocal(): void {
       keysToRemove.push(key);
     }
   }
-  keysToRemove.forEach(key => localStorage.removeItem(key));
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
 }
 
-export async function deleteAllForMasterRemote(masterAddress: string): Promise<void> {
+export async function deleteAllForMasterRemote(
+  masterAddress: string
+): Promise<void> {
   await deleteAgentWalletRemote(masterAddress);
 }

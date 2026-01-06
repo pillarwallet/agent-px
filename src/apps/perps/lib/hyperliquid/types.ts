@@ -5,13 +5,13 @@ export const CopyTileSchema = z.object({
   side: z.enum(['long', 'short']),
   entry: z.union([
     z.number().positive(),
-    z.tuple([z.number().positive(), z.number().positive()])
+    z.tuple([z.number().positive(), z.number().positive()]),
   ]),
   stopLoss: z.number().positive(),
   takeProfits: z.union([
     z.array(z.number().positive()).min(1),
-    z.tuple([z.number().positive(), z.number().positive()])
-  ])
+    z.tuple([z.number().positive(), z.number().positive()]),
+  ]),
 });
 
 export type CopyTileEntry = number | [number, number];

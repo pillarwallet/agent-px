@@ -21,7 +21,8 @@ export async function postExchange(signedAction: SignedAction): Promise<any> {
 
     // Check if the exchange rejected the action
     if (data?.status && data.status !== 'ok') {
-      const errorMsg = data.response?.error || data.response || 'Exchange rejected action';
+      const errorMsg =
+        data.response?.error || data.response || 'Exchange rejected action';
       throw new Error(errorMsg);
     }
 
@@ -30,9 +31,14 @@ export async function postExchange(signedAction: SignedAction): Promise<any> {
     console.error('Exchange API error:', error.response?.data || error.message);
 
     // Enhanced error message for signature mismatches
-    const errorMessage = error.response?.data?.error || error.message || 'Failed to execute action';
+    const errorMessage =
+      error.response?.data?.error ||
+      error.message ||
+      'Failed to execute action';
     if (errorMessage.includes('does not exist')) {
-      console.error('⚠️ Likely EIP-712 typed data mismatch. Verify domain, types, primaryType, and chainId.');
+      console.error(
+        '⚠️ Likely EIP-712 typed data mismatch. Verify domain, types, primaryType, and chainId.'
+      );
     }
 
     throw new Error(errorMessage);
@@ -80,7 +86,10 @@ export async function getMetaInfo(): Promise<any> {
   }
 }
 
-export async function getOpenOrders(address: string, symbol?: string): Promise<any[]> {
+export async function getOpenOrders(
+  address: string,
+  symbol?: string
+): Promise<any[]> {
   try {
     const response = await axios.post(
       INFO_URL,
@@ -180,7 +189,10 @@ export async function getMetaAndAssetCtxs(): Promise<any> {
     );
     return response.data;
   } catch (error: any) {
-    console.error('MetaAndAssetCtxs error:', error.response?.data || error.message);
+    console.error(
+      'MetaAndAssetCtxs error:',
+      error.response?.data || error.message
+    );
     return null;
   }
 }

@@ -10,7 +10,7 @@ export function ConnectButton() {
 
   if (isConnected && address) {
     const isArbitrum = chain?.id === 42161;
-    
+
     return (
       <div className="flex items-center gap-3">
         <div className="flex flex-col items-end">
@@ -22,7 +22,10 @@ export function ConnectButton() {
               {chain?.name || 'Unknown Network'}
             </span>
             {!isArbitrum && (
-              <Badge variant="destructive" className="text-xs flex items-center gap-1">
+              <Badge
+                variant="destructive"
+                className="text-xs flex items-center gap-1"
+              >
                 <AlertTriangle className="h-3 w-3" />
                 Switch to Arbitrum
               </Badge>

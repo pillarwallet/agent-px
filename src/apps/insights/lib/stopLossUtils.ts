@@ -23,12 +23,16 @@ interface TradingSignal {
  * or the most recent trailing stop loss from the history.
  */
 export function getEffectiveStopLoss(signal: TradingSignal): number {
-  if (!signal.trailing_stop_history || signal.trailing_stop_history.length === 0) {
+  if (
+    !signal.trailing_stop_history ||
+    signal.trailing_stop_history.length === 0
+  ) {
     return signal.stop_loss; // Original stop loss
   }
-  
+
   // Return the most recent trailing stop loss from history
-  const latest = signal.trailing_stop_history[signal.trailing_stop_history.length - 1];
+  const latest =
+    signal.trailing_stop_history[signal.trailing_stop_history.length - 1];
   return latest.new_stop_loss || latest.new_stop || signal.stop_loss;
 }
 
@@ -36,7 +40,9 @@ export function getEffectiveStopLoss(signal: TradingSignal): number {
  * Check if a trading signal has an active trailing stop loss
  */
 export function hasTrailingStop(signal: TradingSignal): boolean {
-  return !!(signal.trailing_stop_history && signal.trailing_stop_history.length > 0);
+  return !!(
+    signal.trailing_stop_history && signal.trailing_stop_history.length > 0
+  );
 }
 
 /**
@@ -47,17 +53,17 @@ export function getStopLossDisplayInfo(signal: TradingSignal) {
   const originalSL = signal.stop_loss;
   const currentSL = getEffectiveStopLoss(signal);
   const isTrailing = hasTrailingStop(signal);
-  
+
   return {
     original: originalSL,
     current: currentSL,
     isTrailing,
-    displayText: isTrailing 
+    displayText: isTrailing
       ? `${originalSL.toFixed(2)} → ${currentSL.toFixed(2)}`
       : currentSL.toFixed(2),
     tooltip: isTrailing
       ? `Original: $${originalSL.toFixed(2)}, Trailing: $${currentSL.toFixed(2)}`
-      : `Stop Loss: $${originalSL.toFixed(2)}`
+      : `Stop Loss: $${originalSL.toFixed(2)}`,
   };
 }
 
@@ -97,8 +103,10 @@ export function normalizeTrailingHistory(signal: TradingSignal): {
   });
 
   // Process trailing stop history
-  const raw = Array.isArray(signal.trailing_stop_history) ? signal.trailing_stop_history : [];
-  
+  const raw = Array.isArray(signal.trailing_stop_history)
+    ? signal.trailing_stop_history
+    : [];
+
   if (raw.length > 0) {
     // Use actual history if available
     for (const h of raw) {
@@ -106,24 +114,24 @@ export function normalizeTrailingHistory(signal: TradingSignal): {
       if (h.event === 'tp_hit') {
         const oldStop = h.old_stop ?? currentSL;
         const newStop = h.new_stop ?? currentSL;
-        
+
         events.push({
           type: 'tp_hit',
           timestamp: h.timestamp,
           tp_level: h.tp_level,
           tp_price: h.tp_price,
-          moved: h.moved ?? (newStop !== oldStop),
+          moved: h.moved ?? newStop !== oldStop,
           old_stop: oldStop,
           new_stop: newStop,
         });
-        
+
         currentSL = newStop;
       }
       // Handle legacy recalc format: { tp_level, new_stop_loss, timestamp }
       else if (h.tp_level && h.new_stop_loss !== undefined) {
         const oldStop = currentSL;
         const newStop = h.new_stop_loss;
-        
+
         events.push({
           type: 'tp_hit',
           timestamp: h.timestamp,
@@ -132,14 +140,18 @@ export function normalizeTrailingHistory(signal: TradingSignal): {
           old_stop: oldStop,
           new_stop: newStop,
         });
-        
+
         currentSL = newStop;
       }
       // Handle legacy webhook format: { reason, price, old_stop, new_stop, timestamp }
-      else if (h.reason && h.old_stop !== undefined && h.new_stop !== undefined) {
+      else if (
+        h.reason &&
+        h.old_stop !== undefined &&
+        h.new_stop !== undefined
+      ) {
         const tpMatch = h.reason?.match(/tp(\d+)_hit/);
         const tpLevel = tpMatch ? `tp${tpMatch[1]}` : undefined;
-        
+
         events.push({
           type: 'tp_hit',
           timestamp: h.timestamp,
@@ -149,7 +161,7 @@ export function normalizeTrailingHistory(signal: TradingSignal): {
           old_stop: h.old_stop,
           new_stop: h.new_stop,
         });
-        
+
         currentSL = h.new_stop;
       }
     }
@@ -159,25 +171,30 @@ export function normalizeTrailingHistory(signal: TradingSignal): {
       { name: 'tp1', hit: signal.tp1_hit, price: signal.tp1 },
       { name: 'tp2', hit: signal.tp2_hit, price: signal.tp2 },
       { name: 'tp3', hit: signal.tp3_hit, price: signal.tp3 },
-    ].filter(tp => tp.price && tp.hit);
+    ].filter((tp) => tp.price && tp.hit);
 
     let inferredTime = new Date(signal.created_at).getTime();
-    const closedTime = signal.closed_at ? new Date(signal.closed_at).getTime() : Date.now();
-    const timeStep = tpLevels.length > 0 ? (closedTime - inferredTime) / (tpLevels.length + 1) : 0;
+    const closedTime = signal.closed_at
+      ? new Date(signal.closed_at).getTime()
+      : Date.now();
+    const timeStep =
+      tpLevels.length > 0
+        ? (closedTime - inferredTime) / (tpLevels.length + 1)
+        : 0;
 
     for (const tp of tpLevels) {
       inferredTime += timeStep;
       const oldStop = currentSL;
       // Calculate new stop based on position type
-      const newStop = isShort 
-        ? tp.price! * 1.05  // SHORT: 5% above TP (moving DOWN as price falls)
+      const newStop = isShort
+        ? tp.price! * 1.05 // SHORT: 5% above TP (moving DOWN as price falls)
         : tp.price! * 0.95; // LONG: 5% below TP (moving UP as price rises)
-      
+
       // Check if stop should move based on position type
-      const moved = isShort 
-        ? (newStop < currentSL)  // SHORT: only move DOWN
-        : (newStop > currentSL); // LONG: only move UP
-      
+      const moved = isShort
+        ? newStop < currentSL // SHORT: only move DOWN
+        : newStop > currentSL; // LONG: only move UP
+
       events.push({
         type: 'tp_hit',
         timestamp: new Date(inferredTime).toISOString(),
@@ -187,7 +204,7 @@ export function normalizeTrailingHistory(signal: TradingSignal): {
         old_stop: oldStop,
         new_stop: moved ? newStop : oldStop,
       });
-      
+
       if (moved) {
         currentSL = newStop;
       }
@@ -223,8 +240,9 @@ export function normalizeTrailingHistory(signal: TradingSignal): {
   }
 
   // Sort by timestamp
-  events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  events.sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
 
   return { events, latestStop: currentSL };
 }
-

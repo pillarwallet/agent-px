@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -90,7 +96,9 @@ export function DepositModal({ userState }: DepositModalProps) {
       if (walletProvider && 'request' in walletProvider) {
         try {
           // @ts-ignore
-          const chainId = await walletProvider.request({ method: 'eth_chainId' });
+          const chainId = await walletProvider.request({
+            method: 'eth_chainId',
+          });
           if (chainId !== '0xa4b1') {
             console.log('Switching to Arbitrum...');
             // @ts-ignore
@@ -106,19 +114,25 @@ export function DepositModal({ userState }: DepositModalProps) {
             // @ts-ignore
             await walletProvider.request({
               method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: '0xa4b1',
-                chainName: 'Arbitrum One',
-                rpcUrls: ['https://arb1.arbitrum.io/rpc'],
-                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-                blockExplorerUrls: ['https://arbiscan.io']
-              }],
+              params: [
+                {
+                  chainId: '0xa4b1',
+                  chainName: 'Arbitrum One',
+                  rpcUrls: ['https://arb1.arbitrum.io/rpc'],
+                  nativeCurrency: {
+                    name: 'Ether',
+                    symbol: 'ETH',
+                    decimals: 18,
+                  },
+                  blockExplorerUrls: ['https://arbiscan.io'],
+                },
+              ],
             });
           } else {
             toast({
               title: 'Wrong Network',
               description: 'Please switch to Arbitrum manually',
-              variant: 'destructive'
+              variant: 'destructive',
             });
             setIsLoading(false);
             return;
@@ -129,10 +143,15 @@ export function DepositModal({ userState }: DepositModalProps) {
       // Check ETH Balance for gas
       try {
         if (walletProvider) {
-          const provider = new ethers.providers.Web3Provider(walletProvider as any);
+          const provider = new ethers.providers.Web3Provider(
+            walletProvider as any
+          );
           const ethBalance = await provider.getBalance(address);
-          console.log('Arbitrum ETH Balance:', ethers.utils.formatEther(ethBalance));
-          if (ethBalance.lt(ethers.utils.parseEther("0.001"))) {
+          console.log(
+            'Arbitrum ETH Balance:',
+            ethers.utils.formatEther(ethBalance)
+          );
+          if (ethBalance.lt(ethers.utils.parseEther('0.001'))) {
             toast({
               title: 'Insufficient ETH',
               description: 'You need ETH on Arbitrum for gas fees.',
@@ -149,7 +168,9 @@ export function DepositModal({ userState }: DepositModalProps) {
       const amountInWei = ethers.utils.parseUnits(amount, 6);
       const batchName = `perps-deposit-${Date.now()}`;
 
-      console.log(`Preparing deposit of ${amount} USDC (${amountInWei.toString()} wei)`);
+      console.log(
+        `Preparing deposit of ${amount} USDC (${amountInWei.toString()} wei)`
+      );
 
       // Clean up any existing batch
       try {
@@ -161,36 +182,38 @@ export function DepositModal({ userState }: DepositModalProps) {
       // Step 1: Approve USDC
       // Encode approve function call
       const erc20Interface = new ethers.utils.Interface([
-        'function approve(address spender, uint256 amount) public returns (bool)'
+        'function approve(address spender, uint256 amount) public returns (bool)',
       ]);
       const approveData = erc20Interface.encodeFunctionData('approve', [
         BRIDGE_CONTRACT_ADDRESS,
-        amountInWei
+        amountInWei,
       ]);
 
-      kit.transaction({
-        to: USDC_CONTRACT_ADDRESS,
-        data: approveData,
-        value: '0',
-        chainId: 42161 // Arbitrum One
-      })
+      kit
+        .transaction({
+          to: USDC_CONTRACT_ADDRESS,
+          data: approveData,
+          value: '0',
+          chainId: 42161, // Arbitrum One
+        })
         .name({ transactionName: 'approveUSDC' })
         .addToBatch({ batchName });
 
       // Step 2: Deposit to Bridge
       const bridgeInterface = new ethers.utils.Interface([
-        'function deposit(uint64 usd) external'
+        'function deposit(uint64 usd) external',
       ]);
       const depositData = bridgeInterface.encodeFunctionData('deposit', [
-        amountInWei
+        amountInWei,
       ]);
 
-      kit.transaction({
-        to: BRIDGE_CONTRACT_ADDRESS,
-        data: depositData,
-        value: '0',
-        chainId: 42161 // Arbitrum One
-      })
+      kit
+        .transaction({
+          to: BRIDGE_CONTRACT_ADDRESS,
+          data: depositData,
+          value: '0',
+          chainId: 42161, // Arbitrum One
+        })
         .name({ transactionName: 'depositUSDC' })
         .addToBatch({ batchName });
 
@@ -206,7 +229,9 @@ export function DepositModal({ userState }: DepositModalProps) {
       if (batchSend.isSentSuccessfully && !sentBatch?.errorMessage) {
         // Success
         // Chain ID for Arbitrum is 42161
-        const userOpHash = sentBatch.chainGroups?.['42161']?.userOpHash || sentBatch.chainGroups?.['1']?.userOpHash; // Adjust chain ID logic if not hardcoded
+        const userOpHash =
+          sentBatch.chainGroups?.['42161']?.userOpHash ||
+          sentBatch.chainGroups?.['1']?.userOpHash; // Adjust chain ID logic if not hardcoded
 
         // In this environment, we might get a tx hash or user op hash
         // Just show success
@@ -219,7 +244,6 @@ export function DepositModal({ userState }: DepositModalProps) {
       } else {
         throw new Error(sentBatch?.errorMessage || 'Batch send failed');
       }
-
     } catch (error: any) {
       console.error('Bridge error:', error);
       toast({
@@ -231,7 +255,7 @@ export function DepositModal({ userState }: DepositModalProps) {
       // Cleanup
       try {
         // kit.batch({ batchName }).remove(); // variable scope issue, need to define batchName outside or ignore
-      } catch { }
+      } catch {}
       setIsLoading(false);
     }
   };
@@ -252,14 +276,22 @@ export function DepositModal({ userState }: DepositModalProps) {
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Current Hyperliquid Balance</Label>
-            <p className="text-2xl font-bold">${parseFloat(currentBalance).toFixed(2)}</p>
+            <Label className="text-sm text-muted-foreground">
+              Current Hyperliquid Balance
+            </Label>
+            <p className="text-2xl font-bold">
+              ${parseFloat(currentBalance).toFixed(2)}
+            </p>
           </div>
 
           {arbitrumBalance !== null && (
             <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">Arbitrum USDC Balance</Label>
-              <p className="text-lg font-semibold">{parseFloat(arbitrumBalance).toFixed(2)} USDC</p>
+              <Label className="text-sm text-muted-foreground">
+                Arbitrum USDC Balance
+              </Label>
+              <p className="text-lg font-semibold">
+                {parseFloat(arbitrumBalance).toFixed(2)} USDC
+              </p>
             </div>
           )}
 

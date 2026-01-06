@@ -1,10 +1,12 @@
 import { ethers } from 'ethers';
 
 // Hyperliquid bridge contract on Arbitrum One
-export const BRIDGE_CONTRACT_ADDRESS = '0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7';
+export const BRIDGE_CONTRACT_ADDRESS =
+  '0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7';
 
 // USDC contract on Arbitrum One
-export const USDC_CONTRACT_ADDRESS = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
+export const USDC_CONTRACT_ADDRESS =
+  '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
 
 // Minimal ABI for USDC approve
 const USDC_ABI = [
@@ -26,7 +28,11 @@ export async function checkUSDCBalance(
   walletAddress: string,
   provider: ethers.providers.Provider
 ): Promise<string> {
-  const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, provider);
+  const usdcContract = new ethers.Contract(
+    USDC_CONTRACT_ADDRESS,
+    USDC_ABI,
+    provider
+  );
   const balance = await usdcContract.balanceOf(walletAddress);
   return ethers.utils.formatUnits(balance, 6); // USDC has 6 decimals
 }
@@ -35,8 +41,15 @@ export async function checkUSDCAllowance(
   walletAddress: string,
   provider: ethers.providers.Provider
 ): Promise<string> {
-  const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, provider);
-  const allowance = await usdcContract.allowance(walletAddress, BRIDGE_CONTRACT_ADDRESS);
+  const usdcContract = new ethers.Contract(
+    USDC_CONTRACT_ADDRESS,
+    USDC_ABI,
+    provider
+  );
+  const allowance = await usdcContract.allowance(
+    walletAddress,
+    BRIDGE_CONTRACT_ADDRESS
+  );
   return ethers.utils.formatUnits(allowance, 6);
 }
 
@@ -44,7 +57,11 @@ export async function approveUSDC(
   amount: string,
   signer: ethers.Signer
 ): Promise<ethers.ContractTransaction> {
-  const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, signer);
+  const usdcContract = new ethers.Contract(
+    USDC_CONTRACT_ADDRESS,
+    USDC_ABI,
+    signer
+  );
   const amountInWei = ethers.utils.parseUnits(amount, 6);
   return await usdcContract.approve(BRIDGE_CONTRACT_ADDRESS, amountInWei);
 }
@@ -54,7 +71,11 @@ export async function bridgeUSDC(
   amount: string,
   signer: ethers.Signer
 ): Promise<ethers.ContractTransaction> {
-  const bridgeContract = new ethers.Contract(BRIDGE_CONTRACT_ADDRESS, BRIDGE_ABI, signer);
+  const bridgeContract = new ethers.Contract(
+    BRIDGE_CONTRACT_ADDRESS,
+    BRIDGE_ABI,
+    signer
+  );
   const amountInWei = ethers.utils.parseUnits(amount, 6);
   // Bridge2 deposits always credit msg.sender; recipient is ignored for compatibility
   return await bridgeContract.deposit(amountInWei);
@@ -67,7 +88,11 @@ export async function depositUSDC(
   const provider = signer.provider;
   if (!provider) throw new Error('Signer has no provider');
   const owner = await signer.getAddress();
-  const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, provider);
+  const usdcContract = new ethers.Contract(
+    USDC_CONTRACT_ADDRESS,
+    USDC_ABI,
+    provider
+  );
 
   const value = ethers.utils.parseUnits(amount, 6);
   const nonce = await usdcContract.nonces(owner);
@@ -102,7 +127,11 @@ export async function depositUSDC(
   const sigHex = await (signer as any)._signTypedData(domain, types, message);
   const sig = ethers.utils.splitSignature(sigHex);
 
-  const bridgeContract = new ethers.Contract(BRIDGE_CONTRACT_ADDRESS, BRIDGE_ABI, signer);
+  const bridgeContract = new ethers.Contract(
+    BRIDGE_CONTRACT_ADDRESS,
+    BRIDGE_ABI,
+    signer
+  );
   const deposits = [
     {
       user: owner,

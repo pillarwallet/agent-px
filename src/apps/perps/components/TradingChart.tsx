@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, type IChartApi, type ISeriesApi, type CandlestickData, type Time } from 'lightweight-charts';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import {
+  createChart,
+  type IChartApi,
+  type ISeriesApi,
+  type CandlestickData,
+  type Time,
+} from 'lightweight-charts';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import type { AssetInfo } from '../lib/hyperliquid/types';
 import { PriceTicker } from './PriceTicker';
@@ -27,74 +38,82 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
   const [interval, setInterval] = useState<Interval>('1h');
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchCandles = useCallback(async (symbol: string, intervalStr: Interval) => {
-    try {
-      setIsLoading(true);
-      const now = Date.now();
-      const intervalMs: Record<Interval, number> = {
-        '1m': 60 * 1000,
-        '5m': 5 * 60 * 1000,
-        '15m': 15 * 60 * 1000,
-        '1h': 60 * 60 * 1000,
-        '4h': 4 * 60 * 60 * 1000,
-        '1d': 24 * 60 * 60 * 1000,
-      };
+  const fetchCandles = useCallback(
+    async (symbol: string, intervalStr: Interval) => {
+      try {
+        setIsLoading(true);
+        const now = Date.now();
+        const intervalMs: Record<Interval, number> = {
+          '1m': 60 * 1000,
+          '5m': 5 * 60 * 1000,
+          '15m': 15 * 60 * 1000,
+          '1h': 60 * 60 * 1000,
+          '4h': 4 * 60 * 60 * 1000,
+          '1d': 24 * 60 * 60 * 1000,
+        };
 
-      const startTime = now - (300 * intervalMs[intervalStr]); // Last 300 candles in milliseconds
+        const startTime = now - 300 * intervalMs[intervalStr]; // Last 300 candles in milliseconds
 
-      const response = await fetch('https://api.hyperliquid.xyz/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'candleSnapshot',
-          req: {
-            coin: symbol,
-            interval: intervalStr,
-            startTime,
-            endTime: now,
-          },
-        }),
-      });
+        const response = await fetch('https://api.hyperliquid.xyz/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'candleSnapshot',
+            req: {
+              coin: symbol,
+              interval: intervalStr,
+              startTime,
+              endTime: now,
+            },
+          }),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[Chart] API error:', { status: response.status, error: errorText, symbol, intervalStr });
-        throw new Error(`Candles API error: ${response.status} ${errorText}`);
-      }
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[Chart] API error:', {
+            status: response.status,
+            error: errorText,
+            symbol,
+            intervalStr,
+          });
+          throw new Error(`Candles API error: ${response.status} ${errorText}`);
+        }
 
-      const raw: CandleResponse[] = await response.json();
+        const raw: CandleResponse[] = await response.json();
 
-      if (!Array.isArray(raw)) {
-        console.error('[Chart] Invalid response format:', raw);
+        if (!Array.isArray(raw)) {
+          console.error('[Chart] Invalid response format:', raw);
+          return [];
+        }
+
+        const candlestickData: CandlestickData<Time>[] = raw
+          .filter((c) => c && c.t && c.o && c.h && c.l && c.c)
+          .map((candle) => ({
+            time: Math.floor(Number(candle.t) / 1000) as Time,
+            open: parseFloat(candle.o),
+            high: parseFloat(candle.h),
+            low: parseFloat(candle.l),
+            close: parseFloat(candle.c),
+          }))
+          .sort((a, b) => (a.time as number) - (b.time as number));
+
+        console.log(`[Chart] ${symbol} ${intervalStr}:`, {
+          fetched: raw.length,
+          rendered: candlestickData.length,
+          first: candlestickData[0]?.time,
+          last: candlestickData[candlestickData.length - 1]?.time,
+        });
+
+        return candlestickData;
+      } catch (error) {
+        console.error('Error fetching candles:', error);
         return [];
+      } finally {
+        setIsLoading(false);
       }
-
-      const candlestickData: CandlestickData<Time>[] = raw
-        .filter(c => c && c.t && c.o && c.h && c.l && c.c)
-        .map((candle) => ({
-          time: Math.floor(Number(candle.t) / 1000) as Time,
-          open: parseFloat(candle.o),
-          high: parseFloat(candle.h),
-          low: parseFloat(candle.l),
-          close: parseFloat(candle.c),
-        }))
-        .sort((a, b) => (a.time as number) - (b.time as number));
-
-      console.log(`[Chart] ${symbol} ${intervalStr}:`, {
-        fetched: raw.length,
-        rendered: candlestickData.length,
-        first: candlestickData[0]?.time,
-        last: candlestickData[candlestickData.length - 1]?.time
-      });
-
-      return candlestickData;
-    } catch (error) {
-      console.error('Error fetching candles:', error);
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -170,9 +189,12 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
             type: 'candle',
             coin: selectedAsset.symbol,
             interval: interval,
-          }
+          },
         };
-        console.log('[Chart] Sending subscription:', JSON.stringify(subscribeMsg));
+        console.log(
+          '[Chart] Sending subscription:',
+          JSON.stringify(subscribeMsg)
+        );
         ws?.send(JSON.stringify(subscribeMsg));
       };
 
@@ -283,7 +305,9 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
             <div ref={chartContainerRef} className="w-full h-[400px]" />
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-                <div className="text-sm text-muted-foreground">Loading chart data...</div>
+                <div className="text-sm text-muted-foreground">
+                  Loading chart data...
+                </div>
               </div>
             )}
           </div>

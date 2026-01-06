@@ -10,7 +10,11 @@ import { PositionsCard } from './components/PositionsCard';
 import { useHyperliquid } from './hooks/useHyperliquid';
 import { getAgentWallet, getImportedAccount } from './lib/hyperliquid/keystore';
 import { getUserState, getMetaAndAssetCtxs } from './lib/hyperliquid/client';
-import type { AssetInfo, UserState, EnhancedAsset } from './lib/hyperliquid/types';
+import type {
+  AssetInfo,
+  UserState,
+  EnhancedAsset,
+} from './lib/hyperliquid/types';
 import { toast } from 'sonner';
 
 import './styles/perps.css';
@@ -44,26 +48,34 @@ const Index = () => {
     const loadAssets = async () => {
       try {
         const data = await getMetaAndAssetCtxs();
-        if (data && Array.isArray(data) && data[0]?.universe && Array.isArray(data[1])) {
+        if (
+          data &&
+          Array.isArray(data) &&
+          data[0]?.universe &&
+          Array.isArray(data[1])
+        ) {
           const universe = data[0].universe;
           const assetCtxs = data[1];
 
-          const enhancedAssets: EnhancedAsset[] = universe.map((asset: any, index: number) => {
-            const ctx = assetCtxs[index] || {};
-            const markPx = parseFloat(ctx.markPx || '0');
-            const prevDayPx = parseFloat(ctx.prevDayPx || '0');
+          const enhancedAssets: EnhancedAsset[] = universe.map(
+            (asset: any, index: number) => {
+              const ctx = assetCtxs[index] || {};
+              const markPx = parseFloat(ctx.markPx || '0');
+              const prevDayPx = parseFloat(ctx.prevDayPx || '0');
 
-            return {
-              id: index,
-              symbol: asset.name,
-              szDecimals: asset.szDecimals || 3,
-              maxLeverage: asset.maxLeverage || 50,
-              price: markPx,
-              volume: parseFloat(ctx.dayNtlVlm || '0'),
-              priceChange: prevDayPx > 0 ? markPx - prevDayPx : 0,
-              priceChangePercent: prevDayPx > 0 ? ((markPx - prevDayPx) / prevDayPx) * 100 : 0,
-            };
-          });
+              return {
+                id: index,
+                symbol: asset.name,
+                szDecimals: asset.szDecimals || 3,
+                maxLeverage: asset.maxLeverage || 50,
+                price: markPx,
+                volume: parseFloat(ctx.dayNtlVlm || '0'),
+                priceChange: prevDayPx > 0 ? markPx - prevDayPx : 0,
+                priceChangePercent:
+                  prevDayPx > 0 ? ((markPx - prevDayPx) / prevDayPx) * 100 : 0,
+              };
+            }
+          );
 
           setAllAssets(enhancedAssets);
         }
@@ -101,10 +113,7 @@ const Index = () => {
   }, []);
 
   const handleRefresh = async () => {
-    await Promise.all([
-      loadBalance(),
-      fetchImportedAccount()
-    ]);
+    await Promise.all([loadBalance(), fetchImportedAccount()]);
   };
 
   useEffect(() => {
@@ -152,7 +161,6 @@ const Index = () => {
             </p>
           </div>
         </div>
-
 
         {/* Agent Controls + Balance - Side by Side */}
         {address && setupStatus === 'setup' && (
