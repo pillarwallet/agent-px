@@ -165,3 +165,22 @@ export async function getAllAssets(): Promise<AssetInfo[]> {
   }
 }
 
+export async function getMetaAndAssetCtxs(): Promise<any> {
+  try {
+    const response = await axios.post(
+      INFO_URL,
+      {
+        type: 'metaAndAssetCtxs',
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('MetaAndAssetCtxs error:', error.response?.data || error.message);
+    return null;
+  }
+}

@@ -11,10 +11,12 @@ import { useHyperliquid } from './hooks/useHyperliquid';
 import { getAgentWallet } from './lib/hyperliquid/keystore';
 import { getUserState } from './lib/hyperliquid/client';
 import type { AssetInfo, UserState } from './lib/hyperliquid/types';
+import MobileIndex from './pages/MobileIndex';
 
 import './styles/perps.css';
 
 const Index = () => {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const { walletAddress: address } = useTransactionKit();
   const {
     setupStatus,
@@ -28,23 +30,40 @@ const Index = () => {
   const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>(null);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
-  const [isLoadingAgent, setIsLoadingAgent] = useState(false);
+  const [isLoadingAgent, setIsLoadingAgent] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
+  // Mobile detection
   useEffect(() => {
-    // Load assets and set default to BTC
-    const loadAssets = async () => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Load imported account from global storage
+  useEffect(() => {
+    const loadImportedAccount = async () => {
       try {
-        const { getAllAssets } = await import('./lib/hyperliquid/client');
-        const assets = await getAllAssets();
-        const btc = assets.find(a => a.symbol === 'BTC');
-        if (btc && !selectedAsset) {
-          setSelectedAsset(btc);
+        const { getImportedAccount } = await import('./lib/hyperliquid/keystore');
+        const imported = getImportedAccount();
+
+        if (imported) {
+          setAgentAddress(imported.accountAddress);
+          const state = await getUserState(imported.accountAddress);
+          setAgentUserState(state);
         }
-      } catch (e) {
-        console.error('Failed to load assets:', e);
+      } catch (error) {
+        console.error('[Index] Error loading imported account:', error);
+      } finally {
+        setIsLoadingAgent(false);
       }
     };
-    loadAssets();
+
+    loadImportedAccount();
   }, []);
 
   useEffect(() => {
@@ -59,43 +78,6 @@ const Index = () => {
     }
   }, [setupStatus, loadBalance]);
 
-  // Load imported account from global storage (persists after refresh)
-  useEffect(() => {
-    const loadImportedAccount = async () => {
-      try {
-        const { getImportedAccount } = await import('./lib/hyperliquid/keystore');
-        const imported = getImportedAccount();
-
-        if (imported) {
-          setAgentAddress(imported.accountAddress);
-          console.log('[Index] Imported account loaded:', imported.accountAddress);
-
-          // Fetch account's user state
-          setIsLoadingAgent(true);
-          const state = await getUserState(imported.accountAddress);
-          setAgentUserState(state);
-          console.log('[Index] Account state loaded:', {
-            address: imported.accountAddress,
-            balance: state?.marginSummary?.totalRawUsd,
-            positions: state?.assetPositions?.length || 0,
-          });
-        } else {
-          setAgentAddress(null);
-          setAgentUserState(null);
-        }
-      } catch (error) {
-        console.error('[Index] Error loading imported account:', error);
-        setAgentAddress(null);
-        setAgentUserState(null);
-      } finally {
-        setIsLoadingAgent(false);
-      }
-    };
-
-    loadImportedAccount();
-  }, []); // Run once on mount
-
-  // Only override if not already selected (handled in loadAssets)
   const handleAssetSelect = (symbol: string, asset: AssetInfo) => {
     setSelectedAsset(asset);
   };
@@ -104,14 +86,20 @@ const Index = () => {
     loadBalance();
   };
 
+  // NOW we can conditionally render based on mobile
+  if (isMobile) {
+    return <MobileIndex />;
+  }
+
+  // Desktop version
   return (
-    <div className="min-h-screen bg-gradient-bg text-foreground">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="min-h-screen bg-gradient-bg">
+      <div className="container mx-auto px-4 py-8 pb-24 md:pb-8 max-w-7xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Perps Trading
+              Hyperliquid Trading
             </h1>
             <p className="text-muted-foreground mt-1">
               Professional perpetual futures trading interface
@@ -133,25 +121,12 @@ const Index = () => {
         {/* Agent Controls */}
         {address && setupStatus === 'setup' && (
           <div className="mb-6">
-            <AgentControls onStatusChange={async () => {
-              // Reload agent data when status changes
-              if (address) {
-                const agent = await getAgentWallet(address);
-                if (agent && agent.approved) {
-                  setAgentAddress(agent.address);
-                  setIsLoadingAgent(true);
-                  const state = await getUserState(agent.address);
-                  setAgentUserState(state);
-                  setIsLoadingAgent(false);
-                }
-              }
-              loadBalance();
-            }} />
+            <AgentControls onStatusChange={loadBalance} />
           </div>
         )}
 
         {/* Sparkline Chart - Full Width */}
-        {address && setupStatus === 'setup' && (
+        {(agentAddress || (address && setupStatus === 'setup')) && (
           <div className="mb-6">
             <SparklineChart selectedAsset={selectedAsset} />
           </div>
@@ -171,24 +146,15 @@ const Index = () => {
             {(agentUserState || (address && setupStatus === 'setup' && userState)) && (
               <BalanceCard
                 userState={agentUserState || userState}
-                isLoading={isLoadingAgent || isLoading}
-                onRefresh={async () => {
-                  if (agentAddress) {
-                    setIsLoadingAgent(true);
-                    const state = await getUserState(agentAddress);
-                    setAgentUserState(state);
-                    setIsLoadingAgent(false);
-                  } else {
-                    loadBalance();
-                  }
-                }}
+                isLoading={isLoading}
+                onRefresh={loadBalance}
               />
             )}
           </div>
 
           {/* Middle Column - Asset Selector */}
           <div className="lg:col-span-1">
-            {address && setupStatus === 'setup' && (
+            {(agentAddress || (address && setupStatus === 'setup')) && (
               <AssetSelector
                 selectedSymbol={selectedAsset?.symbol || null}
                 onSelect={handleAssetSelect}
@@ -198,7 +164,7 @@ const Index = () => {
 
           {/* Right Columns - Trade Form (spans 2 columns) */}
           <div className="lg:col-span-2">
-            {address && setupStatus === 'setup' && (
+            {(agentAddress || (address && setupStatus === 'setup')) && (
               <TradeForm
                 selectedAsset={selectedAsset}
                 onTradeComplete={handleTradeComplete}
@@ -207,10 +173,10 @@ const Index = () => {
           </div>
         </div>
 
-        {!address && (
+        {!address && !agentAddress && (
           <div className="text-center py-20">
             <p className="text-muted-foreground text-lg">
-              Connect your wallet to start trading
+              Connect your wallet or import an agent to start trading
             </p>
           </div>
         )}
