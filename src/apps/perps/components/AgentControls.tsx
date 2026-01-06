@@ -5,7 +5,8 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Shield, CheckCircle2, AlertCircle, Copy, Download, Eye, EyeOff, Upload, Trash2 } from 'lucide-react';
+import { Shield, CheckCircle2, AlertCircle, Copy, Download, Eye, EyeOff, Upload, Trash2, Settings } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { toast } from 'sonner';
 import { createWalletClient, custom } from 'viem';
 import { arbitrum } from 'viem/chains';
@@ -730,27 +731,59 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
       {agentStatus === 'approved' && (
         <div className="space-y-3">
           <div className="bg-success/10 border border-success/30 rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="text-sm font-medium text-success">Imported Account Active</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                <span className="text-sm font-medium text-success">Imported Account Active</span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowPrivateKey(!showPrivateKey)}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    {showPrivateKey ? 'Hide' : 'View'} Private Key
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleRemoveAccount} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove Account
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <div className="text-xs text-muted-foreground">
               <span className="font-medium">Address:</span>
-              <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1">
+              <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
                 {agentAddress}
               </div>
             </div>
           </div>
 
-          <Button
-            onClick={handleRemoveAccount}
-            disabled={isRemoving}
-            variant="destructive"
-            className="w-full"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {isRemoving ? 'Removing...' : 'Remove Imported Account'}
-          </Button>
+          {showPrivateKey && agentPrivateKey && (
+            <div className="bg-muted border border-border rounded p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-warning">⚠️ Private Key</span>
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(agentPrivateKey);
+                    toast.success('Private key copied to clipboard');
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="text-xs font-mono break-all bg-background rounded p-2">
+                {agentPrivateKey}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Card>

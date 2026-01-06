@@ -378,13 +378,28 @@ export function TradeForm({ selectedAsset, onTradeComplete, prefilledData }: Tra
 
           <div>
             <Label htmlFor="leverage">Leverage (×)</Label>
+            <div className="flex gap-2 mt-1 mb-2">
+              {[2, 5, 10, 20].map((preset) => (
+                <Button
+                  key={preset}
+                  type="button"
+                  variant={leverage === preset ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1 h-8 text-xs"
+                  onClick={() => setValue('leverage', preset)}
+                  disabled={preset > selectedAsset.maxLeverage}
+                >
+                  {preset}x
+                </Button>
+              ))}
+            </div>
             <Input
               id="leverage"
               type="number"
               step="1"
               min="1"
               max={selectedAsset.maxLeverage}
-              placeholder="5"
+              placeholder="Custom"
               {...register('leverage', { valueAsNumber: true })}
             />
             {errors.leverage && (

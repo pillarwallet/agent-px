@@ -113,7 +113,7 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
                             </span>
                           </td>
                           <td className="text-right py-2 px-2">${formatNumber(position.entryPx)}</td>
-                          <td className="text-right py-2 px-2">${formatNumber(position.returnOnEquity)}</td>
+                          <td className="text-right py-2 px-2">${formatNumber(Math.abs(parseFloat(position.markPx || '0', 10)), 2)}</td>
                           <td className={`text-right py-2 px-2 ${pnl.className}`}>
                             ${pnl.formatted} ({formatNumber(roe, 2)}%)
                           </td>
