@@ -173,7 +173,6 @@ export default function useRelayBuy() {
         try {
           if (maxTokenAmount) {
             // Use maxTokenAmount directly (e.g., for MAX selections)
-            console.log('tokenAmount: ', maxTokenAmount);
             if (Number.isNaN(maxTokenAmount)) {
               throw new Error('Invalid maxTokenAmount');
             }
@@ -349,11 +348,6 @@ export default function useRelayBuy() {
       // Formula: totalUsdc = usdcForSwap / 0.99
       const totalUsdcNeeded = (usdcNeededForSwap * BigInt(100)) / BigInt(99);
       const usdcFeeAmount = totalUsdcNeeded - usdcNeededForSwap; // 1% fee
-      console.log(
-        'Total USDC needed (including fee): ',
-        totalUsdcNeeded.toString()
-      );
-      console.log('USDC fee amount (1%): ', usdcFeeAmount.toString());
 
       // Debug: Log fee calculation for troubleshooting
       transactionDebugLog('Fee calculation:', {

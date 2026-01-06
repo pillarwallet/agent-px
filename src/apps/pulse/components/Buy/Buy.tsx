@@ -465,6 +465,7 @@ export default function Buy(props: BuyProps) {
     token,
     isRelayInitialized,
     isMaxSelected,
+    maxTokenAmount,
     getBestOffer,
     maxStableCoinBalance.chainId,
     usdcPrice,

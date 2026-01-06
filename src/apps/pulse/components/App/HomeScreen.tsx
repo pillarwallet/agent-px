@@ -396,7 +396,6 @@ export default function HomeScreen(props: HomeScreenProps) {
     }
     const stableBalance =
       getStableCurrencyBalanceOnEachChain(walletPortfolioData);
-    console.log('Stable balances on each chain:', stableBalance);
     const maxStableBalance = Math.max(
       ...Object.values(stableBalance).map((s) => s.balance)
     );
@@ -404,12 +403,6 @@ export default function HomeScreen(props: HomeScreenProps) {
       Object.keys(stableBalance).find(
         (key) => stableBalance[Number(key)].balance === maxStableBalance
       ) || '1'
-    );
-    console.log(
-      'Max stable coin balance:',
-      maxStableBalance,
-      'on chainId:',
-      chainIdOfMaxStableBalance
     );
     // Set USDC price from the chain with max stable balance
     const usdcPriceForMaxChain =

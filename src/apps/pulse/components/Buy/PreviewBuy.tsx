@@ -626,7 +626,10 @@ export default function PreviewBuy(props: PreviewBuyProps) {
           toChainId: buyToken.chainId,
           fromChainId,
           usdcPrice,
-          maxTokenAmount: isMaxSelected && maxTokenAmount ? maxTokenAmount.toString() : undefined,
+          maxTokenAmount:
+            isMaxSelected && maxTokenAmount
+              ? maxTokenAmount.toString()
+              : undefined,
         });
 
         onBuyOfferUpdate(newOffer);
@@ -709,6 +712,8 @@ export default function PreviewBuy(props: PreviewBuyProps) {
     setExpressIntentResponse,
     clearError,
     isRelayInitialized,
+    isMaxSelected,
+    maxTokenAmount,
     onBuyOfferUpdate,
     getBestOffer,
     fromChainId,
