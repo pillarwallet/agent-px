@@ -200,7 +200,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                     </div>
 
                     {/* Price and Market Data Row */}
-                    <div className="flex flex-col xl:flex-row xl:items-center gap-6">
+                    <div className="flex flex-col lg:flex-row lg:items-end gap-x-8 gap-y-4">
                         {/* Current Price */}
                         {currentPrice !== null && (
                             <div className="flex items-baseline gap-3 shrink-0">
@@ -215,50 +215,46 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
 
                         {/* Market Data Ticker */}
                         {marketData && (
-                            <>
-                                <div className="hidden xl:block h-8 w-px bg-border mx-2" />
+                            <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm">
+                                <div>
+                                    <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">Mark</div>
+                                    <div className="font-semibold">${formatNumber(marketData.markPx)}</div>
+                                </div>
 
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-8 gap-y-4 text-sm flex-1">
-                                    <div className="whitespace-nowrap">
-                                        <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help">Mark</div>
-                                        <div className="font-semibold mt-0.5">${formatNumber(marketData.markPx)}</div>
-                                    </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">Oracle</div>
+                                    <div className="font-semibold">${formatNumber(marketData.oraclePx)}</div>
+                                </div>
 
-                                    <div className="whitespace-nowrap">
-                                        <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help">Oracle</div>
-                                        <div className="font-semibold mt-0.5">${formatNumber(marketData.oraclePx)}</div>
-                                    </div>
-
-                                    <div className="whitespace-nowrap">
-                                        <div className="text-xs text-muted-foreground">24H Change</div>
-                                        <div className={`font-semibold mt-0.5 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                            {isPositive ? '+' : ''}{formatNumber(String(parseFloat(marketData.markPx) - parseFloat(marketData.prevDayPx)))} / {isPositive ? '+' : ''}{percentChange.toFixed(2)}%
-                                        </div>
-                                    </div>
-
-                                    <div className="whitespace-nowrap">
-                                        <div className="text-xs text-muted-foreground">24H Volume</div>
-                                        <div className="font-semibold mt-0.5">{formatVolume(marketData.dayNtlVlm)}</div>
-                                    </div>
-
-                                    <div className="whitespace-nowrap">
-                                        <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help">Open Interest</div>
-                                        <div className="font-semibold mt-0.5">${formatNumber(marketData.openInterest, 2)}</div>
-                                    </div>
-
-                                    <div className="whitespace-nowrap">
-                                        <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help">Funding / Countdown</div>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <span className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                {(parseFloat(marketData.funding) * 100).toFixed(4)}%
-                                            </span>
-                                            <span className="text-muted-foreground">
-                                                00:51:51
-                                            </span>
-                                        </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground mb-0.5">24H Change</div>
+                                    <div className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                        {formatNumber(String(parseFloat(marketData.markPx) - parseFloat(marketData.prevDayPx)))} / {percentChange.toFixed(2)}%
                                     </div>
                                 </div>
-                            </>
+
+                                <div>
+                                    <div className="text-xs text-muted-foreground mb-0.5">24H Volume</div>
+                                    <div className="font-semibold">{formatVolume(marketData.dayNtlVlm)}</div>
+                                </div>
+
+                                <div>
+                                    <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">Open Interest</div>
+                                    <div className="font-semibold">${formatNumber(marketData.openInterest, 2)}</div>
+                                </div>
+
+                                <div>
+                                    <div className="text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">Funding / Countdown</div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {(parseFloat(marketData.funding) * 100).toFixed(4)}%
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                            00:51:51
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>
