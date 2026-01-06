@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
+import React, { Suspense } from 'react';
 import { animated, useSpring } from '@react-spring/web';
 import styled from 'styled-components';
 
 // components
-import App from '../apps/pillarx-app';
+const App = React.lazy(() => import('../apps/pillarx-app'));
 
 const Lobby = () => {
   const [springs] = useSpring(() => ({
@@ -19,7 +19,9 @@ const Lobby = () => {
           ...springs,
         }}
       >
-        <App />
+        <Suspense fallback={null}>
+          <App />
+        </Suspense>
       </animated.div>
     </Wrapper>
   );
