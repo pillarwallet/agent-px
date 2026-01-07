@@ -81,7 +81,10 @@ const Index = () => {
         {/* Open Positions - Full Width */}
         {address && setupStatus === 'setup' && (
           <div className="mb-6">
-            <PositionsCard masterAddress={address} />
+            <PositionsCard
+              masterAddress={address}
+              onAssetSelect={handleAssetSelect}
+            />
           </div>
         )}
 

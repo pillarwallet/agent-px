@@ -35,9 +35,10 @@ import { TokenIcon } from './TokenIcon';
 
 interface PositionsCardProps {
   masterAddress: string;
+  onAssetSelect?: (symbol: string, asset: any) => void;
 }
 
-export function PositionsCard({ masterAddress }: PositionsCardProps) {
+export function PositionsCard({ masterAddress, onAssetSelect }: PositionsCardProps) {
   const isMobile = useIsMobile();
   const [positions, setPositions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +52,17 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
   /* Replaced content for entire Card component to handle structural changes cleanly */
   const [universe, setUniverse] = useState<any[]>([]);
   const [openOrders, setOpenOrders] = useState<any[]>([]);
+
+  const handlePositionClick = (coin: string) => {
+    // 1. Load asset into chart/trade form
+    if (onAssetSelect) {
+      const asset = universe.find((a) => a.name === coin);
+      if (asset) {
+        onAssetSelect(coin, asset);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  };
 
   const fetchData = async () => {
     if (!masterAddress) return;
@@ -470,7 +482,7 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
 
                     if (isMobile) {
                       return (
-                        <div key={index} onClick={() => setExpandedPositionIndex(index)} className="flex flex-col gap-3 p-4 bg-card/50 hover:bg-muted/50 rounded-lg border border-border/50 mb-3 cursor-pointer">
+                        <div key={index} onClick={() => { handlePositionClick(position.coin); setExpandedPositionIndex(index); }} className="flex flex-col gap-3 p-4 bg-card/50 hover:bg-muted/50 rounded-lg border border-border/50 mb-3 cursor-pointer">
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
                               <TokenIcon symbol={position.coin} size={32} className="shrink-0" />
@@ -532,7 +544,7 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
                     }
 
                     return (
-                      <div key={index} onClick={() => setExpandedPositionIndex(index)} className="grid grid-cols-[0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 p-3 bg-card/50 hover:bg-muted/50 active:bg-muted transition-colors rounded-lg items-center text-sm cursor-pointer border border-transparent hover:border-border/50 text-right">
+                      <div key={index} onClick={() => { handlePositionClick(position.coin); setExpandedPositionIndex(index); }} className="grid grid-cols-[0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 p-3 bg-card/50 hover:bg-muted/50 active:bg-muted transition-colors rounded-lg items-center text-sm cursor-pointer border border-transparent hover:border-border/50 text-right">
                         <div className="flex items-center gap-2 text-left font-bold text-sm text-foreground overflow-hidden">
                           <TokenIcon symbol={position.coin} size={20} className="shrink-0" />
                           <div className="flex items-baseline gap-1.5">

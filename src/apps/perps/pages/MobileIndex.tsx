@@ -150,6 +150,7 @@ export default function MobileIndex() {
             }
             totalPnlPercent={`${totalPnlPercent}%`}
             openOrders={openOrders}
+            onPositionClick={(coin) => console.log('Position clicked:', coin)}
           />
         )}
 

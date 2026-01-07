@@ -27,8 +27,10 @@ export function MobilePositionsCard({
   totalValue,
   totalPnl,
   totalPnlPercent,
+  totalPnlPercent,
   openOrders,
-}: MobilePositionsCardProps) {
+  onPositionClick,
+}: MobilePositionsCardProps & { onPositionClick?: (coin: string) => void }) {
   const isNegative = totalPnl.startsWith('-');
 
   return (
@@ -58,7 +60,11 @@ export function MobilePositionsCard({
       {/* Positions List */}
       <div className="space-y-3">
         {positions.map((position, index) => (
-          <div key={index} className="border-t border-gray-100 pt-3">
+          <div
+            key={index}
+            className="border-t border-gray-100 pt-3 cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => onPositionClick?.(position.coin)}
+          >
             {/* Position Header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
