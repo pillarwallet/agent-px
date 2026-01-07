@@ -64,7 +64,7 @@ export function MobilePositionsCard({
               <div className="flex items-center gap-2">
                 {/* Coin Icon */}
                 <div className="h-10 w-10 rounded-full bg-yellow-500 flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">Z</span>
+                  <span className="text-white font-bold text-sm">{position.coin.charAt(0)}</span>
                 </div>
 
                 {/* Coin Name and Badges */}
@@ -116,42 +116,39 @@ export function MobilePositionsCard({
           </div>
         ))}
       </div>
-    </div>
 
-      {/* Open Orders Section */ }
-  {
-    openOrders && openOrders.length > 0 && (
-      <div className="mt-6 border-t border-gray-100 pt-4">
-        <h3 className="text-base font-semibold text-gray-500 mb-3">
-          Open Orders
-        </h3>
-        <div className="space-y-3">
-          {openOrders.map((order: any, index: number) => {
-            const buy = order.side === 'B';
-            return (
-              <div key={index} className="flex items-center justify-between py-2 text-sm border-b border-gray-50 last:border-0">
-                <div className="flex flex-col">
-                  <span className="font-bold">{order.coin}</span>
-                  <span className={`text-xs ${buy ? 'text-green-500' : 'text-red-500'}`}>
-                    {buy ? 'Long' : 'Short'} {order.reduceOnly ? '(Red.)' : ''}
-                  </span>
+      {/* Open Orders Section */}
+      {openOrders && openOrders.length > 0 && (
+        <div className="mt-6 border-t border-gray-100 pt-4">
+          <h3 className="text-base font-semibold text-gray-500 mb-3">
+            Open Orders
+          </h3>
+          <div className="space-y-3">
+            {openOrders.map((order: any, index: number) => {
+              const buy = order.side === 'B';
+              return (
+                <div key={index} className="flex items-center justify-between py-2 text-sm border-b border-gray-50 last:border-0">
+                  <div className="flex flex-col">
+                    <span className="font-bold">{order.coin}</span>
+                    <span className={`text-xs ${buy ? 'text-green-500' : 'text-red-500'}`}>
+                      {buy ? 'Long' : 'Short'} {order.reduceOnly ? '(Red.)' : ''}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-medium">{order.sz} @ {(() => {
+                      const price = parseFloat(order.limitPx);
+                      return Math.abs(price) < 1
+                        ? price.toFixed(5)
+                        : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    })()}</span>
+                    <span className="text-xs text-gray-400">Limit</span>
+                  </div>
                 </div>
-                <div className="flex flex-col items-end">
-                  <span className="font-medium">{order.sz} @ {(() => {
-                    const price = parseFloat(order.limitPx);
-                    return Math.abs(price) < 1
-                      ? price.toFixed(5)
-                      : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                  })()}</span>
-                  <span className="text-xs text-gray-400">Limit</span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
-    )
-  }
-    </div >
+      )}
+    </div>
   );
 }
