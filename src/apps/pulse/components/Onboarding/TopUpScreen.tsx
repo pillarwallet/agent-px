@@ -1006,8 +1006,9 @@ export default function TopUpScreen(props: TopUpScreenProps) {
                 // Convert USD amount to token units using token price
                 const tokenPrice =
                   parseFloat(selectedFeeAsset.tokenPrice || '0') || 1;
-                const topUpAmountInTokens = parseFloat(amount) / tokenPrice;
-                const gasInTokens = parseFloat(estimatedGasCostInToken);
+                const topUpAmountInTokens =
+                  (parseFloat(amount) || 0) / tokenPrice;
+                const gasInTokens = parseFloat(estimatedGasCostInToken) || 0;
                 const totalNeededInTokens = topUpAmountInTokens + gasInTokens;
                 const hasEnoughBalance =
                   selectedFeeAsset.balance >= totalNeededInTokens;
