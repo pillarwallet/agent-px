@@ -5,6 +5,11 @@ import styled from 'styled-components';
 // components
 const App = React.lazy(() => import('../apps/pillarx-app'));
 
+const Wrapper = styled.div`
+  display: flex;
+  margin: 0 auto;
+`;
+
 const Lobby = () => {
   const [springs] = useSpring(() => ({
     from: { opacity: 0 },
@@ -26,10 +31,5 @@ const Lobby = () => {
     </Wrapper>
   );
 };
-
-const Wrapper = styled.div`
-  display: flex;
-  margin: 0 auto;
-`;
 
 export default Lobby;
