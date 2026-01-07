@@ -15,6 +15,10 @@ import type { AssetInfo } from '@/perps/lib/hyperliquid/types';
 const Index = () => {
   const { address } = useAccount();
   const {
+    setupStatus,
+    userState,
+    isLoading,
+    checkSetupStatus,
     setupHyperliquid,
     loadBalance,
     availableAssets, // destructured from hook
