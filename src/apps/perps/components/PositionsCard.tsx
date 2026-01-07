@@ -56,9 +56,19 @@ export function PositionsCard({ masterAddress, onAssetSelect }: PositionsCardPro
   const handlePositionClick = (coin: string) => {
     // 1. Load asset into chart/trade form
     if (onAssetSelect) {
-      const asset = universe.find((a) => a.name === coin);
-      if (asset) {
-        onAssetSelect(coin, asset);
+      const assetIndex = universe.findIndex((a) => a.name === coin);
+      const rawAsset = universe[assetIndex];
+
+      if (rawAsset) {
+        // Construct proper AssetInfo object expected by the app
+        const assetInfo = {
+          id: assetIndex,
+          symbol: rawAsset.name,
+          szDecimals: rawAsset.szDecimals || 3,
+          maxLeverage: rawAsset.maxLeverage || 50,
+        };
+
+        onAssetSelect(coin, assetInfo);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
