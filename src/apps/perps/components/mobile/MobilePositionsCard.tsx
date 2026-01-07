@@ -32,6 +32,37 @@ export function MobilePositionsCard({
 }: MobilePositionsCardProps & { onPositionClick?: (coin: string) => void }) {
   const isNegative = totalPnl.startsWith('-');
 
+  // Helper to aggregate TP and SL orders for a specific coin
+  const getOpenTP_SL = (coin: string, side: 'LONG' | 'SHORT') => {
+    if (!openOrders) return { tps: [], sls: [] };
+
+    // Determine position direction (Long > 0, Short < 0)
+    const isLong = side === 'LONG';
+    const positionOrders = openOrders.filter(o => o.coin === coin && o.reduceOnly);
+
+    const tps: { price: number, size: number }[] = [];
+    const sls: { price: number, size: number }[] = [];
+
+    positionOrders.forEach(order => {
+      const isBuy = order.side === 'B';
+      const isClosing = (isLong && !isBuy) || (!isLong && isBuy);
+
+      if (isClosing) {
+        const triggerPx = parseFloat(order.trigger?.triggerPx || order.triggerCondition?.triggerPx || '0');
+        const limitPx = parseFloat(order.limitPx || '0');
+        const price = triggerPx > 0 ? triggerPx : limitPx;
+        const size = parseFloat(order.sz);
+
+        // We need mark price to infer TP vs SL, but we only have string 'markPrice' in Props position.
+        // We'll rely on parsing that or passing raw data. 
+        // For now, let's parse the string mark price from the position object in the render loop.
+        // But here we don't have access to specific position in this scope unless we pass it.
+        // So we'll return a function or move logic inside render loop.
+      }
+    });
+    return { tps, sls };
+  };
+
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm">
       {/* Header */}
@@ -118,42 +149,120 @@ export function MobilePositionsCard({
                 <p className="font-medium">{position.liqPrice}</p>
               </div>
             </div>
+            <div>
+              <p className="text-gray-500 uppercase mb-1">TP / SL</p>
+              <div className="font-medium">
+                {(() => {
+                  const isLong = position.side === 'LONG';
+                  const markPx = parseFloat(position.markPrice.replace(/,/g, ''));
+
+                  // Aggregate orders
+                  const positionOrders = openOrders?.filter(o => o.coin === position.coin && o.reduceOnly) || [];
+                  const tps: { price: number }[] = [];
+                  const sls: { price: number }[] = [];
+
+                  positionOrders.forEach(order => {
+                    const isBuy = order.side === 'B';
+                    const isClosing = (isLong && !isBuy) || (!isLong && isBuy);
+                    if (isClosing) {
+                      const triggerPx = parseFloat(order.trigger?.triggerPx || order.triggerCondition?.triggerPx || '0');
+                      const limitPx = parseFloat(order.limitPx || '0');
+                      const price = triggerPx > 0 ? triggerPx : limitPx;
+
+                      if (isLong) {
+                        if (price > markPx) tps.push({ price });
+                        else sls.push({ price });
+                      } else {
+                        if (price < markPx) tps.push({ price });
+                        else sls.push({ price });
+                      }
+                    }
+                  });
+
+                  tps.sort((a, b) => a.price - b.price);
+                  sls.sort((a, b) => a.price - b.price);
+
+                  if (tps.length === 0 && sls.length === 0) return '-';
+
+                  return (
+                    <div className="text-right text-xs max-w-[120px] ml-auto">
+                      <span className="inline-block break-words">
+                        {(() => {
+                          // Show closest orders only
+                          const closestTp = isLong ? tps[0] : tps[tps.length - 1];
+                          const closestSl = isLong ? sls[sls.length - 1] : sls[0];
+
+                          return (
+                            <div className="text-right text-xs max-w-[120px] ml-auto">
+                              <span className="inline-block break-words">
+                                {(() => {
+                                  // Show closest orders only
+                                  const closestTp = isLong ? tps[0] : tps[tps.length - 1];
+                                  const closestSl = isLong ? sls[sls.length - 1] : sls[0];
+
+                                  return (
+                                    <div className="flex gap-2 justify-end">
+                                      {closestTp && (
+                                        <span className="text-green-500">
+                                          ${closestTp.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                      )}
+                                      {closestSl && (
+                                        <span className="text-red-500">
+                                          ${closestSl.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Open Orders Section */}
-      {openOrders && openOrders.length > 0 && (
-        <div className="mt-6 border-t border-gray-100 pt-4">
-          <h3 className="text-base font-semibold text-gray-500 mb-3">
-            Open Orders
-          </h3>
-          <div className="space-y-3">
-            {openOrders.map((order: any, index: number) => {
-              const buy = order.side === 'B';
-              return (
-                <div key={index} className="flex items-center justify-between py-2 text-sm border-b border-gray-50 last:border-0">
-                  <div className="flex flex-col">
-                    <span className="font-bold">{order.coin}</span>
-                    <span className={`text-xs ${buy ? 'text-green-500' : 'text-red-500'}`}>
-                      {buy ? 'Long' : 'Short'} {order.reduceOnly ? '(Red.)' : ''}
-                    </span>
+      {
+        openOrders && openOrders.length > 0 && (
+          <div className="mt-6 border-t border-gray-100 pt-4">
+            <h3 className="text-base font-semibold text-gray-500 mb-3">
+              Open Orders
+            </h3>
+            <div className="space-y-3">
+              {openOrders.map((order: any, index: number) => {
+                const buy = order.side === 'B';
+                return (
+                  <div key={index} className="flex items-center justify-between py-2 text-sm border-b border-gray-50 last:border-0">
+                    <div className="flex flex-col">
+                      <span className="font-bold">{order.coin}</span>
+                      <span className={`text-xs ${buy ? 'text-green-500' : 'text-red-500'}`}>
+                        {buy ? 'Long' : 'Short'} {order.reduceOnly ? '(Red.)' : ''}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="font-medium">{order.sz} @ {(() => {
+                        const price = parseFloat(order.limitPx || order.trigger?.triggerPx || 0);
+                        return Math.abs(price) < 1
+                          ? price.toFixed(5)
+                          : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      })()}</span>
+                      <span className="text-xs text-gray-400">Limit</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-medium">{order.sz} @ {(() => {
-                      const price = parseFloat(order.limitPx);
-                      return Math.abs(price) < 1
-                        ? price.toFixed(5)
-                        : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    })()}</span>
-                    <span className="text-xs text-gray-400">Limit</span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

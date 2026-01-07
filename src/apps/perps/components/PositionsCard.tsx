@@ -30,15 +30,16 @@ import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
 import { getAgentWallet, getImportedAccount } from '../lib/hyperliquid/keystore';
 import { placeMarketOrderAgent, cancelOrderAgent } from '../lib/hyperliquid/sdk';
-import { getMarkPrice, getOpenOrders, getMetaAndAssetCtxs, getUserFills } from '../lib/hyperliquid/client';
+import { getMarkPrice, getOpenOrders, getFrontendOpenOrders, getMetaAndAssetCtxs, getUserFills } from '../lib/hyperliquid/client';
 import { TokenIcon } from './TokenIcon';
 
 interface PositionsCardProps {
   masterAddress: string;
   onPositionClick?: (symbol: string) => void;
+  onRefresh?: () => void;
 }
 
-export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardProps) {
+export function PositionsCard({ masterAddress, onPositionClick, onRefresh }: PositionsCardProps) {
   const isMobile = useIsMobile();
   const [positions, setPositions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,9 +49,7 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
   const [closePercentage, setClosePercentage] = useState<number>(100);
   const [isClosing, setIsClosing] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
-  /* Refactored PositionsCard Code */
-  /* Replaced content for entire Card component to handle structural changes cleanly */
-  // universe state removed as it is now handled by parent
+  const [universe, setUniverse] = useState<any[]>([]);
   const [openOrders, setOpenOrders] = useState<any[]>([]);
 
   const handlePositionClick = (coin: string) => {
@@ -69,7 +68,7 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
 
       const [userState, orders, metaData] = await Promise.all([
         getUserState(masterAddress),
-        getOpenOrders(masterAddress),
+        getFrontendOpenOrders(masterAddress),
         getMetaAndAssetCtxs(),
       ]);
 
@@ -79,11 +78,16 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
         metaData: !!metaData
       });
 
+      // Log the actual order structure to debug
+      if (orders && orders.length > 0) {
+        console.log('DEBUG: First order structure:', JSON.stringify(orders[0], null, 2));
+      }
+
       // Create a map of symbol -> mark price
       const priceMap: Record<string, number> = {};
       if (metaData && Array.isArray(metaData) && metaData[0]?.universe && Array.isArray(metaData[1])) {
         const universeData = metaData[0].universe;
-        // setUniverse(universeData); // Removed
+        setUniverse(universeData);
         const assetCtxs = metaData[1];
 
         universeData.forEach((asset: any, index: number) => {
@@ -233,7 +237,10 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
 
       toast.success('Order submitted');
       setCloseDialogOpen(false);
-      setTimeout(fetchData, 1000);
+      setTimeout(() => {
+        fetchData();
+        onRefresh?.();
+      }, 1000);
       setExpandedPositionIndex(null);
     } catch (e: any) {
       toast.error(e.message);
@@ -301,11 +308,62 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
 
       // Refresh orders list
       await fetchData();
+      onRefresh?.();
     } catch (e: any) {
       console.error('Error canceling order:', e);
       if (loadingToast) toast.dismiss(loadingToast);
       toast.error('Failed to cancel order', { description: e.message || 'Unknown error' });
     }
+  };
+
+  // Helper to aggregate TP and SL orders for a specific coin
+  const getOpenTP_SL = (coin: string, positionSize: number) => {
+    const positionOrders = openOrders.filter(o => o.coin === coin && o.reduceOnly);
+
+    // Determine position direction (Long > 0, Short < 0)
+    const isLong = positionSize > 0;
+
+    const tps: { price: number, size: number }[] = [];
+    const sls: { price: number, size: number }[] = [];
+
+    positionOrders.forEach(order => {
+      // Determine if it's a closing order (Long needs Sell, Short needs Buy)
+      const isBuy = order.side === 'B';
+      const isClosing = (isLong && !isBuy) || (!isLong && isBuy);
+
+      if (isClosing) {
+        // Get trigger price - API returns it directly on order object
+        const triggerPx = parseFloat(order.triggerPx || order.trigger?.triggerPx || order.triggerCondition?.triggerPx || '0');
+        const limitPx = parseFloat(order.limitPx || '0');
+        const price = triggerPx > 0 ? triggerPx : limitPx;
+        const size = parseFloat(order.sz);
+
+        // Classify as TP or SL using orderType from API
+        if (order.orderType && order.orderType.toLowerCase().includes('take profit')) {
+          tps.push({ price, size });
+        } else if (order.orderType && order.orderType.toLowerCase().includes('stop')) {
+          sls.push({ price, size });
+        } else {
+          // Fallback to price logic if orderType not available
+          const position = positions.find(p => p.coin === coin);
+          const markPx = parseFloat(position?.markPx || position?.entryPx || '0');
+
+          if (triggerPx > 0) {
+            if (isLong) {
+              // Long: TP > Mark, SL < Mark
+              if (price > markPx) tps.push({ price, size });
+              else sls.push({ price, size });
+            } else {
+              // Short: TP < Mark, SL > Mark
+              if (price < markPx) tps.push({ price, size });
+              else sls.push({ price, size });
+            }
+          }
+        }
+      }
+    });
+
+    return { tps: tps.sort((a, b) => a.price - b.price), sls: sls.sort((a, b) => a.price - b.price) };
   };
 
   return (
@@ -383,6 +441,9 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                   const isLong = parseFloat(position.szi) > 0;
                   const leverage = calculateLeverage(position);
 
+                  // Get aggregated TPs and SLs
+                  const { tps, sls } = getOpenTP_SL(position.coin, parseFloat(position.szi));
+
                   return (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
                       <div className="flex items-center justify-between pb-2 border-b border-border/50">
@@ -430,17 +491,31 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                               {position.liquidationPx ? `$${formatPrice(position.liquidationPx)}` : '-'}
                             </span>
                           </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground block mb-1">Take Profit</span>
-                            <span className="font-medium text-base text-green-500">
-                              {position.tpPrice ? `$${formatPrice(position.tpPrice)}` : '-'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground block mb-1">Stop Loss</span>
-                            <span className="font-medium text-base text-red-500">
-                              {position.slPrice ? `$${formatPrice(position.slPrice)}` : '-'}
-                            </span>
+                          <div className="col-span-2 grid grid-cols-2 gap-4">
+                            <div>
+                              <span className="text-xs text-muted-foreground block mb-1">Take Profit</span>
+                              {tps.length > 0 ? (
+                                <span className="font-medium text-base text-green-500">
+                                  {tps.map(tp => `$${formatPrice(tp.price)}`).join(', ')}
+                                </span>
+                              ) : (
+                                <span className="font-medium text-base text-green-500">
+                                  {position.tpPrice ? `$${formatPrice(position.tpPrice)}` : '-'}
+                                </span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground block mb-1">Stop Loss</span>
+                              {sls.length > 0 ? (
+                                <span className="font-medium text-base text-red-500">
+                                  {sls.map(sl => `$${formatPrice(sl.price)}`).join(', ')}
+                                </span>
+                              ) : (
+                                <span className="font-medium text-base text-red-500">
+                                  {position.slPrice ? `$${formatPrice(position.slPrice)}` : '-'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -475,6 +550,9 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                     const positionValue = Math.abs(parseFloat(position.szi)) * parseFloat(position.markPx || '0');
                     const marginUsed = parseFloat(position.marginUsed || '0');
                     const leverage = position.leverage?.value || 0;
+
+                    const { tps, sls } = getOpenTP_SL(position.coin, parseFloat(position.szi));
+                    const hasOrders = tps.length > 0 || sls.length > 0;
 
                     if (isMobile) {
                       return (
@@ -525,13 +603,33 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-muted-foreground">TP / SL</span>
                               <span className="font-medium text-foreground">
-                                {position.tpPrice || position.slPrice ? (
+                                {hasOrders ? (
+                                  <div className="text-right">
+                                    <span className="text-sm">
+                                      {(() => {
+                                        // Show closest orders only
+                                        const closestTp = isLong ? tps[0] : tps[tps.length - 1];
+                                        const closestSl = isLong ? sls[sls.length - 1] : sls[0];
+
+                                        return (
+                                          <div className="flex gap-2 justify-end">
+                                            {closestTp && (
+                                              <span className="text-green-500"> ${formatPrice(closestTp.price)}</span>
+                                            )}
+                                            {closestSl && (
+                                              <span className="text-red-500"> ${formatPrice(closestSl.price)}</span>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+                                    </span>
+                                  </div>
+                                ) : (
                                   <span className="flex gap-1">
                                     <span className={position.tpPrice ? "text-green-500" : ""}>{position.tpPrice ? formatPrice(position.tpPrice) : '-'}</span>
-                                    <span>/</span>
                                     <span className={position.slPrice ? "text-red-500" : ""}>{position.slPrice ? formatPrice(position.slPrice) : '-'}</span>
                                   </span>
-                                ) : '-'}
+                                )}
                               </span>
                             </div>
                           </div>
@@ -554,13 +652,32 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                         <div className="font-medium text-foreground">${formatPrice(position.entryPx)}</div>
                         <div className="font-medium text-foreground">${formatPrice(position.markPx || '0')}</div>
                         <div className="font-medium text-orange-500">{position.liquidationPx ? `$${formatPrice(position.liquidationPx)}` : '-'}</div>
-                        <div className="font-medium text-foreground">
-                          {position.tpPrice || position.slPrice ? (
+                        <div className="font-medium text-foreground flex justify-end items-center text-xs">
+                          {hasOrders ? (
+                            <div className="flex gap-2">
+                              {(() => {
+                                // Show closest orders only
+                                const closestTp = isLong ? tps[0] : tps[tps.length - 1];
+                                const closestSl = isLong ? sls[sls.length - 1] : sls[0];
+
+                                return (
+                                  <>
+                                    {closestTp && (
+                                      <span className="text-green-500">${formatPrice(closestTp.price)}</span>
+                                    )}
+                                    {closestSl && (
+                                      <span className="text-red-500">${formatPrice(closestSl.price)}</span>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          ) : (
                             <div className="flex flex-col items-end text-xs leading-tight">
                               <span className={position.tpPrice ? "text-green-500" : "text-muted-foreground"}>{position.tpPrice ? formatPrice(position.tpPrice) : '-'}</span>
                               <span className={position.slPrice ? "text-red-500" : "text-muted-foreground"}>{position.slPrice ? formatPrice(position.slPrice) : '-'}</span>
                             </div>
-                          ) : '-'}
+                          )}
                         </div>
                         <div className="font-medium text-foreground">${formatNumber(marginUsed, 2)}</div>
                         <div className={`text-center ${pnl.className}`}>
@@ -601,26 +718,16 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                     const buy = isBuy(order.side);
                     const position = positions.find(p => p.coin === order.coin);
 
-                    let type = 'Limit';
+                    // Use orderType from API if available, otherwise default to 'Limit'
+                    let type = order.orderType || 'Limit';
                     let sideLabel = buy ? 'Long' : 'Short';
                     const isLong = position ? parseFloat(position.szi) > 0 : false;
 
+                    // Override side label for closing orders
                     if (order.reduceOnly && position) {
-                      const entryPx = parseFloat(position.entryPx);
-                      const markPx = parseFloat(position.markPx || position.entryPx); // Use Mark Price for relative direction
-                      const triggerPx = parseFloat(order.trigger?.triggerPx || order.triggerCondition?.triggerPx || '0');
-                      const limitPx = parseFloat(order.limitPx || '0');
-                      const checkPx = triggerPx > 0 ? triggerPx : limitPx;
-
                       const isClosing = (isLong && !buy) || (!isLong && buy);
-
                       if (isClosing) {
                         sideLabel = isLong ? 'Close Long' : 'Close Short';
-                        if (isLong) {
-                          type = checkPx > markPx ? 'Take Profit Limit' : 'Stop Limit';
-                        } else {
-                          type = checkPx < markPx ? 'Take Profit Limit' : 'Stop Limit';
-                        }
                       }
                     }
 
@@ -634,7 +741,6 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                                 <div className="font-bold text-base">{order.coin}</div>
                                 <div className={`text-xs font-bold ${buy ? 'text-green-500' : 'text-red-500'}`}>
                                   {sideLabel}
-                                  {order.triggerCondition && <span className="text-orange-500 font-normal ml-1">Trigger</span>}
                                   <span className="text-muted-foreground font-normal ml-1 block">{type}</span>
                                 </div>
                               </div>
@@ -651,7 +757,9 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Price</span>
-                              <span className="font-medium text-foreground">${formatPrice(order.limitPx || order.trigger?.triggerPx || 0)}</span>
+                              <span className="font-medium text-foreground">
+                                ${formatPrice(parseFloat(order.triggerPx || order.trigger?.triggerPx || order.triggerCondition?.triggerPx || order.limitPx || '0'))}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -667,10 +775,11 @@ export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardP
                         <div className="text-center font-medium text-xs text-muted-foreground">{type}</div>
                         <div className={`font-bold ${buy ? 'text-green-500' : 'text-red-500'}`}>
                           {sideLabel}
-                          {order.triggerCondition && <span className="text-[10px] text-orange-500 ml-1">Trig.</span>}
                         </div>
                         <div className="font-medium">{formatNumber(order.sz, 4)}</div>
-                        <div className="font-medium text-foreground">${formatPrice(order.limitPx || order.trigger?.triggerPx || 0)}</div>
+                        <div className="font-medium text-foreground">
+                          ${formatPrice(parseFloat(order.triggerPx || order.trigger?.triggerPx || order.triggerCondition?.triggerPx || order.limitPx || '0'))}
+                        </div>
                         <div className="flex justify-center">
                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive" onClick={() => handleCancelOrder(order.oid)}>
                             <X className="h-3 w-3" />

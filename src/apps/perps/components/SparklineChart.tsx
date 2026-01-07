@@ -1,11 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { AssetInfo } from '../lib/hyperliquid/types';
+import { getUserFills } from '../lib/hyperliquid/client';
 import { Card, CardContent } from './ui/card';
 import { useIsMobile } from '../hooks/use-mobile';
 import { TokenIcon } from './TokenIcon';
 
 interface SparklineChartProps {
   selectedAsset: AssetInfo | null;
+  userState?: any;
+  openOrders?: any[];
+  accountAddress?: string | null;
 }
 
 interface CandleData {
@@ -26,7 +30,7 @@ interface MarketData {
   dayBaseVlm: string;
 }
 
-export function SparklineChart({ selectedAsset }: SparklineChartProps) {
+export function SparklineChart({ selectedAsset, userState, openOrders, accountAddress }: SparklineChartProps) {
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [marketData, setMarketData] = useState<MarketData | null>(null);
@@ -244,6 +248,152 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
   };
 
   const priceLevels = getPriceLevels();
+
+  // ----- Helper to Calculate Y Position for Custom Lines -----
+  const getPriceY = (price: number): number | null => {
+    if (!priceLevels) return null;
+    const { min, max } = priceLevels;
+    if (price < min || price > max) return null; // Out of range
+
+    const height = 100;
+    const padding = 5;
+    const priceRange = max - min || 1;
+
+    // Same formula as Sparkline
+    return height - padding - ((price - min) / priceRange) * (height - 2 * padding);
+  };
+
+  // ----- Extract Position Data -----
+  let entryPrice: number | null = null;
+  let entryPercent: number | null = null;
+  let tpPrice: number | null = null;
+  let tpPercent: number | null = null;
+  let slPrice: number | null = null;
+  let slPercent: number | null = null;
+  const [entryTime, setEntryTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchEntryTime = async () => {
+      if (!accountAddress || !selectedAsset || !entryPrice) {
+        if (mounted) setEntryTime(null);
+        return;
+      }
+
+      try {
+        const fills = await getUserFills(accountAddress);
+        // Find the most recent fill for this coin that is on the same side as current position
+        // Actually, just finding the last fill for the coin is a good approximation for "entry"
+        // if we assume linear position building.
+        // Fills are usually returned latest first? API returns all fills.
+        const assetFills = fills.filter((f: any) => f.coin === selectedAsset.symbol);
+
+        if (assetFills.length > 0) {
+          // Sort descending by time
+          assetFills.sort((a: any, b: any) => b.time - a.time);
+          const lastFill = assetFills[0];
+          if (mounted) setEntryTime(lastFill.time);
+        }
+      } catch (e) {
+        console.error('Error fetching fills:', e);
+      }
+    };
+
+    fetchEntryTime();
+
+    return () => { mounted = false; };
+  }, [accountAddress, selectedAsset?.symbol, entryPrice]); // Re-run if entryPrice determined (position exists)
+
+
+  if (selectedAsset && currentPrice && userState?.assetPositions) {
+    // Find active position
+    const position = userState.assetPositions.find(
+      (p: any) => p.position.coin === selectedAsset.symbol
+    );
+    if (position) {
+      const rawEntry = parseFloat(position.position.entryPx);
+      if (!isNaN(rawEntry) && rawEntry > 0) {
+        entryPrice = rawEntry;
+        entryPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+      }
+    }
+  }
+
+  if (selectedAsset && currentPrice && openOrders) {
+    // Filter orders for this asset
+    const assetOrders = openOrders.filter((o: any) => o.coin === selectedAsset.symbol);
+
+    // Determine TP/SL logic (simplified from PositionsCard)
+    // TP: Order in opposite direction that takes profit
+    // SL: Order in opposite direction that stops loss/liquidation
+    // We need to know if we are Long or Short from the position
+    const position = userState?.assetPositions?.find(
+      (p: any) => p.position.coin === selectedAsset.symbol
+    );
+
+    if (position) {
+      const size = parseFloat(position.position.szi);
+      const isLong = size > 0;
+
+      // TP/SL are typically reduce-only orders
+      // For LONG: TP > Entry (Sell High), SL < Entry (Sell Low)
+      // For SHORT: TP < Entry (Buy Low), SL > Entry (Buy High)
+      // But effectively we just look for orders.
+
+      const tps: any[] = [];
+      const sls: any[] = [];
+
+      assetOrders.forEach((order: any) => {
+        const isReduceOnly = order.reduceOnly;
+        const isClosingOrder = (isLong && order.side === 'A') || // Long -> Sell (Ask)
+          (!isLong && order.side === 'B'); // Short -> Buy (Bid)
+
+        if (isClosingOrder && isReduceOnly) {
+          // Use triggerPx from API (same as PositionsCard fix)
+          const triggerPx = parseFloat(order.triggerPx || order.trigger?.triggerPx || order.triggerCondition?.triggerPx || '0');
+          const limitPx = parseFloat(order.limitPx || '0');
+          const px = triggerPx > 0 ? triggerPx : limitPx;
+
+          // Classify using orderType from API (same as PositionsCard fix)
+          if (order.orderType && order.orderType.toLowerCase().includes('take profit')) {
+            tps.push({ price: px });
+          } else if (order.orderType && order.orderType.toLowerCase().includes('stop')) {
+            sls.push({ price: px });
+          } else {
+            // Fallback to price logic
+            if (isLong) {
+              if (px > (entryPrice || 0)) tps.push({ price: px });
+              else sls.push({ price: px });
+            } else {
+              if (px < (entryPrice || 0)) tps.push({ price: px });
+              else sls.push({ price: px });
+            }
+          }
+        }
+      });
+
+      // Sort to find closest? or display all? user said "the take profits" (plural? or singular logic)
+      // "the take profits (if in range)". Let's pick the closest one for now or loop?
+      // Let's loop and render all if possible, or just the first/closest.
+      // User asked for "the take profits" implying potentially multiple.
+      // Layout-wise, let's just show the closest TP and closest SL to keep chart clean.
+
+      if (tps.length > 0) {
+        const closestTp = isLong ? tps.sort((a, b) => a.price - b.price)[0] : tps.sort((a, b) => b.price - a.price)[0];
+        tpPrice = closestTp.price;
+        tpPercent = ((tpPrice! - currentPrice) / currentPrice) * 100;
+      }
+      if (sls.length > 0) {
+        const closestSl = isLong ? sls.sort((a, b) => b.price - a.price)[0] : sls.sort((a, b) => a.price - b.price)[0];
+        slPrice = closestSl.price;
+        slPercent = ((slPrice! - currentPrice) / currentPrice) * 100;
+      }
+    }
+  }
+
+  const entryY = entryPrice ? getPriceY(entryPrice) : null;
+  const tpY = tpPrice ? getPriceY(tpPrice) : null;
+  const slY = slPrice ? getPriceY(slPrice) : null;
 
   return (
     <Card className="h-full">
@@ -468,6 +618,7 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
             <div
               className="relative flex-1 w-full"
               onMouseMove={(e) => {
+                /* Existing hover logic... */
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const svgWidth = rect.width;
@@ -513,7 +664,111 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                       : 'rgba(239, 68, 68, 0.1)'
                   }
                 />
+
+                {/* Take Profit Line (Green, Solid) */}
+                {tpY !== null && (
+                  <line
+                    x1="0" y1={tpY} x2="800" y2={tpY}
+                    stroke="#22c55e" strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+
+                {/* Stop Loss Line (Orange, Solid) */}
+                {slY !== null && (
+                  <line
+                    x1="0" y1={slY} x2="800" y2={slY}
+                    stroke="#f97316" strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
               </svg>
+
+              {/* Position Labels (Absolute positioned on top of SVG) */}
+
+              {/* Hover Tooltip */}
+              {hoverData && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${hoverData.x}%`,
+                    top: `${hoverData.y}%`,
+                    transform: 'translate(-50%, -100%)',
+                  }}
+                >
+                  <div className="bg-popover border border-border rounded-md px-2 py-1 shadow-lg mb-2 z-10">
+                    <div className="text-xs font-semibold">
+                      ${formatPrice(hoverData.price)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(hoverData.time).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                  <div className="w-2 h-2 bg-primary rounded-full mx-auto"></div>
+                </div>
+              )}
+
+              {/* Entry Dot (HTML Overlay for perfect roundness) */}
+              {entryY !== null && entryTime && candles.length > 1 && (() => {
+                const firstTime = candles[0].time;
+                const lastTime = candles[candles.length - 1].time;
+                if (entryTime >= firstTime && entryTime <= lastTime) {
+                  const timeRange = lastTime - firstTime;
+                  const timeRatio = (entryTime - firstTime) / timeRange;
+                  const leftPercent = timeRatio * 100;
+                  const topPercent = (entryY / 100) * 100;
+
+                  return (
+                    <div
+                      className="absolute w-3 h-3 bg-blue-500 rounded-full ring-2 ring-white z-10"
+                      style={{
+                        left: `${leftPercent}%`,
+                        top: `${topPercent}%`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    >
+                      {/* Pulsing effect - White Ring Ripple */}
+                      <div className="absolute inset-0 rounded-full ring-2 ring-white animate-ping opacity-75"></div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* TP Label */}
+              {tpY !== null && tpPercent !== null && (
+                <div
+                  className="absolute right-0 flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-l border-y border-l border-green-500/30 bg-card z-10 text-green-500 font-mono shadow-sm"
+                  style={{
+                    top: `${(tpY / 100) * 100}%`,
+                    transform: 'translateY(-50%)',
+                  }}
+                >
+                  <span>TP: ${formatPrice(tpPrice!)}</span>
+                  <span>
+                    ({tpPercent >= 0 ? '+' : ''}{tpPercent.toFixed(2)}%)
+                  </span>
+                </div>
+              )}
+
+              {/* SL Label */}
+              {slY !== null && slPercent !== null && (
+                <div
+                  className="absolute right-0 flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-l border-y border-l border-orange-500/30 bg-card z-10 text-orange-500 font-mono shadow-sm"
+                  style={{
+                    top: `${(slY / 100) * 100}%`,
+                    transform: 'translateY(-50%)',
+                  }}
+                >
+                  <span>SL: ${formatPrice(slPrice!)}</span>
+                  <span>
+                    ({slPercent >= 0 ? '+' : ''}{slPercent.toFixed(2)}%)
+                  </span>
+                </div>
+              )}
 
               {/* Hover Tooltip */}
               {hoverData && (

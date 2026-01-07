@@ -639,7 +639,7 @@ export function TradeForm({
             />
             <button
               type="button"
-              className="pr-3 text-sm text-accent font-medium hover:text-accent/80 transition-colors"
+              className="pr-3 text-sm text-white font-medium hover:text-white/80 transition-colors"
               onClick={async () => {
                 if (selectedAsset) {
                   const price = await getMarkPrice(selectedAsset.symbol);
@@ -683,27 +683,42 @@ export function TradeForm({
 
 
 
-            {/* Slider for Size Proportions */}
-            <div className="pt-2 px-1">
-              <Slider
-                min={0}
-                max={100}
-                step={25}
-                value={[(() => {
-                  const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
-                  const maxBuyingPower = total * (leverage || 1);
-                  return maxBuyingPower > 0 ? (amountUSD / maxBuyingPower) * 100 : 0;
-                })()]}
-                onValueChange={(vals) => {
-                  const percentage = vals[0];
-                  const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
-                  if (total > 0) {
+            {/* Slider and Percentage Display */}
+            <div className="flex items-center gap-4 pt-2 px-1">
+              <div className="flex-1">
+                <Slider
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={[(() => {
+                    const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
                     const maxBuyingPower = total * (leverage || 1);
-                    const newAmount = (maxBuyingPower * percentage) / 100;
-                    setValue('amountUSD', parseFloat(newAmount.toFixed(2)));
-                  }
-                }}
-              />
+                    return maxBuyingPower > 0 ? (amountUSD / maxBuyingPower) * 100 : 0;
+                  })()]}
+                  onValueChange={(vals) => {
+                    const percentage = vals[0];
+                    const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
+                    if (total > 0) {
+                      const maxBuyingPower = total * (leverage || 1);
+                      const newAmount = (maxBuyingPower * percentage) / 100;
+                      setValue('amountUSD', parseFloat(newAmount.toFixed(2)));
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Percentage Box */}
+              <div className="flex items-center justify-center w-[80px] h-[28px] rounded-lg border border-[#2d3748] bg-[#1a202c]">
+                <span className="text-sm font-medium">
+                  {(() => {
+                    const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
+                    const maxBuyingPower = total * (leverage || 1);
+                    const currentPercent = maxBuyingPower > 0 ? (amountUSD / maxBuyingPower) * 100 : 0;
+                    return Math.round(currentPercent);
+                  })()}
+                </span>
+                <span className="ml-1 text-sm text-muted-foreground">%</span>
+              </div>
             </div>
           </div>
 

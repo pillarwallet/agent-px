@@ -36,6 +36,7 @@ const Index = () => {
     checkSetupStatus,
     setupHyperliquid,
     loadBalance,
+    openOrders,
   } = useHyperliquid();
 
   const [selectedAsset, setSelectedAsset] = useState<EnhancedAsset | null>({
@@ -50,6 +51,7 @@ const Index = () => {
   });
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
+  const [agentOpenOrders, setAgentOpenOrders] = useState<any[]>([]);
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
   // Centralized asset state
   const [allAssets, setAllAssets] = useState<EnhancedAsset[]>([]);
@@ -93,7 +95,9 @@ const Index = () => {
           // Auto-select asset from URL if provided
           if (urlSymbol && enhancedAssets.length > 0) {
             const normalizedUrlSymbol = urlSymbol.toUpperCase();
-            const urlAsset = enhancedAssets.find(a => a.symbol === normalizedUrlSymbol);
+            const urlAsset = enhancedAssets.find(
+              (a) => a.symbol === normalizedUrlSymbol
+            );
             if (urlAsset) {
               setSelectedAsset(urlAsset);
               console.log(`[URL] Auto-selected ${urlAsset.symbol} from URL`);
@@ -102,7 +106,9 @@ const Index = () => {
 
           // Update selected asset price if it exists
           if (selectedAsset) {
-            const updated = enhancedAssets.find(a => a.symbol === selectedAsset.symbol);
+            const updated = enhancedAssets.find(
+              (a) => a.symbol === selectedAsset.symbol
+            );
             if (updated) setSelectedAsset(updated);
           }
         }
@@ -118,15 +124,23 @@ const Index = () => {
   const fetchImportedAccount = async () => {
     try {
       const { getImportedAccount } = await import('./lib/hyperliquid/keystore');
+      const { getFrontendOpenOrders } = await import(
+        './lib/hyperliquid/client'
+      );
       const imported = getImportedAccount();
 
       if (imported) {
         setAgentAddress(imported.accountAddress);
-        const state = await getUserState(imported.accountAddress);
+        const [state, orders] = await Promise.all([
+          getUserState(imported.accountAddress),
+          getFrontendOpenOrders(imported.accountAddress),
+        ]);
         setAgentUserState(state);
+        setAgentOpenOrders(orders || []);
       } else {
         setAgentAddress(null);
         setAgentUserState(null);
+        setAgentOpenOrders([]);
       }
     } catch (error) {
       console.error('[Index] Error loading imported account:', error);
@@ -155,9 +169,13 @@ const Index = () => {
     }
   }, [setupStatus, loadBalance]);
 
-  const handleAssetSelect = (symbol: string, asset: AssetInfo, shouldScroll = false) => {
+  const handleAssetSelect = (
+    symbol: string,
+    asset: AssetInfo,
+    shouldScroll = false
+  ) => {
     // Look up full asset info including price
-    const fullAsset = allAssets.find(a => a.symbol === asset.symbol);
+    const fullAsset = allAssets.find((a) => a.symbol === asset.symbol);
     if (fullAsset) {
       setSelectedAsset(fullAsset);
     } else {
@@ -166,7 +184,12 @@ const Index = () => {
     }
 
     if (shouldScroll) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const element = document.getElementById('chart-trade-section');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
   };
 
@@ -184,7 +207,6 @@ const Index = () => {
       toast.error(`Asset ${normalizeTicker} not found. Please try refreshing.`);
     }
   };
-
 
   const handlePositionClick = (symbol: string) => {
     // 1. Find asset in our centralized allAssets list
@@ -211,7 +233,10 @@ const Index = () => {
           <div className="grid grid-cols-2 md:grid-cols-1 gap-6 mb-6">
             {/* Left: Agent Controls */}
             <div>
-              <AgentControls onStatusChange={handleRefresh} />
+              <AgentControls
+                onStatusChange={handleRefresh}
+                userState={userState}
+              />
             </div>
 
             {/* Right: Balance */}
@@ -222,6 +247,7 @@ const Index = () => {
                   isLoading={isLoading}
                   masterAddress={address || agentAddress || ''}
                   onRefresh={handleRefresh}
+                  isImported={!!agentAddress}
                 />
               )}
             </div>
@@ -230,10 +256,20 @@ const Index = () => {
 
         {/* Chart + Trade Form - Side by Side on Desktop */}
         {(agentAddress || (address && setupStatus === 'setup')) && (
-          <div className="grid grid-cols-3 md:grid-cols-1 gap-6 mb-6">
+          <div
+            id="chart-trade-section"
+            className="grid grid-cols-3 md:grid-cols-1 gap-6 mb-6"
+          >
             {/* Left: Sparkline Chart (2/3 width on desktop) */}
             <div className="col-span-2 md:col-span-1">
-              <SparklineChart selectedAsset={selectedAsset} />
+              <SparklineChart
+                selectedAsset={selectedAsset}
+                userState={agentUserState || userState}
+                openOrders={
+                  agentOpenOrders.length > 0 ? agentOpenOrders : openOrders
+                }
+                accountAddress={agentAddress || address}
+              />
             </div>
 
             {/* Right: Trade Form (1/3 width on desktop) */}
@@ -254,6 +290,7 @@ const Index = () => {
             <PositionsCard
               masterAddress={agentAddress || address}
               onPositionClick={handlePositionClick}
+              onRefresh={handleRefresh}
             />
           </div>
         )}
@@ -270,7 +307,9 @@ const Index = () => {
           <div className="mb-6">
             <AssetSelector
               selectedSymbol={selectedAsset?.symbol || null}
-              onSelect={(symbol, asset) => handleAssetSelect(symbol, asset, true)}
+              onSelect={(symbol, asset) =>
+                handleAssetSelect(symbol, asset, true)
+              }
               assets={allAssets}
             />
           </div>

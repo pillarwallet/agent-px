@@ -1,5 +1,6 @@
 import { Card } from './ui/card';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Plus, Minus } from 'lucide-react';
+import { useIsMobile } from '../hooks/use-mobile';
 import { Button } from './ui/button';
 import { DepositModal } from './DepositModal';
 import { WithdrawModal } from './WithdrawModal';
@@ -11,6 +12,7 @@ interface BalanceCardProps {
   isLoading: boolean;
   masterAddress: string;
   onRefresh?: () => void;
+  isImported?: boolean;
 }
 
 export function BalanceCard({
@@ -18,6 +20,7 @@ export function BalanceCard({
   isLoading,
   masterAddress,
   onRefresh,
+  isImported,
 }: BalanceCardProps) {
   const accountEquity = parseFloat(
     userState.marginSummary?.accountValue || '0'
@@ -31,11 +34,14 @@ export function BalanceCard({
     }, 0);
   }, [userState.assetPositions]);
 
-  const pnlPercent = accountEquity > 0
-    ? ((totalPnl / (accountEquity - totalPnl)) * 100).toFixed(2)
-    : '0.00';
+  const pnlPercent =
+    accountEquity > 0
+      ? ((totalPnl / (accountEquity - totalPnl)) * 100).toFixed(2)
+      : '0.00';
 
   const isPnlPositive = totalPnl >= 0;
+
+  const isMobile = useIsMobile();
 
   return (
     <Card className="p-3 pt-4 h-full">
@@ -44,11 +50,39 @@ export function BalanceCard({
           <span className="font-semibold">Perps Balance</span>
         </div>
         <div className="flex items-center gap-2">
-          <DepositModal userState={userState} />
+          <DepositModal
+            userState={userState}
+            disabled={isImported}
+            trigger={
+              isMobile ? (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-8 w-8"
+                  disabled={isImported}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              ) : undefined
+            }
+          />
           <WithdrawModal
             userState={userState}
             masterAddress={masterAddress}
             onSuccess={onRefresh}
+            disabled={isImported}
+            trigger={
+              isMobile ? (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-8 w-8"
+                  disabled={isImported}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+              ) : undefined
+            }
           />
           {onRefresh && (
             <Button
@@ -70,7 +104,8 @@ export function BalanceCard({
         {/* Main Balance */}
         <div>
           <p className="text-3xl font-bold font-mono-numbers">
-            ${accountEquity.toLocaleString(undefined, {
+            $
+            {accountEquity.toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -79,18 +114,26 @@ export function BalanceCard({
 
         {/* PnL Display */}
         <div className="flex items-center gap-2">
-          <div className={`px-2.5 py-0.5 rounded-md text-sm font-semibold ${isPnlPositive
-            ? 'bg-green-500/10 text-green-500'
-            : 'bg-red-500/10 text-red-500'
-            }`}>
-            {isPnlPositive ? '+' : ''}${totalPnl.toLocaleString(undefined, {
+          <div
+            className={`px-2.5 py-0.5 rounded-md text-sm font-semibold ${
+              isPnlPositive
+                ? 'bg-green-500/10 text-green-500'
+                : 'bg-red-500/10 text-red-500'
+            }`}
+          >
+            {isPnlPositive ? '+' : ''}$
+            {totalPnl.toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
           </div>
-          <div className={`text-sm font-semibold ${isPnlPositive ? 'text-green-500' : 'text-red-500'
-            }`}>
-            {isPnlPositive ? '+' : ''}{pnlPercent}% {isPnlPositive ? '↑' : '↓'}
+          <div
+            className={`text-sm font-semibold ${
+              isPnlPositive ? 'text-green-500' : 'text-red-500'
+            }`}
+          >
+            {isPnlPositive ? '+' : ''}
+            {pnlPercent}% {isPnlPositive ? '↑' : '↓'}
           </div>
         </div>
 

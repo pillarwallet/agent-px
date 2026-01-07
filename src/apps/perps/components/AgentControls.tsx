@@ -47,16 +47,27 @@ import {
 } from '../lib/hyperliquid/signing';
 import { postExchange } from '../lib/hyperliquid/client';
 import { ValidationStatus } from './ValidationStatus';
+import { DepositModal } from './DepositModal';
+import type { UserState } from '../lib/hyperliquid/types';
 
 type AgentStatus = 'none' | 'created' | 'approved';
 
 interface AgentControlsProps {
   onStatusChange?: () => void;
+  userState?: UserState;
 }
 
-export function AgentControls({ onStatusChange }: AgentControlsProps) {
+export function AgentControls({
+  onStatusChange,
+  userState,
+}: AgentControlsProps) {
   const { walletAddress: address, walletProvider } = useTransactionKit();
   // Removed useWalletClient from wagmi
+
+  // Calculate master balance for conditional logic
+  const masterBalance = userState?.marginSummary?.accountValue
+    ? parseFloat(userState.marginSummary.accountValue)
+    : 0;
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('none');
   const [agentAddress, setAgentAddress] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
@@ -111,6 +122,16 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
 
     loadImportedAccount();
   }, []);
+
+  // Auto-dismiss validation success status
+  useEffect(() => {
+    if (validationStatus === 'success') {
+      const timer = setTimeout(() => {
+        setValidationStatus('idle');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [validationStatus]);
 
   const handleCreateAgent = async () => {
     console.log('handleCreateAgent called', { address });
@@ -600,13 +621,13 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
   const Icon = config.icon;
 
   return (
-    <Card className="p-3 h-full">
-      <div className="flex items-center justify-between mb-2">
+    <Card className="p-3 pt-4 h-full">
+      <div className="flex items-center justify-between mb-2 md:mb-6">
         <div className="flex items-center gap-3">
           <Shield className="h-4 w-4 text-primary" />
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm">Agent Wallet:</span>
+              <span className="font-semibold">Perps Account:</span>
               <Badge variant="outline" className={config.color}>
                 <Icon className="h-3 w-3 mr-1" />
                 {config.label}
@@ -625,7 +646,6 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
                     <Copy className="h-3 w-3" />
                   </button>
                 </div>
-
               </div>
             )}
           </div>
@@ -659,26 +679,27 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
             <>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <Button
-                  onClick={() => setShowImportDialog(true)}
+                  onClick={handleCreateAgent}
                   disabled={isCreating}
                   className="w-full"
                   size="sm"
                 >
-                  <Upload className="h-3 w-3 mr-2" />
-                  Import Agent
+                  {isCreating ? 'Creating...' : 'Create New'}
                 </Button>
                 <Button
-                  onClick={handleCreateAgent}
+                  onClick={() => setShowImportDialog(true)}
                   disabled={isCreating}
                   className="w-full"
                   variant="outline"
                   size="sm"
                 >
-                  {isCreating ? 'Creating...' : 'Create New'}
+                  <Upload className="h-3 w-3 mr-2" />
+                  Import Account
                 </Button>
               </div>
               <div className="text-xs text-muted-foreground bg-muted border border-border rounded p-2">
-                💡 Import your existing Hyperliquid agent or create a new one
+                💡 Create a new Hyperliquid agent wallet or import your existing
+                one
               </div>
             </>
           )}
@@ -749,16 +770,26 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
 
       {agentStatus === 'created' && (
         <div className="space-y-1.5">
-          <Button
-            onClick={handleApproveAgent}
-            disabled={isApproving || !address}
-            className="w-full"
-            size="sm"
-          >
-            {isApproving
-              ? 'Approving...'
-              : 'Approve Agent (Sign with Master Wallet)'}
-          </Button>
+          {masterBalance < 10 ? (
+            <DepositModal
+              userState={userState!}
+              trigger={
+                <Button className="w-full" size="sm">
+                  Deposit $10 USDC to Trade
+                </Button>
+              }
+            />
+          ) : (
+            <Button
+              onClick={handleApproveAgent}
+              disabled={isApproving || !address}
+              className="w-full"
+              size="sm"
+            >
+              {isApproving ? 'Approving...' : 'Activate Account'}
+            </Button>
+          )}
+
           <Button
             onClick={handleRemoveAgent}
             disabled={isRemoving || isApproving}
@@ -766,7 +797,7 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
             className="w-full text-xs"
             size="sm"
           >
-            {isRemoving ? 'Removing...' : 'Remove Agent'}
+            {isRemoving ? 'Removing...' : 'Remove Account'}
           </Button>
         </div>
       )}

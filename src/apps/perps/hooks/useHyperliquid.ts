@@ -5,6 +5,7 @@ import {
   getUserState,
   postExchange,
   getAllAssets,
+  getOpenOrders,
 } from '../lib/hyperliquid/client';
 import {
   signUserAction,
@@ -27,6 +28,7 @@ export function useHyperliquid() {
   const { data: walletClient } = useWalletClient();
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('unknown');
   const [userState, setUserState] = useState<UserState | null>(null);
+  const [openOrders, setOpenOrders] = useState<any[]>([]);
   const [availableAssets, setAvailableAssets] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -46,12 +48,18 @@ export function useHyperliquid() {
 
     setIsLoading(true);
     try {
-      const state = await getUserState(address);
+      const [state, orders] = await Promise.all([
+        getUserState(address),
+        getOpenOrders(address),
+      ]);
       if (state) {
         setSetupStatus('setup');
         setUserState(state);
       } else {
         setSetupStatus('not-setup');
+      }
+      if (orders) {
+        setOpenOrders(orders);
       }
     } catch (error) {
       console.error('Error checking setup status:', error);
@@ -95,9 +103,15 @@ export function useHyperliquid() {
 
     setIsLoading(true);
     try {
-      const state = await getUserState(address);
+      const [state, orders] = await Promise.all([
+        getUserState(address),
+        getOpenOrders(address),
+      ]);
       if (state) {
         setUserState(state);
+      }
+      if (orders) {
+        setOpenOrders(orders);
       }
     } catch (error) {
       console.error('Error loading balance:', error);
@@ -188,6 +202,7 @@ export function useHyperliquid() {
   return {
     setupStatus,
     userState,
+    openOrders,
     isLoading,
     checkSetupStatus,
     setupHyperliquid,

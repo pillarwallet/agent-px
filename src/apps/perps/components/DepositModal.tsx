@@ -17,9 +17,15 @@ import useTransactionKit from '../../../hooks/useTransactionKit';
 
 interface DepositModalProps {
   userState: any;
+  trigger?: React.ReactNode;
+  disabled?: boolean;
 }
 
-export function DepositModal({ userState }: DepositModalProps) {
+export function DepositModal({
+  userState,
+  trigger,
+  disabled,
+}: DepositModalProps) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -130,6 +136,9 @@ export function DepositModal({ userState }: DepositModalProps) {
             });
           } else {
             toast({
+              title: 'Wrong Network',
+              description: 'Please switch to Arbitrum manually',
+              variant: 'destructive',
               title: 'Wrong Network',
               description: 'Please switch to Arbitrum manually',
               variant: 'destructive',
@@ -265,10 +274,12 @@ export function DepositModal({ userState }: DepositModalProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <ArrowDownUp className="h-4 w-4 mr-2" />
-          Deposit
-        </Button>
+        {trigger || (
+          <Button variant="outline" size="sm" disabled={disabled}>
+            <ArrowDownUp className="h-4 w-4 mr-2" />
+            Deposit
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
