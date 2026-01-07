@@ -155,7 +155,7 @@ const Index = () => {
     }
   }, [setupStatus, loadBalance]);
 
-  const handleAssetSelect = (symbol: string, asset: AssetInfo) => {
+  const handleAssetSelect = (symbol: string, asset: AssetInfo, shouldScroll = false) => {
     // Look up full asset info including price
     const fullAsset = allAssets.find(a => a.symbol === asset.symbol);
     if (fullAsset) {
@@ -163,6 +163,10 @@ const Index = () => {
     } else {
       // Fallback if not found (shouldn't happen)
       setSelectedAsset(asset as EnhancedAsset);
+    }
+
+    if (shouldScroll) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -178,6 +182,21 @@ const Index = () => {
     } else {
       console.warn(`Asset ${normalizeTicker} not found in cached assets`);
       toast.error(`Asset ${normalizeTicker} not found. Please try refreshing.`);
+    }
+  };
+
+
+  const handlePositionClick = (symbol: string) => {
+    // 1. Find asset in our centralized allAssets list
+    const asset = allAssets.find(
+      (a) => a.symbol === symbol || a.symbol === symbol.toUpperCase()
+    );
+
+    if (asset) {
+      // 2. Update selected asset (do not scroll)
+      handleAssetSelect(asset.symbol, asset, false);
+    } else {
+      console.warn(`[Index] Asset ${symbol} not found in allAssets`);
     }
   };
 
@@ -232,7 +251,10 @@ const Index = () => {
         {/* Open Positions - Full Width */}
         {(agentAddress || (address && setupStatus === 'setup')) && (
           <div className="mb-6">
-            <PositionsCard masterAddress={agentAddress || address} />
+            <PositionsCard
+              masterAddress={agentAddress || address}
+              onPositionClick={handlePositionClick}
+            />
           </div>
         )}
 
@@ -248,7 +270,7 @@ const Index = () => {
           <div className="mb-6">
             <AssetSelector
               selectedSymbol={selectedAsset?.symbol || null}
-              onSelect={handleAssetSelect}
+              onSelect={(symbol, asset) => handleAssetSelect(symbol, asset, true)}
               assets={allAssets}
             />
           </div>
