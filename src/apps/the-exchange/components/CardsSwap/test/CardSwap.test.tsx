@@ -151,6 +151,13 @@ vi.mock('../../../../../hooks/useDeployWallet', () => ({
 }));
 
 describe('<CardsSwap />', () => {
+  beforeAll(() => {
+    vi.stubEnv('VITE_SWAP_BUTTON_SWITCH', 'true');
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset store state to initial values
