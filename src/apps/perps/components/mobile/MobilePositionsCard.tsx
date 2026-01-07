@@ -27,7 +27,6 @@ export function MobilePositionsCard({
   totalValue,
   totalPnl,
   totalPnlPercent,
-  totalPnlPercent,
   openOrders,
   onPositionClick,
 }: MobilePositionsCardProps & { onPositionClick?: (coin: string) => void }) {
