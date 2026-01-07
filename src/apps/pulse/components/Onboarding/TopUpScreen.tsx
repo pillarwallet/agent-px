@@ -1004,11 +1004,13 @@ export default function TopUpScreen(props: TopUpScreenProps) {
             <div className="flex flex-col gap-2">
               {(() => {
                 // Convert USD amount to token units using token price
-                const tokenPrice = parseFloat(selectedFeeAsset.tokenPrice || '0') || 1;
+                const tokenPrice =
+                  parseFloat(selectedFeeAsset.tokenPrice || '0') || 1;
                 const topUpAmountInTokens = parseFloat(amount) / tokenPrice;
                 const gasInTokens = parseFloat(estimatedGasCostInToken);
                 const totalNeededInTokens = topUpAmountInTokens + gasInTokens;
-                const hasEnoughBalance = selectedFeeAsset.balance >= totalNeededInTokens;
+                const hasEnoughBalance =
+                  selectedFeeAsset.balance >= totalNeededInTokens;
 
                 return (
                   <>
@@ -1017,7 +1019,8 @@ export default function TopUpScreen(props: TopUpScreenProps) {
                         Estimated Gas Fee:
                       </span>
                       <span className="text-white font-medium text-sm">
-                        ≈ {estimatedGasCostInToken} {selectedFeeAsset.asset.symbol}
+                        ≈ {estimatedGasCostInToken}{' '}
+                        {selectedFeeAsset.asset.symbol}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
@@ -1031,12 +1034,12 @@ export default function TopUpScreen(props: TopUpScreenProps) {
                       <span className="text-white/50">Your balance:</span>
                       <span
                         className={
-                          hasEnoughBalance
-                            ? 'text-[#10B981]'
-                            : 'text-[#EF4444]'
+                          hasEnoughBalance ? 'text-[#10B981]' : 'text-[#EF4444]'
                         }
                       >
-                        {selectedFeeAsset.balance.toFixed(selectedFeeAsset.decimals)}{' '}
+                        {selectedFeeAsset.balance.toFixed(
+                          selectedFeeAsset.decimals
+                        )}{' '}
                         {selectedFeeAsset.asset.symbol}
                       </span>
                     </div>
