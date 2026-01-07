@@ -15,7 +15,7 @@ export function MobileHeader() {
 
       {/* Logo */}
       <div className="flex items-center gap-2">
-        <div className="h-6 w-6 rounded bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center">
+        <div className="h-6 w-6 rounded bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center">
           <span className="text-white text-xs font-bold">∞</span>
         </div>
         <span className="text-lg font-bold">Perps</span>

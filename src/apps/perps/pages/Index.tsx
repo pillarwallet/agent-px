@@ -8,6 +8,7 @@ import { AssetSelector } from '@/perps/components/AssetSelector';
 import { TradeForm } from '@/perps/components/TradeForm';
 import { SparklineChart } from '@/perps/components/SparklineChart';
 import { PositionsCard } from '@/perps/components/PositionsCard';
+import { TradeHistoryCard } from '@/perps/components/TradeHistoryCard';
 import { useHyperliquid } from '@/perps/hooks/useHyperliquid';
 import type { AssetInfo } from '@/perps/lib/hyperliquid/types';
 
@@ -46,17 +47,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-bg">
-      <div className="container mx-auto px-4 py-8 pb-24 md:pb-8 max-w-7xl">
+      <div className="container mx-auto px-4 pt-4 pb-24 md:pb-8 max-w-7xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Hyperliquid Trading
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Professional perpetual futures trading interface
-            </p>
-          </div>
+        <div className="flex items-center justify-end mb-4">
           <ConnectButton />
         </div>
 
@@ -92,6 +85,13 @@ const Index = () => {
           </div>
         )}
 
+        {/* Trade History - Full Width */}
+        {address && setupStatus === 'setup' && (
+          <div className="mb-6">
+            <TradeHistoryCard masterAddress={address} />
+          </div>
+        )}
+
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Column - Balance */}
@@ -100,6 +100,7 @@ const Index = () => {
               <BalanceCard
                 userState={userState}
                 isLoading={isLoading}
+                masterAddress={address}
                 onRefresh={loadBalance}
               />
             )}

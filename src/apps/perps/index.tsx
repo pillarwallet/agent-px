@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import useTransactionKit from '../../hooks/useTransactionKit';
 import { StatusBanner } from './components/StatusBanner';
 import { AgentControls } from './components/AgentControls';
@@ -7,6 +8,7 @@ import { AssetSelector } from './components/AssetSelector';
 import { TradeForm } from './components/TradeForm';
 import { SparklineChart } from './components/SparklineChart';
 import { PositionsCard } from './components/PositionsCard';
+import { TradeHistoryCard } from './components/TradeHistoryCard';
 import { useHyperliquid } from './hooks/useHyperliquid';
 import { getAgentWallet, getImportedAccount } from './lib/hyperliquid/keystore';
 import { getUserState, getMetaAndAssetCtxs } from './lib/hyperliquid/client';
@@ -17,9 +19,14 @@ import type {
 } from './lib/hyperliquid/types';
 import { toast } from 'sonner';
 
+import { Toaster } from './components/ui/sonner';
+
 import './styles/perps.css';
 
 const Index = () => {
+  // Get symbol from URL params (e.g., /perps/btc)
+  const { symbol: urlSymbol } = useParams<{ symbol?: string }>();
+
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const { walletAddress: address } = useTransactionKit();
   const {
@@ -31,11 +38,15 @@ const Index = () => {
     loadBalance,
   } = useHyperliquid();
 
-  const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>({
+  const [selectedAsset, setSelectedAsset] = useState<EnhancedAsset | null>({
     id: 0,
     symbol: 'BTC',
     szDecimals: 5,
     maxLeverage: 50,
+    price: 0,
+    volume: 0,
+    priceChange: 0,
+    priceChangePercent: 0,
   });
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
@@ -78,6 +89,22 @@ const Index = () => {
           );
 
           setAllAssets(enhancedAssets);
+
+          // Auto-select asset from URL if provided
+          if (urlSymbol && enhancedAssets.length > 0) {
+            const normalizedUrlSymbol = urlSymbol.toUpperCase();
+            const urlAsset = enhancedAssets.find(a => a.symbol === normalizedUrlSymbol);
+            if (urlAsset) {
+              setSelectedAsset(urlAsset);
+              console.log(`[URL] Auto-selected ${urlAsset.symbol} from URL`);
+            }
+          }
+
+          // Update selected asset price if it exists
+          if (selectedAsset) {
+            const updated = enhancedAssets.find(a => a.symbol === selectedAsset.symbol);
+            if (updated) setSelectedAsset(updated);
+          }
         }
       } catch (error) {
         console.error('Failed to load assets:', error);
@@ -85,7 +112,7 @@ const Index = () => {
     };
 
     loadAssets();
-  }, []);
+  }, [selectedAsset?.symbol, urlSymbol]); // Add urlSymbol dependency
 
   // Load imported account from global storage
   const fetchImportedAccount = async () => {
@@ -129,7 +156,14 @@ const Index = () => {
   }, [setupStatus, loadBalance]);
 
   const handleAssetSelect = (symbol: string, asset: AssetInfo) => {
-    setSelectedAsset(asset);
+    // Look up full asset info including price
+    const fullAsset = allAssets.find(a => a.symbol === asset.symbol);
+    if (fullAsset) {
+      setSelectedAsset(fullAsset);
+    } else {
+      // Fallback if not found (shouldn't happen)
+      setSelectedAsset(asset as EnhancedAsset);
+    }
   };
 
   const handleTickerChange = (ticker: string) => {
@@ -149,18 +183,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-bg">
+      <Toaster />
       <div className="container mx-auto px-4 py-8 pb-24 md:pb-8 max-w-7xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Hyperliquid Trading
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Professional perpetual futures trading interface
-            </p>
-          </div>
-        </div>
 
         {/* Agent Controls + Balance - Side by Side */}
         {address && setupStatus === 'setup' && (
@@ -176,6 +201,7 @@ const Index = () => {
                 <BalanceCard
                   userState={agentUserState || userState}
                   isLoading={isLoading}
+                  masterAddress={address || agentAddress || ''}
                   onRefresh={handleRefresh}
                 />
               )}
@@ -197,6 +223,7 @@ const Index = () => {
                 selectedAsset={selectedAsset}
                 onTradeComplete={handleRefresh}
                 onTickerChange={handleTickerChange}
+                userState={agentUserState || userState}
               />
             </div>
           </div>
@@ -206,6 +233,13 @@ const Index = () => {
         {(agentAddress || (address && setupStatus === 'setup')) && (
           <div className="mb-6">
             <PositionsCard masterAddress={agentAddress || address} />
+          </div>
+        )}
+
+        {/* Trade History - Full Width */}
+        {(agentAddress || (address && setupStatus === 'setup')) && (
+          <div className="mb-6">
+            <TradeHistoryCard masterAddress={agentAddress || address} />
           </div>
         )}
 

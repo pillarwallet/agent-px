@@ -24,7 +24,7 @@ export function MobileBalanceCard({
             <p className="text-xs text-gray-500 uppercase font-medium tracking-wide">
               Available Balance
             </p>
-            <p className="text-2xl font-bold text-cyan-500">${balance}</p>
+            <p className="text-2xl font-bold text-foreground">${balance}</p>
           </div>
         </div>
 
@@ -33,7 +33,7 @@ export function MobileBalanceCard({
           <Button
             onClick={onWithdraw}
             size="icon"
-            className="h-12 w-12 rounded-full bg-cyan-100 hover:bg-cyan-200 text-cyan-600"
+            className="h-12 w-12 rounded-full bg-muted hover:bg-muted/80 text-foreground"
             variant="ghost"
           >
             <Minus className="h-5 w-5" />

@@ -17,8 +17,6 @@ import {
   AlertCircle,
   Copy,
   Download,
-  Eye,
-  EyeOff,
   Upload,
   Trash2,
   Settings,
@@ -64,7 +62,6 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isLoadingAgent, setIsLoadingAgent] = useState(false);
-  const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [agentPrivateKey, setAgentPrivateKey] = useState<string>('');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importPrivateKey, setImportPrivateKey] = useState('');
@@ -603,20 +600,20 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
   const Icon = config.icon;
 
   return (
-    <Card className="p-4 h-full">
-      <div className="flex items-center justify-between mb-4">
+    <Card className="p-3 h-full">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
-          <Shield className="h-5 w-5 text-primary" />
+          <Shield className="h-4 w-4 text-primary" />
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold">Agent Wallet:</span>
+              <span className="font-semibold text-sm">Agent Wallet:</span>
               <Badge variant="outline" className={config.color}>
                 <Icon className="h-3 w-3 mr-1" />
                 {config.label}
               </Badge>
             </div>
             {agentAddress && (
-              <div className="space-y-2 mt-2">
+              <div className="space-y-1 mt-1">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-muted-foreground">
                     {agentAddress.slice(0, 10)}...{agentAddress.slice(-8)}
@@ -629,58 +626,6 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
                   </button>
                 </div>
 
-                {agentPrivateKey && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowPrivateKey(!showPrivateKey)}
-                        className="h-7 text-xs"
-                      >
-                        {showPrivateKey ? (
-                          <EyeOff className="h-3 w-3 mr-1" />
-                        ) : (
-                          <Eye className="h-3 w-3 mr-1" />
-                        )}
-                        {showPrivateKey ? 'Hide' : 'Show'} Private Key
-                      </Button>
-                      {showPrivateKey && (
-                        <>
-                          <button
-                            onClick={copyPrivateKey}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                            title="Copy private key"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={downloadPrivateKey}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                            title="Download private key"
-                          >
-                            <Download className="h-3 w-3" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    {showPrivateKey && (
-                      <div className="bg-muted border border-border rounded p-2">
-                        <div className="text-xs font-mono text-muted-foreground break-all">
-                          {agentPrivateKey}
-                        </div>
-                        <div className="text-xs text-destructive mt-2 flex items-start gap-1">
-                          <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                          <span>
-                            Never share your private key! Anyone with access can
-                            control this wallet.
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -689,7 +634,7 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
 
       {/* Validation Status Display */}
       {validationStatus !== 'idle' && (
-        <div className="mb-4">
+        <div className="mb-3">
           <ValidationStatus
             status={validationStatus}
             agentAddress={validationData.agentAddress}
@@ -703,22 +648,23 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
       {agentStatus === 'none' && (
         <>
           {!address ? (
-            <div className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-3">
               Please connect your wallet to create an agent
             </div>
           ) : isLoadingAgent ? (
-            <div className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-3">
               Loading agent wallet...
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 <Button
                   onClick={() => setShowImportDialog(true)}
                   disabled={isCreating}
                   className="w-full"
+                  size="sm"
                 >
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="h-3 w-3 mr-2" />
                   Import Agent
                 </Button>
                 <Button
@@ -726,6 +672,7 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
                   disabled={isCreating}
                   className="w-full"
                   variant="outline"
+                  size="sm"
                 >
                   {isCreating ? 'Creating...' : 'Create New'}
                 </Button>
@@ -801,11 +748,12 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
       </Dialog>
 
       {agentStatus === 'created' && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Button
             onClick={handleApproveAgent}
             disabled={isApproving || !address}
             className="w-full"
+            size="sm"
           >
             {isApproving
               ? 'Approving...'
@@ -816,6 +764,7 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
             disabled={isRemoving || isApproving}
             variant="outline"
             className="w-full text-xs"
+            size="sm"
           >
             {isRemoving ? 'Removing...' : 'Remove Agent'}
           </Button>
@@ -840,13 +789,6 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
-                    onClick={() => setShowPrivateKey(!showPrivateKey)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    {showPrivateKey ? 'Hide' : 'View'} Private Key
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
                     onClick={handleRemoveAccount}
                     className="text-destructive"
                   >
@@ -863,30 +805,6 @@ export function AgentControls({ onStatusChange }: AgentControlsProps) {
               </div>
             </div>
           </div>
-
-          {showPrivateKey && agentPrivateKey && (
-            <div className="bg-muted border border-border rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-warning">
-                  ⚠️ Private Key
-                </span>
-                <Button
-                  onClick={() => {
-                    navigator.clipboard.writeText(agentPrivateKey);
-                    toast.success('Private key copied to clipboard');
-                  }}
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2"
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="text-xs font-mono break-all bg-background rounded p-2">
-                {agentPrivateKey}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </Card>

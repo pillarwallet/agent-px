@@ -3,9 +3,10 @@ import { useAccount } from 'wagmi';
 import { MobileHeader } from '../components/mobile/MobileHeader';
 import { MobileBalanceCard } from '../components/mobile/MobileBalanceCard';
 import { MobilePositionsCard } from '../components/mobile/MobilePositionsCard';
+import { TradeHistoryCard } from '../components/TradeHistoryCard';
 import { MobileMarketsList } from '../components/mobile/MobileMarketsList';
 import { useHyperliquid } from '../hooks/useHyperliquid';
-import { getUserState, getMetaAndAssetCtxs } from '../lib/hyperliquid/client';
+import { getUserState, getMetaAndAssetCtxs, getOpenOrders } from '../lib/hyperliquid/client';
 import { getImportedAccount } from '../lib/hyperliquid/keystore';
 
 export default function MobileIndex() {
@@ -60,9 +61,34 @@ export default function MobileIndex() {
     loadMarkets();
   }, []);
 
+  // Open Orders State
+  const [openOrders, setOpenOrders] = useState<any[]>([]);
+
+  // Load Open Orders
+  useEffect(() => {
+    const fetchOrders = async () => {
+      const targetAddress = address || agentAddress;
+      if (!targetAddress) return;
+
+      try {
+        const orders = await getOpenOrders(targetAddress);
+        setOpenOrders(orders || []);
+      } catch (error) {
+        console.error('[MobileIndex] Error loading orders:', error);
+      }
+    };
+
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 10000);
+    return () => clearInterval(interval);
+  }, [address, agentAddress]);
+
   // Get balance from agent or connected wallet
   const displayState = agentUserState || userState;
-  const balance = displayState?.marginSummary?.totalRawUsd || '0.00';
+  const rawBalance = displayState?.marginSummary
+    ? parseFloat(displayState.marginSummary.accountValue) - parseFloat(displayState.marginSummary.totalMarginUsed)
+    : 0;
+  const balance = rawBalance.toFixed(2);
 
   // Format positions
   const positions =
@@ -82,19 +108,19 @@ export default function MobileIndex() {
           pnl:
             pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`,
           pnlPercent: '0.00%',
-          entryPrice: parseFloat(p.position.entryPx || '0').toFixed(2),
-          markPrice: parseFloat(p.position.markPx || '0').toFixed(2),
+          entryPrice: formatPrice(parseFloat(p.position.entryPx || '0')),
+          markPrice: formatPrice(parseFloat(p.position.markPx || '0')),
           liqPrice: p.position.liquidationPx || 'N/A',
         };
       }) || [];
 
   // Calculate total PNL
-  const totalPnl = positions.reduce((sum, p) => {
+  const totalPnl = positions.reduce((sum: number, p: any) => {
     const pnl = parseFloat(p.pnl.replace(/[+$-]/g, ''));
     return sum + (p.pnl.startsWith('-') ? -pnl : pnl);
   }, 0);
 
-  const totalValue = positions.reduce((sum, p) => sum + parseFloat(p.value), 0);
+  const totalValue = positions.reduce((sum: number, p: any) => sum + parseFloat(p.value), 0);
   const totalPnlPercent =
     totalValue > 0 ? ((totalPnl / totalValue) * 100).toFixed(2) : '0.00';
 
@@ -113,7 +139,7 @@ export default function MobileIndex() {
         />
 
         {/* Positions Card */}
-        {positions.length > 0 && (
+        {(positions.length > 0 || openOrders.length > 0) && (
           <MobilePositionsCard
             positions={positions}
             totalValue={totalValue.toFixed(2)}
@@ -123,7 +149,13 @@ export default function MobileIndex() {
                 : `-$${Math.abs(totalPnl).toFixed(2)}`
             }
             totalPnlPercent={`${totalPnlPercent}%`}
+            openOrders={openOrders}
           />
+        )}
+
+        {/* Trade History */}
+        {address && (
+          <TradeHistoryCard masterAddress={address} />
         )}
 
         {/* Markets List */}
@@ -139,6 +171,10 @@ export default function MobileIndex() {
 function formatPrice(price: number): string {
   if (price >= 1000) {
     return price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+  // If price < 1, use 5 decimals
+  if (Math.abs(price) < 1 && Math.abs(price) > 0) {
+    return price.toFixed(5);
   }
   return price.toFixed(2);
 }

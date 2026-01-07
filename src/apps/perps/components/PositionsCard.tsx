@@ -28,9 +28,9 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
-import { getAgentWallet } from '../lib/hyperliquid/keystore';
-import { placeMarketOrderAgent } from '../lib/hyperliquid/sdk';
-import { getMarkPrice } from '../lib/hyperliquid/client';
+import { getAgentWallet, getImportedAccount } from '../lib/hyperliquid/keystore';
+import { placeMarketOrderAgent, cancelOrderAgent } from '../lib/hyperliquid/sdk';
+import { getMarkPrice, getOpenOrders, getMetaAndAssetCtxs, getUserFills } from '../lib/hyperliquid/client';
 import { TokenIcon } from './TokenIcon';
 
 interface PositionsCardProps {
@@ -42,50 +42,115 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
   const [positions, setPositions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
-
-  // Mobile Interaction State
-  const [expandedPositionIndex, setExpandedPositionIndex] = useState<
-    number | null
-  >(null);
-
-  // Close Position State
+  const [expandedPositionIndex, setExpandedPositionIndex] = useState<number | null>(null);
   const [positionToClose, setPositionToClose] = useState<any>(null);
   const [closePercentage, setClosePercentage] = useState<number>(100);
   const [isClosing, setIsClosing] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  /* Refactored PositionsCard Code */
+  /* Replaced content for entire Card component to handle structural changes cleanly */
+  const [universe, setUniverse] = useState<any[]>([]);
+  const [openOrders, setOpenOrders] = useState<any[]>([]);
 
-  const fetchPositions = async () => {
+  const fetchData = async () => {
     if (!masterAddress) return;
 
     setIsLoading(true);
     try {
-      const userState = await getUserState(masterAddress);
+      console.log('DEBUG: Fetching data for', masterAddress);
+
+      const [userState, orders, metaData] = await Promise.all([
+        getUserState(masterAddress),
+        getOpenOrders(masterAddress),
+        getMetaAndAssetCtxs(),
+      ]);
+
+      console.log('DEBUG: API Results', {
+        userState: !!userState,
+        ordersCount: Array.isArray(orders) ? orders.length : 'not-array',
+        metaData: !!metaData
+      });
+
+      // Create a map of symbol -> mark price
+      const priceMap: Record<string, number> = {};
+      if (metaData && Array.isArray(metaData) && metaData[0]?.universe && Array.isArray(metaData[1])) {
+        const universeData = metaData[0].universe;
+        setUniverse(universeData);
+        const assetCtxs = metaData[1];
+
+        universeData.forEach((asset: any, index: number) => {
+          const ctx = assetCtxs[index];
+          if (ctx && ctx.markPx) {
+            priceMap[asset.name] = parseFloat(ctx.markPx);
+          }
+        });
+      }
 
       if (userState?.assetPositions) {
+        console.log('DEBUG: Processing positions', userState.assetPositions.length);
         const openPositions = userState.assetPositions
-          .map((pos: any) => pos.position)
+          .map((pos: any) => {
+            try {
+              const rawPos = pos.position;
+              // Enrich with mark price if missing or zero
+              let markPx = rawPos.markPx;
+              if ((!markPx || parseFloat(markPx) === 0) && priceMap[rawPos.coin]) {
+                markPx = priceMap[rawPos.coin].toString();
+              }
+
+              return {
+                ...rawPos,
+                markPx,
+              };
+            } catch (err) {
+              console.error('DEBUG: Error mapping position', err);
+              return pos.position;
+            }
+          })
           .filter((p: any) => parseFloat(p.szi) !== 0);
 
+        console.log('DEBUG: Setting positions', openPositions.length);
         setPositions(openPositions);
+      } else {
+        console.log('DEBUG: No assetPositions in userState');
       }
+
+      setOpenOrders(orders || []);
+
     } catch (error) {
-      console.error('Error fetching positions:', error);
+      console.error('DEBUG: Error fetching data:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPositions();
-    const interval = setInterval(fetchPositions, 10000); // Refresh every 10 seconds
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [masterAddress]);
 
-  const formatNumber = (
-    value: string | number,
-    decimals: number = 2
-  ): string => {
+  // Auto-collapse when there are no positions or orders, auto-open when there are
+  useEffect(() => {
+    if (positions.length === 0 && openOrders.length === 0) {
+      setIsOpen(false);
+    } else {
+      setIsOpen(true);
+    }
+  }, [positions.length, openOrders.length]);
+
+
+  const formatNumber = (value: string | number, decimals: number = 2): string => {
+    if (!value) return '-';
     return parseFloat(value.toString()).toFixed(decimals);
+  };
+
+  const formatPrice = (value: string | number): string => {
+    if (!value) return '-';
+    const val = parseFloat(value.toString());
+    if (val === 0) return '0.00';
+    if (Math.abs(val) < 1) return val.toFixed(5);
+    return val.toFixed(2);
   };
 
   const formatPnl = (pnl: string) => {
@@ -96,8 +161,11 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
   };
 
   const calculateLeverage = (position: any): string => {
-    const positionValue =
-      Math.abs(parseFloat(position.szi)) * parseFloat(position.entryPx);
+    if (position.leverage && typeof position.leverage.value === 'number') {
+      return `${position.leverage.value}x`;
+    }
+    // Fallback to effective leverage calculation if SDK value is missing
+    const positionValue = Math.abs(parseFloat(position.szi)) * parseFloat(position.entryPx);
     const marginUsed = parseFloat(position.marginUsed);
     if (marginUsed === 0) return '0x';
     return `${formatNumber(positionValue / marginUsed, 1)}x`;
@@ -109,48 +177,47 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
     setCloseDialogOpen(true);
   };
 
-  // Helper to get Coin ID
-  const getCoinId = async (symbol: string) => {
-    try {
-      const response = await fetch('https://api.hyperliquid.xyz/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'meta' }),
-      });
-      const data = await response.json();
-      const assetIndex = data.universe.findIndex((a: any) => a.name === symbol);
-      return assetIndex;
-    } catch (e) {
-      console.error('Failed to fetch meta', e);
-      return -1;
-    }
-  };
+  /* Removed getCoinId as we reuse cached universe */
 
   const handleExecuteClose = async () => {
     if (!positionToClose) return;
     setIsClosing(true);
     try {
-      const agent = await getAgentWallet(masterAddress);
-      if (!agent) throw new Error('Agent not found');
+      let privateKey: string | undefined;
 
-      const coinId = await getCoinId(positionToClose.coin);
-      if (coinId === -1 || coinId === undefined)
-        throw new Error('Asset not found');
+      // 1. Check for Imported Account (Priority)
+      const imported = getImportedAccount();
+      if (imported) {
+        privateKey = imported.privateKey;
+      }
+      // 2. Fallback to Agent Wallet linked to connected wallet
+      else {
+        const agent = await getAgentWallet(masterAddress);
+        if (agent?.approved) {
+          privateKey = agent.privateKey;
+        }
+      }
+
+      if (!privateKey) throw new Error('Agent not found. Please import an account or create an agent.');
+
+      // Use cached universe to find coin ID
+      const coinIndex = universe.findIndex((a: any) => a.name === positionToClose.coin);
+      if (coinIndex === -1) {
+        throw new Error(`Asset ${positionToClose.coin} not found in metadata`);
+      }
+      const coinId = coinIndex;
 
       const totalSize = Math.abs(parseFloat(positionToClose.szi));
       const sizeToClose = totalSize * (closePercentage / 100);
-      // Truncate to avoid precision errors
       const sizeStr = sizeToClose.toFixed(6);
       const size = parseFloat(sizeStr);
 
-      const currentPrice =
-        parseFloat(positionToClose.markPx) ||
-        parseFloat(positionToClose.entryPx);
+      const currentPrice = parseFloat(positionToClose.markPx) || parseFloat(positionToClose.entryPx);
       const isLong = parseFloat(positionToClose.szi) > 0;
 
-      await placeMarketOrderAgent(agent.privateKey, {
+      await placeMarketOrderAgent(privateKey as `0x${string}`, {
         coinId,
-        isBuy: !isLong, // Close Long = Sell (false), Close Short = Buy (true)
+        isBuy: !isLong,
         size,
         currentPrice,
         reduceOnly: true,
@@ -158,7 +225,7 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
 
       toast.success('Order submitted');
       setCloseDialogOpen(false);
-      setTimeout(fetchPositions, 1000);
+      setTimeout(fetchData, 1000);
       setExpandedPositionIndex(null);
     } catch (e: any) {
       toast.error(e.message);
@@ -167,9 +234,74 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
     }
   };
 
+  const isBuy = (side: string) => side === 'B';
+
+  const handleCancelOrder = async (oid: number) => {
+    let loadingToast: string | number | undefined;
+    try {
+      // Find the order to get the coin/asset info
+      const order = openOrders.find(o => o.oid === oid);
+      if (!order) {
+        toast.error('Order not found');
+        return;
+      }
+
+      loadingToast = toast.info('Canceling order...', { description: `${order.coin} - Order ID: ${oid}` });
+
+      let privateKey: string | undefined;
+
+      // 1. Check for Imported Account (Priority)
+      const imported = getImportedAccount();
+      if (imported) {
+        privateKey = imported.privateKey;
+      }
+      // 2. Fallback to Agent Wallet linked to connected wallet
+      else {
+        const agent = await getAgentWallet(masterAddress);
+        if (agent?.approved) {
+          privateKey = agent.privateKey;
+        }
+      }
+
+      if (!privateKey) {
+        toast.dismiss(loadingToast);
+        toast.error('Agent wallet not found');
+        return;
+      }
+
+      // Use cached universe to find coin ID
+      const coinIndex = universe.findIndex((a: any) => a.name === order.coin);
+      let coinId: number | undefined;
+
+      if (coinIndex !== -1) {
+        coinId = coinIndex;
+      }
+
+      if (coinId === undefined) {
+        toast.dismiss(loadingToast);
+        toast.error('Could not find asset ID', { description: `Asset: ${order.coin}` });
+        return;
+      }
+
+      await cancelOrderAgent(privateKey as `0x${string}`, {
+        coinId: coinId,
+        oid: oid,
+      });
+
+      toast.dismiss(loadingToast);
+      toast.success('Order canceled successfully', { description: `${order.coin}` });
+
+      // Refresh orders list
+      await fetchData();
+    } catch (e: any) {
+      console.error('Error canceling order:', e);
+      if (loadingToast) toast.dismiss(loadingToast);
+      toast.error('Failed to cancel order', { description: e.message || 'Unknown error' });
+    }
+  };
+
   return (
     <Card className="w-full">
-      {/* Close Position Dialog */}
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
         <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground">
           <DialogHeader>
@@ -206,11 +338,7 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
             <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleExecuteClose}
-              disabled={isClosing}
-            >
+            <Button variant="destructive" onClick={handleExecuteClose} disabled={isClosing}>
               {isClosing ? 'Closing...' : 'Confirm Close'}
             </Button>
           </DialogFooter>
@@ -220,212 +348,332 @@ export function PositionsCard({ masterAddress }: PositionsCardProps) {
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <CardTitle className="text-lg">Open Positions</CardTitle>
-            <ChevronDown
-              className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-            />
+            <CardTitle className="text-lg">Positions & Orders</CardTitle>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </CollapsibleTrigger>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={fetchPositions}
-            disabled={isLoading}
-            className="h-8 w-8"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
-            />
+          <Button variant="ghost" size="icon" onClick={fetchData} disabled={isLoading} className="h-8 w-8">
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </CardHeader>
         <CollapsibleContent>
           <CardContent className={isMobile ? 'p-4' : ''}>
-            {positions.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No open positions
-              </p>
-            ) : expandedPositionIndex !== null &&
-              positions[expandedPositionIndex] ? (
-              /* --- DETAILED VIEW (Expanded) --- */
-              (() => {
-                const position = positions[expandedPositionIndex];
-                const pnl = formatPnl(position.unrealizedPnl);
-                const roe =
-                  (parseFloat(position.unrealizedPnl) /
-                    parseFloat(position.marginUsed)) *
-                  100;
-                const isLong = parseFloat(position.szi) > 0;
-                const leverage = calculateLeverage(position);
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                Open Positions
+                <span className="text-xs font-normal bg-muted px-2 py-0.5 rounded-full">{positions.length}</span>
+              </h3>
 
-                return (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
-                    {/* Navigation Header */}
-                    <div className="flex items-center justify-between pb-2 border-b border-border/50">
-                      <Button
-                        variant="ghost"
-                        className="pl-0 gap-1 hover:bg-transparent hover:text-primary"
-                        onClick={() => setExpandedPositionIndex(null)}
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                        <span className="text-base font-semibold">Back</span>
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Open Position
-                      </span>
-                    </div>
-
-                    {/* Position Title Card */}
-                    <div className="flex justify-between items-center py-2">
-                      <div className="flex items-center gap-3">
-                        <TokenIcon symbol={position.coin} size={32} />
-                        <div>
-                          <div className="font-bold text-lg">
-                            {position.coin}
-                          </div>
-                          <div
-                            className={`text-sm font-medium ${isLong ? 'text-green-500' : 'text-red-500'}`}
-                          >
-                            {isLong ? 'Long' : 'Short'} {leverage}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`text-right ${pnl.className}`}>
-                        <div className="font-bold text-lg">
-                          ${pnl.formatted}
-                        </div>
-                        <div className="text-sm">{formatNumber(roe, 2)}%</div>
-                      </div>
-                    </div>
-
-                    {/* Trade Details Grid */}
-                    <div className="bg-muted/30 rounded-lg p-4 space-y-4">
-                      <h4 className="text-sm font-semibold flex items-center gap-2">
-                        Trade Details
-                      </h4>
-                      <div className="grid grid-cols-2 gap-y-4 gap-x-4 text-sm">
-                        <div>
-                          <span className="text-xs text-muted-foreground block mb-1">
-                            Entry Price
-                          </span>
-                          <span className="font-medium text-base">
-                            ${formatNumber(position.entryPx)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground block mb-1">
-                            Mark Price
-                          </span>
-                          <span className="font-medium text-base">
-                            $
-                            {formatNumber(
-                              Math.abs(parseFloat(position.markPx || '0')),
-                              2
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground block mb-1">
-                            Size ({position.coin})
-                          </span>
-                          <span className="font-medium text-base">
-                            {formatNumber(
-                              Math.abs(parseFloat(position.szi)),
-                              4
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground block mb-1">
-                            Liq. Price
-                          </span>
-                          <span className="font-medium text-base text-orange-500">
-                            {position.liquidationPx
-                              ? `$${formatNumber(position.liquidationPx)}`
-                              : '-'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="pt-4">
-                      <Button
-                        variant="destructive"
-                        className="w-full py-6 text-base font-semibold shadow-lg shadow-destructive/20"
-                        onClick={() => handleOpenCloseDialog(position)}
-                      >
-                        Close Position
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              /* --- COMPACT LIST VIEW --- */
-              <div className="space-y-1">
-                {/* Column Headers */}
-                <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.2fr] gap-2 px-2 pb-2 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-right">
-                  <div className="text-left">Coin</div>
-                  <div>Size</div>
-                  <div>Entry</div>
-                  <div>Mark</div>
-                  <div>PnL</div>
-                </div>
-
-                {/* Rows */}
-                {positions.map((position, index) => {
+              {positions.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4 bg-muted/20 rounded-lg border border-dashed">
+                  No open positions
+                </p>
+              ) : expandedPositionIndex !== null && positions[expandedPositionIndex] ? (
+                (() => {
+                  const position = positions[expandedPositionIndex];
                   const pnl = formatPnl(position.unrealizedPnl);
-                  const roe =
-                    (parseFloat(position.unrealizedPnl) /
-                      parseFloat(position.marginUsed)) *
-                    100;
+                  const roe = (parseFloat(position.unrealizedPnl) / parseFloat(position.marginUsed)) * 100;
                   const isLong = parseFloat(position.szi) > 0;
+                  const leverage = calculateLeverage(position);
 
                   return (
-                    <div
-                      key={index}
-                      onClick={() => setExpandedPositionIndex(index)}
-                      className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.2fr] gap-2 p-3 bg-card/50 hover:bg-muted/50 active:bg-muted transition-colors rounded-lg items-center text-xs cursor-pointer border border-transparent hover:border-border/50 text-right"
-                    >
-                      <div className="flex items-center gap-2 text-left font-bold text-sm text-foreground overflow-hidden">
-                        <TokenIcon
-                          symbol={position.coin}
-                          size={20}
-                          className="shrink-0"
-                        />
-                        <span className="truncate">{position.coin}</span>
+                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
+                      <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                        <Button variant="ghost" className="pl-0 gap-1 hover:bg-transparent hover:text-primary" onClick={() => setExpandedPositionIndex(null)}>
+                          <ChevronLeft className="h-5 w-5" />
+                          <span className="text-base font-semibold">Back</span>
+                        </Button>
+                        <span className="text-sm text-muted-foreground">Open Position</span>
                       </div>
-                      <div
-                        className={
-                          isLong
-                            ? 'text-green-500 font-medium'
-                            : 'text-red-500 font-medium'
-                        }
-                      >
-                        {formatNumber(position.szi, 3)}
+
+                      <div className="flex justify-between items-center py-2">
+                        <div className="flex items-center gap-3">
+                          <TokenIcon symbol={position.coin} size={32} />
+                          <div>
+                            <div className="font-bold text-lg">{position.coin}</div>
+                            <div className={`text-sm font-medium ${isLong ? 'text-green-500' : 'text-red-500'}`}>
+                              {isLong ? 'Long' : 'Short'} {leverage}
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`text-right ${pnl.className}`}>
+                          <div className="font-bold text-lg">${pnl.formatted}</div>
+                          <div className="text-sm">{formatNumber(roe, 2)}%</div>
+                        </div>
                       </div>
-                      <div className="font-medium text-muted-foreground">
-                        ${formatNumber(position.entryPx, 1)}
+
+                      <div className="bg-muted/30 rounded-lg p-4 space-y-4">
+                        <h4 className="text-sm font-semibold flex items-center gap-2">Trade Details</h4>
+                        <div className="grid grid-cols-2 gap-y-4 gap-x-4 text-sm">
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Entry Price</span>
+                            <span className="font-medium text-base">${formatPrice(position.entryPx)}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Mark Price</span>
+                            <span className="font-medium text-base">${formatPrice(position.markPx || '0')}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Size ({position.coin})</span>
+                            <span className="font-medium text-base">{formatNumber(Math.abs(parseFloat(position.szi)), 4)}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Liq. Price</span>
+                            <span className="font-medium text-base text-orange-500">
+                              {position.liquidationPx ? `$${formatPrice(position.liquidationPx)}` : '-'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Take Profit</span>
+                            <span className="font-medium text-base text-green-500">
+                              {position.tpPrice ? `$${formatPrice(position.tpPrice)}` : '-'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Stop Loss</span>
+                            <span className="font-medium text-base text-red-500">
+                              {position.slPrice ? `$${formatPrice(position.slPrice)}` : '-'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="font-medium text-muted-foreground">
-                        $
-                        {formatNumber(
-                          Math.abs(parseFloat(position.markPx || '0')),
-                          1
-                        )}
-                      </div>
-                      <div
-                        className={`flex flex-col items-end ${pnl.className}`}
-                      >
-                        <span className="font-bold">${pnl.formatted}</span>
-                        <span className="text-[10px] opacity-80">
-                          ({formatNumber(roe, 1)}%)
-                        </span>
+
+                      <div className="pt-4">
+                        <Button variant="destructive" className="w-full py-6 text-base font-semibold shadow-lg shadow-destructive/20" onClick={() => handleOpenCloseDialog(position)}>
+                          Close Position
+                        </Button>
                       </div>
                     </div>
                   );
-                })}
-              </div>
-            )}
+                })()
+              ) : (
+                <div className="space-y-1">
+                  {!isMobile && (
+                    <div className="grid grid-cols-[0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 px-2 pb-2 text-xs text-muted-foreground font-semibold uppercase tracking-wider text-right">
+                      <div className="text-left">Coin</div>
+                      <div>Size</div>
+                      <div>Entry</div>
+                      <div>Mark</div>
+                      <div>Liq. Px</div>
+                      <div>TP / SL</div>
+                      <div>Margin</div>
+                      <div className="text-center">PnL</div>
+                    </div>
+                  )}
+
+                  {positions.map((position, index) => {
+                    const pnl = formatPnl(position.unrealizedPnl);
+                    const roe = (parseFloat(position.unrealizedPnl) / parseFloat(position.marginUsed)) * 100;
+                    const isLong = parseFloat(position.szi) > 0;
+                    const positionValue = Math.abs(parseFloat(position.szi)) * parseFloat(position.markPx || '0');
+                    const marginUsed = parseFloat(position.marginUsed || '0');
+                    const leverage = position.leverage?.value || 0;
+
+                    if (isMobile) {
+                      return (
+                        <div key={index} onClick={() => setExpandedPositionIndex(index)} className="flex flex-col gap-3 p-4 bg-card/50 hover:bg-muted/50 rounded-lg border border-border/50 mb-3 cursor-pointer">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <TokenIcon symbol={position.coin} size={32} className="shrink-0" />
+                              <div>
+                                <div className="font-bold text-base flex items-center gap-2">{position.coin}</div>
+                                <div className={`text-xs font-bold flex items-center gap-1 ${isLong ? 'text-green-500' : 'text-red-500'}`}>
+                                  {isLong ? 'Long' : 'Short'}
+                                  <span className="text-muted-foreground font-normal">• {leverage}x</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className={`text-right ${pnl.className}`}>
+                              <div className="font-bold text-base">
+                                ${pnl.formatted} <span className="text-xs font-medium opacity-80">({formatNumber(roe, 1)}%)</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm mt-1 pt-3 border-t border-border/30">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-muted-foreground">Size</span>
+                              <span className="font-medium text-foreground">{formatNumber(position.szi, 3)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-muted-foreground">Liq. Price</span>
+                              <span className="font-medium text-orange-500">
+                                {position.liquidationPx ? `$${formatPrice(position.liquidationPx)}` : '-'}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-muted-foreground">Entry</span>
+                              <span className="font-medium text-foreground">${formatPrice(position.entryPx)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-muted-foreground">Margin</span>
+                              <span className="font-medium text-foreground">${formatNumber(marginUsed, 2)}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-muted-foreground">Mark</span>
+                              <span className="font-medium text-foreground">${formatPrice(position.markPx || '0')}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-muted-foreground">TP / SL</span>
+                              <span className="font-medium text-foreground">
+                                {position.tpPrice || position.slPrice ? (
+                                  <span className="flex gap-1">
+                                    <span className={position.tpPrice ? "text-green-500" : ""}>{position.tpPrice ? formatPrice(position.tpPrice) : '-'}</span>
+                                    <span>/</span>
+                                    <span className={position.slPrice ? "text-red-500" : ""}>{position.slPrice ? formatPrice(position.slPrice) : '-'}</span>
+                                  </span>
+                                ) : '-'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={index} onClick={() => setExpandedPositionIndex(index)} className="grid grid-cols-[0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 p-3 bg-card/50 hover:bg-muted/50 active:bg-muted transition-colors rounded-lg items-center text-sm cursor-pointer border border-transparent hover:border-border/50 text-right">
+                        <div className="flex items-center gap-2 text-left font-bold text-sm text-foreground overflow-hidden">
+                          <TokenIcon symbol={position.coin} size={20} className="shrink-0" />
+                          <div className="flex items-baseline gap-1.5">
+                            <span>{position.coin}</span>
+                            <span className="text-xs font-medium text-emerald-400">{calculateLeverage(position)}</span>
+                          </div>
+                        </div>
+                        <div className={isLong ? 'text-green-500 font-medium' : 'text-red-500 font-medium'}>
+                          {formatNumber(position.szi, 3)}
+                        </div>
+                        <div className="font-medium text-foreground">${formatPrice(position.entryPx)}</div>
+                        <div className="font-medium text-foreground">${formatPrice(position.markPx || '0')}</div>
+                        <div className="font-medium text-orange-500">{position.liquidationPx ? `$${formatPrice(position.liquidationPx)}` : '-'}</div>
+                        <div className="font-medium text-foreground">
+                          {position.tpPrice || position.slPrice ? (
+                            <div className="flex flex-col items-end text-xs leading-tight">
+                              <span className={position.tpPrice ? "text-green-500" : "text-muted-foreground"}>{position.tpPrice ? formatPrice(position.tpPrice) : '-'}</span>
+                              <span className={position.slPrice ? "text-red-500" : "text-muted-foreground"}>{position.slPrice ? formatPrice(position.slPrice) : '-'}</span>
+                            </div>
+                          ) : '-'}
+                        </div>
+                        <div className="font-medium text-foreground">${formatNumber(marginUsed, 2)}</div>
+                        <div className={`text-center ${pnl.className}`}>
+                          <span className="text-sm font-bold">${pnl.formatted}</span>
+                          <span className="text-sm opacity-80 ml-1">({formatNumber(roe, 1)}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                Open Orders
+                <span className="text-xs font-normal bg-muted px-2 py-0.5 rounded-full">{openOrders.length}</span>
+              </h3>
+
+              {openOrders.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4 bg-muted/20 rounded-lg border border-dashed">
+                  No open orders
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {!isMobile && (
+                    <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 px-2 pb-2 text-xs text-muted-foreground font-semibold uppercase tracking-wider text-right">
+                      <div className="text-left">Coin</div>
+                      <div className="text-center">Type</div>
+                      <div>Side</div>
+                      <div>Size</div>
+                      <div>Price</div>
+                      <div className="text-center">Action</div>
+                    </div>
+                  )}
+
+                  {openOrders.map((order) => {
+                    const buy = isBuy(order.side);
+                    const position = positions.find(p => p.coin === order.coin);
+
+                    let type = 'Limit';
+                    let sideLabel = buy ? 'Long' : 'Short';
+                    const isLong = position ? parseFloat(position.szi) > 0 : false;
+
+                    if (order.reduceOnly && position) {
+                      const entryPx = parseFloat(position.entryPx);
+                      const markPx = parseFloat(position.markPx || position.entryPx); // Use Mark Price for relative direction
+                      const triggerPx = parseFloat(order.trigger?.triggerPx || order.triggerCondition?.triggerPx || '0');
+                      const limitPx = parseFloat(order.limitPx || '0');
+                      const checkPx = triggerPx > 0 ? triggerPx : limitPx;
+
+                      const isClosing = (isLong && !buy) || (!isLong && buy);
+
+                      if (isClosing) {
+                        sideLabel = isLong ? 'Close Long' : 'Close Short';
+                        if (isLong) {
+                          type = checkPx > markPx ? 'Take Profit Limit' : 'Stop Limit';
+                        } else {
+                          type = checkPx < markPx ? 'Take Profit Limit' : 'Stop Limit';
+                        }
+                      }
+                    }
+
+                    if (isMobile) {
+                      return (
+                        <div key={order.oid} className="flex flex-col gap-3 p-4 bg-card/50 hover:bg-muted/50 rounded-lg border border-border/50 mb-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <TokenIcon symbol={order.coin} size={32} className="shrink-0" />
+                              <div>
+                                <div className="font-bold text-base">{order.coin}</div>
+                                <div className={`text-xs font-bold ${buy ? 'text-green-500' : 'text-red-500'}`}>
+                                  {sideLabel}
+                                  {order.triggerCondition && <span className="text-orange-500 font-normal ml-1">Trigger</span>}
+                                  <span className="text-muted-foreground font-normal ml-1 block">{type}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => handleCancelOrder(order.oid)}>
+                              <X className="h-5 w-5" />
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs pt-2 border-t border-border/30">
+                            <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Size</span>
+                              <span className="font-medium text-foreground">{formatNumber(order.sz, 4)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Price</span>
+                              <span className="font-medium text-foreground">${formatPrice(order.limitPx || order.trigger?.triggerPx || 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={order.oid} className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.5fr] gap-2 p-3 bg-card/50 hover:bg-muted/50 rounded-lg items-center text-sm border border-transparent hover:border-border/50 text-right">
+                        <div className="flex items-center gap-2 text-left font-bold text-sm text-foreground">
+                          <TokenIcon symbol={order.coin} size={20} className="shrink-0" />
+                          <span>{order.coin}</span>
+                        </div>
+                        <div className="text-center font-medium text-xs text-muted-foreground">{type}</div>
+                        <div className={`font-bold ${buy ? 'text-green-500' : 'text-red-500'}`}>
+                          {sideLabel}
+                          {order.triggerCondition && <span className="text-[10px] text-orange-500 ml-1">Trig.</span>}
+                        </div>
+                        <div className="font-medium">{formatNumber(order.sz, 4)}</div>
+                        <div className="font-medium text-foreground">${formatPrice(order.limitPx || order.trigger?.triggerPx || 0)}</div>
+                        <div className="flex justify-center">
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive" onClick={() => handleCancelOrder(order.oid)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </CardContent>
         </CollapsibleContent>
       </Collapsible>

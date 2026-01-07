@@ -27,28 +27,24 @@ All colors MUST be HSL.
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 186 100% 50%;
-    --accent-foreground: 240 10% 3.9%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
 
     --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 217 33% 17%;
     --input: 217 33% 17%;
-    --ring: 263 70% 50%;
+    --ring: 0 0% 100%;
 
     --radius: 1rem;
 
-    --gradient-primary: linear-gradient(
-      135deg,
-      hsl(263 70% 50%),
-      hsl(220 80% 55%)
-    );
-    --gradient-accent: linear-gradient(
-      135deg,
-      hsl(186 100% 50%),
-      hsl(263 70% 50%)
-    );
+    --gradient-primary: linear-gradient(135deg,
+        hsl(263 70% 50%),
+        hsl(220 80% 55%));
+    --gradient-accent: linear-gradient(135deg,
+        hsl(263 70% 50%),
+        hsl(290 70% 50%));
     --gradient-bg: linear-gradient(180deg, hsl(240 10% 3.9%), hsl(240 10% 6%));
 
     --shadow-glow: 0 0 40px hsl(263 70% 50% / 0.3);
@@ -59,11 +55,58 @@ All colors MUST be HSL.
 }
 
 @layer base {
+
+  /* Hide spin buttons for number inputs */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield !important;
+  }
+}
+
+@layer base {
   * {
     @apply border-border;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Remove blue/cyan highlight on touch/click and focus */
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  div[role="button"],
+  [tabindex] {
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+  }
+
+  /* Allow text selection in inputs */
+  input,
+  textarea {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    user-select: text;
+  }
+
+  /* Remove focus outline globally (components handle their own focus states) */
+  *:focus {
+    outline: none !important;
+  }
+
+  *:active {
+    -webkit-tap-highlight-color: transparent !important;
   }
 }

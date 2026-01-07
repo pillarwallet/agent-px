@@ -52,9 +52,9 @@ export function PriceTicker({ selectedAsset }: PriceTickerProps) {
               setTickerData((prev) =>
                 prev
                   ? {
-                      ...prev,
-                      markPrice: price,
-                    }
+                    ...prev,
+                    markPrice: price,
+                  }
                   : null
               );
             }
@@ -155,10 +155,13 @@ export function PriceTicker({ selectedAsset }: PriceTickerProps) {
       <div className="flex flex-col">
         <span className="text-xs text-muted-foreground">Mark</span>
         <span className="font-semibold">
-          {parseFloat(tickerData.markPrice).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          {(() => {
+            const price = parseFloat(tickerData.markPrice);
+            if (price < 1 && price > 0) {
+              return '$' + price.toFixed(5);
+            }
+            return '$' + price.toFixed(2);
+          })()}
         </span>
       </div>
 
@@ -166,10 +169,13 @@ export function PriceTicker({ selectedAsset }: PriceTickerProps) {
       <div className="flex flex-col">
         <span className="text-xs text-muted-foreground">Oracle</span>
         <span className="font-semibold">
-          {parseFloat(tickerData.oraclePrice).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          {(() => {
+            const price = parseFloat(tickerData.oraclePrice);
+            if (price < 1 && price > 0) {
+              return '$' + price.toFixed(5);
+            }
+            return '$' + price.toFixed(2);
+          })()}
         </span>
       </div>
 

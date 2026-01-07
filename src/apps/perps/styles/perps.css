@@ -27,8 +27,8 @@ All colors MUST be HSL.
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 186 100% 50%;
-    --accent-foreground: 240 10% 3.9%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
 
     --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
@@ -39,16 +39,12 @@ All colors MUST be HSL.
 
     --radius: 1rem;
 
-    --gradient-primary: linear-gradient(
-      135deg,
-      hsl(263 70% 50%),
-      hsl(220 80% 55%)
-    );
-    --gradient-accent: linear-gradient(
-      135deg,
-      hsl(186 100% 50%),
-      hsl(263 70% 50%)
-    );
+    --gradient-primary: linear-gradient(135deg,
+        hsl(263 70% 50%),
+        hsl(220 80% 55%));
+    --gradient-accent: linear-gradient(135deg,
+        hsl(263 70% 50%),
+        hsl(290 70% 50%));
     --gradient-bg: linear-gradient(180deg, hsl(240 10% 3.9%), hsl(240 10% 6%));
 
     --shadow-glow: 0 0 40px hsl(263 70% 50% / 0.3);

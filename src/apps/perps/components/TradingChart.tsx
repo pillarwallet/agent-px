@@ -137,6 +137,14 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
       rightPriceScale: {
         borderColor: '#374151',
       },
+      localization: {
+        priceFormatter: (price: number) => {
+          if (price < 1 && price > 0) {
+            return price.toFixed(5);
+          }
+          return price.toFixed(2);
+        },
+      },
       crosshair: {
         mode: 1,
       },
@@ -149,6 +157,16 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
       borderDownColor: '#EF4444',
       wickUpColor: '#10B981',
       wickDownColor: '#EF4444',
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => {
+          if (price < 1 && price > 0) {
+            return price.toFixed(5);
+          }
+          return price.toFixed(2);
+        },
+        minMove: 0.00001,
+      },
     });
 
     chartRef.current = chart;
@@ -170,80 +188,14 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
     };
   }, []);
 
-  // WebSocket connection for real-time updates
+  // Update price formatter when asset changes
   useEffect(() => {
-    if (!selectedAsset) return;
+    if (!chartRef.current || !candlestickSeriesRef.current || !selectedAsset) return;
 
-    let ws: WebSocket | null = null;
-    let reconnectTimer: NodeJS.Timeout;
-
-    const connect = () => {
-      ws = new WebSocket('wss://api.hyperliquid.xyz/ws');
-
-      ws.onopen = () => {
-        console.log('[Chart] WebSocket connected');
-        // Subscribe to candles - Hyperliquid format
-        const subscribeMsg = {
-          method: 'subscribe',
-          subscription: {
-            type: 'candle',
-            coin: selectedAsset.symbol,
-            interval: interval,
-          },
-        };
-        console.log(
-          '[Chart] Sending subscription:',
-          JSON.stringify(subscribeMsg)
-        );
-        ws?.send(JSON.stringify(subscribeMsg));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          console.log('[Chart] WebSocket message:', message);
-
-          if (message.channel === 'candle' && message.data) {
-            const candle = message.data;
-            if (candlestickSeriesRef.current) {
-              // Update the last candle or add a new one
-              // API returns: { t, o, h, l, c, v, ... }
-              const update: CandlestickData<Time> = {
-                time: Math.floor(candle.t / 1000) as Time,
-                open: parseFloat(candle.o),
-                high: parseFloat(candle.h),
-                low: parseFloat(candle.l),
-                close: parseFloat(candle.c),
-              };
-              candlestickSeriesRef.current.update(update);
-            }
-          }
-        } catch (e) {
-          console.error('[Chart] WebSocket message error:', e);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('[Chart] WebSocket disconnected. Reconnecting...');
-        reconnectTimer = setTimeout(connect, 3000);
-      };
-
-      ws.onerror = (err) => {
-        console.error('[Chart] WebSocket error:', err);
-        ws?.close();
-      };
-    };
-
-    connect();
-
-    return () => {
-      if (ws) {
-        ws.onclose = null; // Prevent reconnection attempt on cleanup
-        ws.close();
-      }
-      clearTimeout(reconnectTimer);
-    };
-  }, [selectedAsset, interval]);
+    // We'll update the formatter when data loads
+    // For now, just set a flag based on common knowledge of asset prices
+    // This will be refined when candle data loads
+  }, [selectedAsset]);
 
   // Initial Data Load (Rest API) + 2-second refresh
   useEffect(() => {
@@ -251,9 +203,45 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
 
     const loadData = async () => {
       const data = await fetchCandles(selectedAsset.symbol, interval);
-      if (data.length > 0 && candlestickSeriesRef.current) {
+      if (data.length > 0 && candlestickSeriesRef.current && chartRef.current) {
         candlestickSeriesRef.current.setData(data);
-        chartRef.current?.timeScale().fitContent();
+        chartRef.current.timeScale().fitContent();
+
+        // Determine precision based on actual price data
+        const lastCandle = data[data.length - 1];
+        const currentPrice = lastCandle.close;
+        const useHighPrecision = currentPrice < 1;
+
+        console.log('[Chart] Updating formatter:', {
+          symbol: selectedAsset.symbol,
+          currentPrice,
+          useHighPrecision,
+        });
+
+        // Update formatters based on actual price
+        chartRef.current.applyOptions({
+          localization: {
+            priceFormatter: (price: number) => {
+              if (useHighPrecision && price < 1 && price > 0) {
+                return price.toFixed(5);
+              }
+              return price.toFixed(2);
+            },
+          },
+        });
+
+        candlestickSeriesRef.current.applyOptions({
+          priceFormat: {
+            type: 'custom',
+            formatter: (price: number) => {
+              if (useHighPrecision && price < 1 && price > 0) {
+                return price.toFixed(5);
+              }
+              return price.toFixed(2);
+            },
+            minMove: useHighPrecision ? 0.00001 : 0.01,
+          },
+        });
       }
     };
 

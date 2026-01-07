@@ -190,6 +190,17 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
     return `$${num.toFixed(2)}`;
   };
 
+  const formatPrice = (value: number | string): string => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (Math.abs(num) < 1 && Math.abs(num) > 0) {
+      return num.toFixed(5);
+    }
+    return num.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   const formatNumber = (value: string, decimals: number = 2): string => {
     const num = parseFloat(value);
     return num.toLocaleString('en-US', {
@@ -214,9 +225,29 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
     );
   }
 
+  /* Helper to format dates for X-axis */
+  const formatAxisTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  /* Helper to get price levels for Y-axis */
+  const getPriceLevels = () => {
+    if (candles.length < 2) return null;
+    const prices = candles.map((c) => c.close);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const mid = (min + max) / 2;
+    return { min, mid, max };
+  };
+
+  const priceLevels = getPriceLevels();
+
   return (
     <Card className="h-full">
-      <CardContent className="p-6 flex flex-col h-full">
+      <CardContent className="pt-6 px-6 pb-2 flex flex-col h-full">
         {/* Header with current price and market data */}
         <div className="mb-6">
           {/* --- MOBILE LAYOUT (< 1024px) --- */}
@@ -227,15 +258,15 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                 {/* Left: Symbol & Badge */}
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <TokenIcon symbol={selectedAsset.symbol} size={28} />
-                    <span className="text-2xl font-bold">
+                    <TokenIcon symbol={selectedAsset.symbol} size={32} />
+                    <span className="text-3xl font-bold">
                       {selectedAsset.symbol}
                     </span>
-                    <span className="text-xs font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded self-start mt-2">
                       {selectedAsset.maxLeverage}x
                     </span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground ml-1">
                     Price (12H)
                   </div>
                 </div>
@@ -245,13 +276,9 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                   {currentPrice !== null && (
                     <>
                       <div
-                        className={`text-2xl font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}`}
+                        className={`text-3xl font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}`}
                       >
-                        $
-                        {currentPrice.toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        ${formatPrice(currentPrice)}
                       </div>
                       <div
                         className={`text-sm font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}
@@ -264,54 +291,70 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                 </div>
               </div>
 
-              {/* Bottom Row: 2x2 Data Grid */}
+              {/* Bottom Row: 3x2 Data Grid (Matching Desktop) */}
               {marketData && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                  {/* 1. Mark / Oracle */}
-                  <div>
-                    <div className="text-[10px] text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">
-                      Mark / Oracle
+                <div className="grid grid-cols-3 gap-x-2 gap-y-2 text-[10px]">
+                  <div className="text-left">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      Mark
                     </div>
-                    <div className="text-[11px] font-medium">
-                      {formatNumber(marketData.markPx)} /{' '}
-                      {formatNumber(marketData.oraclePx)}
+                    <div className="font-semibold text-[10px]">
+                      ${formatPrice(marketData.markPx)}
                     </div>
                   </div>
 
-                  {/* 2. 24H Volume */}
-                  <div>
-                    <div className="text-[10px] text-muted-foreground mb-0.5">
+                  <div className="text-center">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      24H Change
+                    </div>
+                    <div
+                      className={`font-semibold text-[10px] ${isPositive ? 'text-green-500' : 'text-red-500'}`}
+                    >
+                      {formatPrice(
+                        String(
+                          parseFloat(marketData.markPx) -
+                          parseFloat(marketData.prevDayPx)
+                        )
+                      )}{' '}
+                      / {percentChange.toFixed(2)}%
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
                       24H Volume
                     </div>
-                    <div className="text-[11px] font-medium">
+                    <div className="font-semibold text-[10px]">
                       {formatVolume(marketData.dayNtlVlm)}
                     </div>
                   </div>
 
-                  {/* 3. Open Interest */}
-                  <div>
-                    <div className="text-[10px] text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">
+                  <div className="text-left">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      Oracle
+                    </div>
+                    <div className="font-semibold text-[10px]">
+                      ${formatPrice(marketData.oraclePx)}
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
                       Open Interest
                     </div>
-                    <div className="text-[11px] font-medium">
+                    <div className="font-semibold text-[10px]">
                       ${formatNumber(marketData.openInterest, 2)}
                     </div>
                   </div>
 
-                  {/* 4. Funding / Countdown */}
-                  <div>
-                    <div className="text-[10px] text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 cursor-help mb-0.5">
-                      Funding / Countdown
+                  <div className="text-right">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      Funding
                     </div>
-                    <div className="flex items-center justify-start gap-2">
-                      <span
-                        className={`text-[11px] font-medium ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}
-                      >
-                        {(parseFloat(marketData.funding) * 100).toFixed(4)}%
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        00:51:51
-                      </span>
+                    <div
+                      className={`font-semibold text-[10px] ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                    >
+                      {(parseFloat(marketData.funding) * 100).toFixed(4)}%
                     </div>
                   </div>
                 </div>
@@ -322,46 +365,46 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
             <div className="flex flex-row justify-between items-center gap-4">
               {/* Left: Logo + Symbol + Price + Change - All on same line */}
               <div className="flex items-center gap-3">
-                <TokenIcon symbol={selectedAsset.symbol} size={32} />
-                <div className="text-2xl font-bold">{selectedAsset.symbol}</div>
+                <TokenIcon symbol={selectedAsset.symbol} size={40} />
+                <div className="text-4xl font-bold">{selectedAsset.symbol}</div>
                 {currentPrice !== null && (
-                  <>
-                    <span className="text-2xl font-bold">
-                      $
-                      {currentPrice.toLocaleString('en-US', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 2,
-                      })}
+                  <div className="flex items-baseline gap-2 ml-2">
+                    <span className="text-4xl font-bold">
+                      ${formatPrice(currentPrice)}
                     </span>
                     <span
-                      className={`text-sm font-semibold mb-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}
+                      className={`text-sm font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}
                     >
                       {isPositive ? '+' : ''}
                       {percentChange.toFixed(2)}%
                     </span>
-                  </>
+                  </div>
                 )}
               </div>
 
-              {/* Right: Compact Market Data */}
+              {/* Right: Compact Market Data - Grid 3x2 */}
               {marketData && (
-                <div className="flex gap-x-4 text-[10px]">
+                <div className="grid grid-cols-3 gap-x-6 gap-y-2 text-[10px]">
                   <div className="text-right">
-                    <div className="text-muted-foreground mb-1">Mark</div>
-                    <div className="font-semibold">
-                      ${formatNumber(marketData.markPx)}
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      Mark
+                    </div>
+                    <div className="font-semibold text-[10px]">
+                      ${formatPrice(marketData.markPx)}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-muted-foreground mb-1">24H Change</div>
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      24H Change
+                    </div>
                     <div
-                      className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}
+                      className={`font-semibold text-[10px] ${isPositive ? 'text-green-500' : 'text-red-500'}`}
                     >
-                      {formatNumber(
+                      {formatPrice(
                         String(
                           parseFloat(marketData.markPx) -
-                            parseFloat(marketData.prevDayPx)
+                          parseFloat(marketData.prevDayPx)
                         )
                       )}{' '}
                       / {percentChange.toFixed(2)}%
@@ -369,32 +412,38 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
                   </div>
 
                   <div className="text-right">
-                    <div className="text-muted-foreground mb-1">24H Volume</div>
-                    <div className="font-semibold">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      24H Volume
+                    </div>
+                    <div className="font-semibold text-[10px]">
                       {formatVolume(marketData.dayNtlVlm)}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-muted-foreground mb-1">Oracle</div>
-                    <div className="font-semibold">
-                      ${formatNumber(marketData.oraclePx)}
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      Oracle
+                    </div>
+                    <div className="font-semibold text-[10px]">
+                      ${formatPrice(marketData.oraclePx)}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-muted-foreground mb-1">
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
                       Open Interest
                     </div>
-                    <div className="font-semibold">
+                    <div className="font-semibold text-[10px]">
                       ${formatNumber(marketData.openInterest, 2)}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-muted-foreground mb-1">Funding</div>
+                    <div className="text-muted-foreground mb-0.5 whitespace-nowrap text-[9px]">
+                      Funding
+                    </div>
                     <div
-                      className={`font-semibold ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                      className={`font-semibold text-[10px] ${parseFloat(marketData.funding) >= 0 ? 'text-green-500' : 'text-red-500'}`}
                     >
                       {(parseFloat(marketData.funding) * 100).toFixed(4)}%
                     </div>
@@ -415,88 +464,105 @@ export function SparklineChart({ selectedAsset }: SparklineChartProps) {
             {isLoading ? 'Loading chart data...' : 'No data available'}
           </div>
         ) : (
-          <div
-            className="relative flex-1 min-h-[200px]"
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const x = e.clientX - rect.left;
-              const svgWidth = rect.width;
-              const dataIndex = Math.round(
-                (x / svgWidth) * (candles.length - 1)
-              );
-              if (dataIndex >= 0 && dataIndex < candles.length) {
-                const candle = candles[dataIndex];
-                const prices = candles.map((c) => c.close);
-                const minPrice = Math.min(...prices);
-                const maxPrice = Math.max(...prices);
-                const normalizedY =
-                  ((candle.close - minPrice) / (maxPrice - minPrice)) * 100;
-                setHoverData({
-                  x: (dataIndex / (candles.length - 1)) * 100,
-                  y: 100 - normalizedY,
-                  price: candle.close,
-                  time: candle.time,
-                });
-              }
-            }}
-            onMouseLeave={() => setHoverData(null)}
-          >
-            <svg
-              width="100%"
-              height="100%"
-              viewBox="0 0 800 100"
-              preserveAspectRatio="none"
-              className="w-full pointer-events-none"
-            >
-              <path
-                d={getSparklinePath()}
-                fill="none"
-                stroke={isPositive ? '#10B981' : '#EF4444'}
-                strokeWidth="2"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d={`${getSparklinePath()} L 800,100 L 0,100 Z`}
-                fill={
-                  isPositive
-                    ? 'rgba(16, 185, 129, 0.1)'
-                    : 'rgba(239, 68, 68, 0.1)'
+          <div className="flex flex-col flex-1 min-h-[200px]">
+            <div
+              className="relative flex-1 w-full"
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const svgWidth = rect.width;
+                const dataIndex = Math.round(
+                  (x / svgWidth) * (candles.length - 1)
+                );
+                if (dataIndex >= 0 && dataIndex < candles.length) {
+                  const candle = candles[dataIndex];
+                  const prices = candles.map((c) => c.close);
+                  const minPrice = Math.min(...prices);
+                  const maxPrice = Math.max(...prices);
+                  const normalizedY =
+                    ((candle.close - minPrice) / (maxPrice - minPrice)) * 100;
+                  setHoverData({
+                    x: (dataIndex / (candles.length - 1)) * 100,
+                    y: 100 - normalizedY,
+                    price: candle.close,
+                    time: candle.time,
+                  });
                 }
-              />
-            </svg>
-
-            {/* Hover Tooltip */}
-            {hoverData && (
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  left: `${hoverData.x}%`,
-                  top: `${hoverData.y}%`,
-                  transform: 'translate(-50%, -100%)',
-                }}
+              }}
+              onMouseLeave={() => setHoverData(null)}
+            >
+              <svg
+                width="100%"
+                height="100%"
+                viewBox="0 0 800 100"
+                preserveAspectRatio="none"
+                className="absolute inset-0 w-full h-full pointer-events-none"
               >
-                <div className="bg-popover border border-border rounded-md px-2 py-1 shadow-lg mb-2">
-                  <div className="text-xs font-semibold">
-                    $
-                    {hoverData.price.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {new Date(hoverData.time).toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </div>
-                </div>
-                <div className="w-2 h-2 bg-primary rounded-full mx-auto"></div>
-              </div>
-            )}
+                <path
+                  d={getSparklinePath()}
+                  fill="none"
+                  stroke={isPositive ? '#10B981' : '#EF4444'}
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <path
+                  d={`${getSparklinePath()} L 800,100 L 0,100 Z`}
+                  fill={
+                    isPositive
+                      ? 'rgba(16, 185, 129, 0.1)'
+                      : 'rgba(239, 68, 68, 0.1)'
+                  }
+                />
+              </svg>
 
-            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span>12h ago</span>
-              <span>Now</span>
+              {/* Hover Tooltip */}
+              {hoverData && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${hoverData.x}%`,
+                    top: `${hoverData.y}%`,
+                    transform: 'translate(-50%, -100%)',
+                  }}
+                >
+                  <div className="bg-popover border border-border rounded-md px-2 py-1 shadow-lg mb-2 z-10">
+                    <div className="text-xs font-semibold">
+                      ${formatPrice(hoverData.price)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(hoverData.time).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                  <div className="w-2 h-2 bg-primary rounded-full mx-auto"></div>
+                </div>
+              )}
+
+              {/* Y-Axis (Right) */}
+              {priceLevels && (
+                <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-between text-[10px] text-muted-foreground pointer-events-none">
+                  <span className="bg-background/80 px-1 rounded-l">
+                    ${formatPrice(priceLevels.max)}
+                  </span>
+                  <span className="bg-background/80 px-1 rounded-l">
+                    ${formatPrice(priceLevels.mid)}
+                  </span>
+                  <span className="bg-background/80 px-1 rounded-l">
+                    ${formatPrice(priceLevels.min)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* X-Axis (Bottom) */}
+            <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
+              <span>{formatAxisTime(candles[0].time)}</span>
+              <span>
+                {formatAxisTime(candles[Math.floor(candles.length / 2)].time)}
+              </span>
+              <span>{formatAxisTime(candles[candles.length - 1].time)}</span>
             </div>
           </div>
         )}

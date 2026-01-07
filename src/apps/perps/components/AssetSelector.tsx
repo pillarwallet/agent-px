@@ -125,7 +125,7 @@ export function AssetSelector({
           </DropdownMenu>
         </div>
 
-        <ScrollArea className="h-64">
+        <ScrollArea className="h-[500px]">
           <div className="space-y-1">
             {filteredAndSortedAssets.map((asset) => {
               const isPositive = asset.priceChangePercent >= 0;
@@ -134,11 +134,10 @@ export function AssetSelector({
                 <button
                   key={asset.symbol}
                   onClick={() => onSelect(asset.symbol, asset)}
-                  className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${
-                    selectedSymbol === asset.symbol
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-secondary'
-                  }`}
+                  className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${selectedSymbol === asset.symbol
+                      ? 'bg-secondary'
+                      : 'hover:bg-secondary/50'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     {/* Token Logo */}

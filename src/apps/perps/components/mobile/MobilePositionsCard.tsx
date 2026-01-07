@@ -19,6 +19,7 @@ interface MobilePositionsCardProps {
   totalValue: string;
   totalPnl: string;
   totalPnlPercent: string;
+  openOrders?: any[];
 }
 
 export function MobilePositionsCard({
@@ -26,6 +27,7 @@ export function MobilePositionsCard({
   totalValue,
   totalPnl,
   totalPnlPercent,
+  openOrders,
 }: MobilePositionsCardProps) {
   const isNegative = totalPnl.startsWith('-');
 
@@ -76,11 +78,10 @@ export function MobilePositionsCard({
                 </Badge>
 
                 <Badge
-                  className={`text-xs px-2 py-0.5 ${
-                    position.side === 'LONG'
-                      ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                      : 'bg-red-100 text-red-700 hover:bg-red-100'
-                  }`}
+                  className={`text-xs px-2 py-0.5 ${position.side === 'LONG'
+                    ? 'bg-green-100 text-green-700 hover:bg-green-100'
+                    : 'bg-red-100 text-red-700 hover:bg-red-100'
+                    }`}
                 >
                   {position.side}
                 </Badge>
@@ -116,5 +117,41 @@ export function MobilePositionsCard({
         ))}
       </div>
     </div>
+
+      {/* Open Orders Section */ }
+  {
+    openOrders && openOrders.length > 0 && (
+      <div className="mt-6 border-t border-gray-100 pt-4">
+        <h3 className="text-base font-semibold text-gray-500 mb-3">
+          Open Orders
+        </h3>
+        <div className="space-y-3">
+          {openOrders.map((order: any, index: number) => {
+            const buy = order.side === 'B';
+            return (
+              <div key={index} className="flex items-center justify-between py-2 text-sm border-b border-gray-50 last:border-0">
+                <div className="flex flex-col">
+                  <span className="font-bold">{order.coin}</span>
+                  <span className={`text-xs ${buy ? 'text-green-500' : 'text-red-500'}`}>
+                    {buy ? 'Long' : 'Short'} {order.reduceOnly ? '(Red.)' : ''}
+                  </span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="font-medium">{order.sz} @ {(() => {
+                    const price = parseFloat(order.limitPx);
+                    return Math.abs(price) < 1
+                      ? price.toFixed(5)
+                      : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  })()}</span>
+                  <span className="text-xs text-gray-400">Limit</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )
+  }
+    </div >
   );
 }
