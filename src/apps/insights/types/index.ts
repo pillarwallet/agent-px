@@ -37,12 +37,7 @@ export interface TradingSignal {
 export interface FeedEvent {
   id: string;
   timestamp: string;
-  type:
-    | 'signal_opened'
-    | 'tp_hit'
-    | 'stop_loss_hit'
-    | 'opposite_closed'
-    | 'completed';
+  type: 'signal_opened' | 'tp_hit' | 'stop_loss_hit' | 'opposite_closed' | 'completed';
   ticker: string;
   order_side: string;
   description: string;
@@ -126,3 +121,4 @@ export interface SubscriptionRecord {
 export interface SubscriptionApiResponse {
   subscription: SubscriptionRecord | null;
 }
+

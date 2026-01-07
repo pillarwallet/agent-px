@@ -7,7 +7,7 @@
  */
 export const normalizeSymbol = (ticker: string): string => {
   return ticker
-    .replace(/\.P$/i, '') // First remove .P suffix
+    .replace(/\.P$/i, '')      // First remove .P suffix
     .replace(/USDT$|USD$/i, '') // Then remove USDT/USD suffix
     .toUpperCase();
 };
@@ -19,3 +19,4 @@ export const formatPrice = (price: number, ticker?: string): string => {
   if (ticker && ticker.toUpperCase().includes('PEPE')) return price.toFixed(2);
   return price < 1 ? price.toFixed(4) : price.toFixed(2);
 };
+

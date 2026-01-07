@@ -5,12 +5,7 @@
 import { motion } from 'framer-motion';
 import { KPICard } from '../KPICard/KPICard';
 import { Filters } from '../Filters/Filters';
-import type {
-  TradingSignal,
-  TabType,
-  LeverageType,
-  PnLViewType,
-} from '../../types';
+import type { TradingSignal, TabType, LeverageType, PnLViewType } from '../../types';
 
 interface HeaderProps {
   openSignals: TradingSignal[];
@@ -57,14 +52,10 @@ export const Header = ({
       <div className="hero-gradient rounded-3xl p-8 md:p-12 text-center mb-6 border border-primary/10">
         <h1 className="text-3xl md:text-6xl font-bold mb-3 md:mb-4 text-white leading-tight">
           <span className="whitespace-nowrap">PillarX Algorithmic</span>{' '}
-          <span className="whitespace-nowrap text-gradient-violet">
-            Insights
-          </span>
+          <span className="whitespace-nowrap text-gradient-violet">Insights</span>
         </h1>
         <p className="text-muted-foreground text-xs md:text-base max-w-3xl mx-auto px-4 leading-relaxed">
-          PillarX provides algorithmic analytics for informational and
-          educational purposes only. Nothing herein constitutes financial advice
-          or an offer to buy or sell securities or digital assets.
+          PillarX provides algorithmic analytics for informational and educational purposes only. Nothing herein constitutes financial advice or an offer to buy or sell securities or digital assets.
         </p>
       </div>
 
@@ -110,3 +101,4 @@ export const Header = ({
     </motion.div>
   );
 };
+

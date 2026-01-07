@@ -1,10 +1,10 @@
-import { TabsContent } from '../ui/tabs';
-import { ConsentModalLayout } from './ConsentModalLayout';
-import { ConsentTabContent } from './ConsentTabContent';
-import { TermsTabContent } from './TermsTabContent';
-import { RiskTabContent } from './RiskTabContent';
-import { useConsentValidation } from './useConsentValidation';
-import { ConsentModalProps, ConsentPayload } from './types';
+import { TabsContent } from "../ui/tabs";
+import { ConsentModalLayout } from "./ConsentModalLayout";
+import { ConsentTabContent } from "./ConsentTabContent";
+import { TermsTabContent } from "./TermsTabContent";
+import { RiskTabContent } from "./RiskTabContent";
+import { useConsentValidation } from "./useConsentValidation";
+import { ConsentModalProps, ConsentPayload } from "./types";
 
 export function ConsentModal({
   open,
@@ -24,7 +24,7 @@ export function ConsentModal({
     }
 
     const payload: ConsentPayload = {
-      service: 'PillarX Algorithmic Insights',
+      service: "PillarX Algorithmic Insights",
       timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent,
       ipAddress: null,
@@ -38,7 +38,7 @@ export function ConsentModal({
       finalConsentGiven: validation.finalConsentChecked,
       coolingOffWaiverGiven: validation.coolingOffWaiverChecked,
       uiContext: {
-        deviceType: isMobile ? 'mobile' : 'desktop',
+        deviceType: isMobile ? "mobile" : "desktop",
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
       },

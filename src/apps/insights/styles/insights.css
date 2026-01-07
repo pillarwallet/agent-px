@@ -53,7 +53,7 @@ All colors MUST be HSL.
     /* Violet Accent */
     --primary: 262 83% 68%;
     --primary-foreground: 0 0% 100%;
-
+    
     /* Secondary Navy */
     --secondary: 235 30% 15%;
     --secondary-foreground: 0 0% 98%;
@@ -82,34 +82,17 @@ All colors MUST be HSL.
     --green-profit: 142 76% 58%;
     --red-loss: 348 83% 58%;
     --glass-bg: 235 45% 8% / 0.4;
-
+    
     /* Gradients */
-    --gradient-navy: linear-gradient(
-      135deg,
-      hsl(235, 45%, 6%),
-      hsl(235, 40%, 8%),
-      hsl(235, 35%, 10%)
-    );
-    --gradient-violet: linear-gradient(
-      135deg,
-      hsl(262, 83%, 68%),
-      hsl(262, 90%, 75%)
-    );
-    --gradient-profit: linear-gradient(
-      135deg,
-      hsl(230, 83%, 68%),
-      hsl(262, 83%, 68%)
-    );
-    --gradient-loss: linear-gradient(
-      135deg,
-      hsl(348, 83%, 58%),
-      hsl(320, 80%, 55%)
-    );
-
+    --gradient-navy: linear-gradient(135deg, hsl(235, 45%, 6%), hsl(235, 40%, 8%), hsl(235, 35%, 10%));
+    --gradient-violet: linear-gradient(135deg, hsl(262, 83%, 68%), hsl(262, 90%, 75%));
+    --gradient-profit: linear-gradient(135deg, hsl(230, 83%, 68%), hsl(262, 83%, 68%));
+    --gradient-loss: linear-gradient(135deg, hsl(348, 83%, 58%), hsl(320, 80%, 55%));
+    
     /* Shadows & Glows */
     --shadow-violet-glow: 0 0 40px hsl(262, 83%, 68% / 0.4);
     --shadow-card: 0 10px 30px hsl(235, 50%, 5% / 0.5);
-
+    
     --sidebar-background: 235 35% 12%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 262 83% 68%;
@@ -160,64 +143,51 @@ All colors MUST be HSL.
     @apply backdrop-blur-2xl bg-gradient-to-br from-card/40 to-card/20 border border-primary/10;
     box-shadow: 0 8px 32px hsl(var(--primary) / 0.08);
   }
-
+  
   .glass-card-hover {
     @apply backdrop-blur-2xl bg-gradient-to-br from-card/50 to-card/30 border border-primary/20;
     box-shadow: 0 12px 40px hsl(var(--primary) / 0.15);
   }
-
+  
   .glow-violet {
     box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
   }
-
+  
   .glow-violet-strong {
     box-shadow: 0 0 50px hsl(var(--primary) / 0.6);
   }
-
+  
   .gradient-navy {
-    background: linear-gradient(
-      135deg,
-      hsl(235, 55%, 3%),
-      hsl(235, 50%, 4%),
-      hsl(235, 45%, 6%)
-    );
+    background: linear-gradient(135deg, hsl(235, 55%, 3%), hsl(235, 50%, 4%), hsl(235, 45%, 6%));
   }
-
+  
   .gradient-violet {
     background: linear-gradient(135deg, hsl(262, 83%, 68%), hsl(262, 90%, 75%));
   }
-
+  
   .hero-gradient {
-    background: linear-gradient(
-      180deg,
-      hsl(262, 83%, 68% / 0.15) 0%,
+    background: linear-gradient(180deg, 
+      hsl(262, 83%, 68% / 0.15) 0%, 
       hsl(262, 83%, 68% / 0.08) 50%,
       transparent 100%
     );
   }
-
+  
   .text-gradient-violet {
     @apply bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent;
   }
-
+  
   .bg-parallax-glow {
-    background: radial-gradient(
-        circle at 20% 30%,
-        hsl(262, 83%, 68% / 0.2),
-        transparent 50%
-      ),
-      radial-gradient(
-        circle at 80% 70%,
-        hsl(230, 83%, 68% / 0.15),
-        transparent 50%
-      ),
+    background: 
+      radial-gradient(circle at 20% 30%, hsl(262, 83%, 68% / 0.2), transparent 50%),
+      radial-gradient(circle at 80% 70%, hsl(230, 83%, 68% / 0.15), transparent 50%),
       linear-gradient(180deg, hsl(235, 55%, 3%), hsl(235, 50%, 4%));
   }
-
+  
   .card-glow-purple {
     box-shadow: 0 0 40px hsl(262, 83%, 68% / 0.2);
   }
-
+  
   .glass-border {
     @apply border border-primary/15;
   }
@@ -236,6 +206,6 @@ input:where(:not([type])) {
 [type='number']:focus,
 [type='search']:focus,
 textarea:focus {
-  --tw-ring-color: #8a77ff;
-  border-color: #8a77ff;
+  --tw-ring-color: #8A77FF;
+  border-color: #8A77FF;
 }

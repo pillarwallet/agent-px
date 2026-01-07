@@ -13,7 +13,7 @@ export interface ConsentPayload {
   finalConsentGiven: boolean;
   coolingOffWaiverGiven: boolean;
   uiContext: {
-    deviceType: 'mobile' | 'desktop';
+    deviceType: "mobile" | "desktop";
     viewportWidth: number;
     viewportHeight: number;
   };
