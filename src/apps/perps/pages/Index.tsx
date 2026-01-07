@@ -15,12 +15,9 @@ import type { AssetInfo } from '@/perps/lib/hyperliquid/types';
 const Index = () => {
   const { address } = useAccount();
   const {
-    setupStatus,
-    userState,
-    isLoading,
-    checkSetupStatus,
     setupHyperliquid,
     loadBalance,
+    availableAssets, // destructured from hook
   } = useHyperliquid();
 
   const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>(null);
@@ -37,8 +34,26 @@ const Index = () => {
     }
   }, [setupStatus, loadBalance]);
 
+  // If we have available assets and nothing selected, select the first one (optional UX improvement)
+  useEffect(() => {
+    if (!selectedAsset && availableAssets.length > 0) {
+      // Default to BTC or first asset if desired, or keep null
+      // setSelectedAsset(availableAssets[0]); 
+    }
+  }, [availableAssets, selectedAsset]);
+
   const handleAssetSelect = (symbol: string, asset: AssetInfo) => {
     setSelectedAsset(asset);
+  };
+
+  const handlePositionClick = (symbol: string) => {
+    const asset = availableAssets.find(a => a.symbol === symbol);
+    if (asset) {
+      handleAssetSelect(symbol, asset);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      console.warn(`Asset ${symbol} not found in availableAssets`);
+    }
   };
 
   const handleTradeComplete = () => {
@@ -83,7 +98,7 @@ const Index = () => {
           <div className="mb-6">
             <PositionsCard
               masterAddress={address}
-              onAssetSelect={handleAssetSelect}
+              onPositionClick={handlePositionClick}
             />
           </div>
         )}
@@ -115,6 +130,7 @@ const Index = () => {
               <AssetSelector
                 selectedSymbol={selectedAsset?.symbol || null}
                 onSelect={handleAssetSelect}
+                assets={availableAssets}
               />
             )}
           </div>

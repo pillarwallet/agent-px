@@ -35,10 +35,10 @@ import { TokenIcon } from './TokenIcon';
 
 interface PositionsCardProps {
   masterAddress: string;
-  onAssetSelect?: (symbol: string, asset: any) => void;
+  onPositionClick?: (symbol: string) => void;
 }
 
-export function PositionsCard({ masterAddress, onAssetSelect }: PositionsCardProps) {
+export function PositionsCard({ masterAddress, onPositionClick }: PositionsCardProps) {
   const isMobile = useIsMobile();
   const [positions, setPositions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,61 +50,13 @@ export function PositionsCard({ masterAddress, onAssetSelect }: PositionsCardPro
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   /* Refactored PositionsCard Code */
   /* Replaced content for entire Card component to handle structural changes cleanly */
-  const [universe, setUniverse] = useState<any[]>([]);
+  // universe state removed as it is now handled by parent
   const [openOrders, setOpenOrders] = useState<any[]>([]);
 
-  const handlePositionClick = async (coin: string) => {
-    // 1. Load asset into chart/trade form
-    if (onAssetSelect) {
-      let assetIndex = universe.findIndex((a) => a.name === coin);
-      let rawAsset = universe[assetIndex];
-
-      // Fallback: If universe is empty or asset not found, try fetching it
-      if (!rawAsset) {
-        try {
-          // imports getAllAssets from client (needs to be added to imports if not present)
-          const freshUniverse = await getAllAssets();
-
-          if (freshUniverse && freshUniverse.length > 0) {
-            setUniverse(freshUniverse.map((a: any) => ({ ...a, name: a.symbol }))); // Ensure naming consistency if needed
-            assetIndex = freshUniverse.findIndex((a) => a.symbol === coin);
-            if (assetIndex !== -1) {
-              // Map fresh asset to raw format expected locally if needed, or just use it
-              // getAllAssets returns { symbol, szDecimals, ... }
-              // locally universe has { name, ... }
-              // We'll normalize to rawAsset object
-              const found = freshUniverse[assetIndex];
-              rawAsset = {
-                name: found.symbol,
-                szDecimals: found.szDecimals,
-                maxLeverage: found.maxLeverage
-              };
-            }
-          }
-        } catch (e) {
-          console.error("Failed to fetch fallback universe", e);
-        }
-      }
-
-      if (rawAsset) {
-        // Find current position to get the mark price
-        const position = positions.find((p) => p.coin === coin);
-        const price = position?.markPx ? parseFloat(position.markPx) : undefined;
-
-        // Construct proper AssetInfo/EnhancedAsset object expected by the app
-        const assetInfo = {
-          id: assetIndex !== -1 ? assetIndex : 0, // Fallback ID if strictly required
-          symbol: rawAsset.name,
-          szDecimals: rawAsset.szDecimals || 3,
-          maxLeverage: rawAsset.maxLeverage || 50,
-          price: price, // Enrich with price
-        };
-
-        onAssetSelect(coin, assetInfo);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        toast.error(`Could not load asset details for ${coin}`);
-      }
+  const handlePositionClick = (coin: string) => {
+    // 1. Load asset into chart/trade form via parent
+    if (onPositionClick) {
+      onPositionClick(coin);
     }
   };
 
@@ -131,7 +83,7 @@ export function PositionsCard({ masterAddress, onAssetSelect }: PositionsCardPro
       const priceMap: Record<string, number> = {};
       if (metaData && Array.isArray(metaData) && metaData[0]?.universe && Array.isArray(metaData[1])) {
         const universeData = metaData[0].universe;
-        setUniverse(universeData);
+        // setUniverse(universeData); // Removed
         const assetCtxs = metaData[1];
 
         universeData.forEach((asset: any, index: number) => {

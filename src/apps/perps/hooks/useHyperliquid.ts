@@ -27,9 +27,18 @@ export function useHyperliquid() {
   const { data: walletClient } = useWalletClient();
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('unknown');
   const [userState, setUserState] = useState<UserState | null>(null);
+  const [availableAssets, setAvailableAssets] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const checkSetupStatus = useCallback(async () => {
+    // Always fetch assets on load
+    try {
+      const assets = await getAllAssets();
+      setAvailableAssets(assets);
+    } catch (e) {
+      console.error("Failed to fetch assets", e);
+    }
+
     if (!address) {
       setSetupStatus('unknown');
       return;
@@ -182,7 +191,9 @@ export function useHyperliquid() {
     isLoading,
     checkSetupStatus,
     setupHyperliquid,
+    setupHyperliquid,
     loadBalance,
     executeCopyTrade,
+    availableAssets, // Export availableAssets
   };
 }
