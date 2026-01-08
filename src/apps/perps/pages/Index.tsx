@@ -23,6 +23,7 @@ const Index = () => {
     loadBalance,
     availableAssets, // destructured from hook
     openOrders,
+    activeAddress,
   } = useHyperliquid();
 
   const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>(null);
@@ -102,7 +103,7 @@ const Index = () => {
         {address && setupStatus === 'setup' && (
           <div className="mb-6">
             <PositionsCard
-              masterAddress={address}
+              masterAddress={activeAddress || address}
               onPositionClick={handlePositionClick}
               userState={userState || undefined}
               openOrders={openOrders}

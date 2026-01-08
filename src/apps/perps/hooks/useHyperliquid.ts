@@ -34,8 +34,7 @@ export function useHyperliquid() {
   const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
   const [availableAssets, setAvailableAssets] = useState<EnhancedAsset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  // ... existing imports
+  const [activeAddress, setActiveAddress] = useState<string | null>(null);
 
   const checkSetupStatus = useCallback(async () => {
     // Always fetch assets on load
@@ -48,18 +47,42 @@ export function useHyperliquid() {
 
     if (!address) {
       setSetupStatus('unknown');
+      setActiveAddress(null);
       return;
     }
 
     setIsLoading(true);
     try {
       console.log('DEBUG: Checking setup status for:', address);
-      const [state, orders] = await Promise.all([
-        getUserState(address),
-        getOpenOrders(address),
-      ]);
 
-      console.log('DEBUG: User State result:', state);
+      // 1. Fetch Main Address Data
+      let targetAddress = address;
+      let state = await getUserState(address);
+      let orders = await getOpenOrders(address);
+
+      // 2. Check Agent Address
+      // If Main is empty OR we have an explicit agent that might be the intended account
+      const agentAddress = getAgentAddress(address);
+      if (agentAddress) {
+        const agentState = await getUserState(agentAddress);
+        const agentOrders = await getOpenOrders(agentAddress);
+
+        // Decision Logic: Use Agent if it has value and Main is empty-ish, OR if Agent just has value
+        // We prioritize Agent because usually "Imported Agent" means "User wants to trade with this key"
+        // especially in this app context.
+        const mainValue = parseFloat(state?.marginSummary?.accountValue || '0');
+        const agentValue = parseFloat(agentState?.marginSummary?.accountValue || '0');
+
+        if (agentValue > 0 || agentOrders.length > 0) {
+          console.log('DEBUG: prioritizing Agent Address', agentAddress, 'Balance:', agentValue);
+          targetAddress = agentAddress;
+          state = agentState;
+          orders = agentOrders;
+        }
+      }
+
+      setActiveAddress(targetAddress);
+      console.log('DEBUG: User State result for', targetAddress, state);
 
       if (state) {
         setSetupStatus('setup');
@@ -112,11 +135,27 @@ export function useHyperliquid() {
 
     setIsLoading(true);
     try {
-      console.log('DEBUG: Loading balance for:', address);
-      const [state, orders] = await Promise.all([
-        getUserState(address),
-        getOpenOrders(address),
-      ]);
+      // Same logic as checkSetupStatus to determine active address
+      let targetAddress = address;
+      let state = await getUserState(address);
+      let orders = await getOpenOrders(address);
+
+      const agentAddress = getAgentAddress(address);
+      if (agentAddress) {
+        const agentState = await getUserState(agentAddress);
+        const agentOrders = await getOpenOrders(agentAddress);
+
+        const mainValue = parseFloat(state?.marginSummary?.accountValue || '0');
+        const agentValue = parseFloat(agentState?.marginSummary?.accountValue || '0');
+
+        if (agentValue > 0 || agentOrders.length > 0) {
+          targetAddress = agentAddress;
+          state = agentState;
+          orders = agentOrders;
+        }
+      }
+
+      setActiveAddress(targetAddress);
 
       if (state) {
         setUserState(state);
@@ -219,6 +258,7 @@ export function useHyperliquid() {
     setupHyperliquid,
     loadBalance,
     executeCopyTrade,
-    availableAssets, // Export availableAssets
+    availableAssets,
+    activeAddress,
   };
 }
