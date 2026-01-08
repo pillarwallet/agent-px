@@ -31,7 +31,9 @@ export interface UserState {
       coin: string;
       szi: string;
       leverage: {
+        type: 'isolated' | 'cross';
         value: number;
+        rawUsd?: string;
       };
       entryPx: string;
       positionValue: string;
@@ -80,4 +82,75 @@ export interface EnhancedAsset extends AssetInfo {
   volume: number;
   priceChange: number;
   priceChangePercent: number;
+}
+
+// Position from Hyperliquid API
+export interface HyperliquidPosition {
+  coin: string;
+  szi: string; // Size (positive for long, negative for short)
+  leverage: {
+    type: 'isolated' | 'cross';
+    value: number;
+    rawUsd?: string;
+  };
+  entryPx: string;
+  positionValue: string;
+  unrealizedPnl: string;
+  returnOnEquity: string;
+  marginUsed: string;
+  liquidationPx?: string;
+  markPx?: string;
+}
+
+// Open Order from Hyperliquid API
+export interface HyperliquidOrder {
+  oid: number; // Order ID
+  coin: string;
+  side: 'A' | 'B'; // A = Ask (Sell), B = Bid (Buy)
+  limitPx: string;
+  sz: string; // Size
+  timestamp: number;
+  origSz: string;
+  reduceOnly: boolean;
+  orderType?: string; // e.g., "Limit", "Stop Market", "Take Profit"
+  triggerPx?: string;
+  trigger?: {
+    triggerPx: string;
+    isMarket: boolean;
+    tpsl: 'tp' | 'sl';
+  };
+  triggerCondition?: {
+    triggerPx: string;
+  };
+}
+
+// Universe asset metadata from Hyperliquid API
+export interface UniverseAsset {
+  name: string; // Symbol
+  szDecimals: number;
+  maxLeverage: number;
+  onlyIsolated?: boolean;
+}
+
+// Asset context (market data) from Hyperliquid API
+export interface AssetContext {
+  dayNtlVlm: string;
+  funding: string;
+  impactPxs: string[];
+  markPx: string;
+  midPx: string;
+  openInterest: string;
+  oraclePx: string;
+  premium: string;
+  prevDayPx: string;
+}
+
+// Market data for display
+export interface MarketData extends UniverseAsset {
+  markPx: number;
+  dayNtlVlm: number;
+  funding: number;
+  openInterest: number;
+  priceChange24h: number;
+  priceChangePercent24h: number;
 }

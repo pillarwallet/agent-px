@@ -16,6 +16,7 @@ import type {
   AssetInfo,
   UserState,
   EnhancedAsset,
+  HyperliquidOrder,
 } from './lib/hyperliquid/types';
 import { toast } from 'sonner';
 
@@ -51,7 +52,7 @@ const Index = () => {
   });
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
-  const [agentOpenOrders, setAgentOpenOrders] = useState<any[]>([]);
+  const [agentOpenOrders, setAgentOpenOrders] = useState<HyperliquidOrder[]>([]);
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
   // Centralized asset state
   const [allAssets, setAllAssets] = useState<EnhancedAsset[]>([]);
@@ -103,14 +104,6 @@ const Index = () => {
               console.log(`[URL] Auto-selected ${urlAsset.symbol} from URL`);
             }
           }
-
-          // Update selected asset price if it exists
-          if (selectedAsset) {
-            const updated = enhancedAssets.find(
-              (a) => a.symbol === selectedAsset.symbol
-            );
-            if (updated) setSelectedAsset(updated);
-          }
         }
       } catch (error) {
         console.error('Failed to load assets:', error);
@@ -118,7 +111,19 @@ const Index = () => {
     };
 
     loadAssets();
-  }, [selectedAsset?.symbol, urlSymbol]); // Add urlSymbol dependency
+  }, [urlSymbol]); // Only depend on urlSymbol to avoid render loop
+
+  // Separate effect to update selected asset price when assets refresh
+  useEffect(() => {
+    if (selectedAsset && allAssets.length > 0) {
+      const updated = allAssets.find(
+        (a) => a.symbol === selectedAsset.symbol
+      );
+      if (updated) {
+        setSelectedAsset(updated);
+      }
+    }
+  }, [allAssets]); // Only watch allAssets, not selectedAsset
 
   // Load imported account from global storage
   const fetchImportedAccount = async () => {

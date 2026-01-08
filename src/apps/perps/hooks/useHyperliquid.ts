@@ -12,7 +12,7 @@ import {
   buildNoopAction,
   buildOrderAction,
 } from '../lib/hyperliquid/signing';
-import type { UserState, CopyTile } from '../lib/hyperliquid/types';
+import type { UserState, CopyTile, HyperliquidOrder, EnhancedAsset } from '../lib/hyperliquid/types';
 import {
   calculatePositionSize,
   roundToSzDecimals,
@@ -28,8 +28,8 @@ export function useHyperliquid() {
   const { data: walletClient } = useWalletClient();
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('unknown');
   const [userState, setUserState] = useState<UserState | null>(null);
-  const [openOrders, setOpenOrders] = useState<any[]>([]);
-  const [availableAssets, setAvailableAssets] = useState<any[]>([]);
+  const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
+  const [availableAssets, setAvailableAssets] = useState<EnhancedAsset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const checkSetupStatus = useCallback(async () => {
@@ -205,7 +205,6 @@ export function useHyperliquid() {
     openOrders,
     isLoading,
     checkSetupStatus,
-    setupHyperliquid,
     setupHyperliquid,
     loadBalance,
     executeCopyTrade,

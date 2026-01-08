@@ -139,9 +139,6 @@ export function DepositModal({
               title: 'Wrong Network',
               description: 'Please switch to Arbitrum manually',
               variant: 'destructive',
-              title: 'Wrong Network',
-              description: 'Please switch to Arbitrum manually',
-              variant: 'destructive',
             });
             setIsLoading(false);
             return;
@@ -264,7 +261,7 @@ export function DepositModal({
       // Cleanup
       try {
         // kit.batch({ batchName }).remove(); // variable scope issue, need to define batchName outside or ignore
-      } catch {}
+      } catch { }
       setIsLoading(false);
     }
   };

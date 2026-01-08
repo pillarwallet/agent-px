@@ -8,14 +8,15 @@ import { MobileMarketsList } from '../components/mobile/MobileMarketsList';
 import { useHyperliquid } from '../hooks/useHyperliquid';
 import { getUserState, getMetaAndAssetCtxs, getOpenOrders } from '../lib/hyperliquid/client';
 import { getImportedAccount } from '../lib/hyperliquid/keystore';
+import type { UserState, HyperliquidOrder, MarketData } from '../lib/hyperliquid/types';
 
 export default function MobileIndex() {
   const { address } = useAccount();
   const { userState, isLoading, availableAssets } = useHyperliquid();
 
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
-  const [agentUserState, setAgentUserState] = useState<any>(null);
-  const [markets, setMarkets] = useState<any[]>([]);
+  const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
+  const [markets, setMarkets] = useState<MarketData[]>([]);
 
   // Load imported account
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function MobileIndex() {
   }, []);
 
   // Open Orders State
-  const [openOrders, setOpenOrders] = useState<any[]>([]);
+  const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
 
   // Load Open Orders
   useEffect(() => {

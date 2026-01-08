@@ -119,7 +119,9 @@ export async function placeTriggerOrderAgent(
         t: {
           trigger: {
             isMarket: false,
-            triggerPx: parseFloat(params.triggerPrice.toPrecision(5)).toString(),
+            triggerPx: parseFloat(
+              params.triggerPrice.toPrecision(5)
+            ).toString(),
             tpsl: params.tpsl,
           },
         },
@@ -177,6 +179,30 @@ export async function approveAgentSDK(
   console.log('[SDK] Approving agent:', agentAddress);
   const response = await client.approveAgent({ agentAddress, agentName });
   console.log('[SDK] Approve response:', response);
+
+  return response;
+}
+
+/**
+ * Update leverage and margin mode for an asset
+ */
+export async function updateLeverageAgent(
+  privateKey: Hex,
+  params: {
+    coinId: number;
+    leverage: number;
+    isCross: boolean; // true = Cross margin, false = Isolated margin
+  }
+): Promise<any> {
+  const client = getExchangeClientForAgent(privateKey);
+
+  console.log('[SDK] Updating leverage:', params);
+  const response = await client.updateLeverage({
+    asset: params.coinId,
+    isCross: params.isCross,
+    leverage: params.leverage,
+  });
+  console.log('[SDK] Update leverage response:', response);
 
   return response;
 }

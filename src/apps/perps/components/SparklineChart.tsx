@@ -217,6 +217,61 @@ export function SparklineChart({ selectedAsset, userState, openOrders, accountAd
   const percentChange = getPercentageChange();
   const isPositive = percentChange >= 0;
 
+  // ----- Extract Position Data -----
+  let entryPrice: number | null = null;
+  let entryPercent: number | null = null;
+  let tpPrice: number | null = null;
+  let tpPercent: number | null = null;
+  let slPrice: number | null = null;
+  let slPercent: number | null = null;
+  const [entryTime, setEntryTime] = useState<number | null>(null);
+
+  if (selectedAsset && currentPrice && userState?.assetPositions) {
+    // Find active position
+    const position = userState.assetPositions.find(
+      (p: any) => p.position.coin === selectedAsset.symbol
+    );
+    if (position) {
+      const rawEntry = parseFloat(position.position.entryPx);
+      if (!isNaN(rawEntry) && rawEntry > 0) {
+        entryPrice = rawEntry;
+        entryPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+      }
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchEntryTime = async () => {
+      if (!accountAddress || !selectedAsset || !entryPrice) {
+        if (mounted) setEntryTime(null);
+        return;
+      }
+
+      try {
+        const fills = await getUserFills(accountAddress);
+        // Find the most recent fill for this coin that is on the same side as current position
+        // Actually, just finding the last fill for the coin is a good approximation for "entry"
+        // if we assume linear position building.
+        // Fills are usually returned latest first? API returns all fills.
+        const assetFills = fills.filter((f: any) => f.coin === selectedAsset.symbol);
+
+        if (assetFills.length > 0) {
+          // Sort descending by time
+          assetFills.sort((a: any, b: any) => b.time - a.time);
+          const lastFill = assetFills[0];
+          if (mounted) setEntryTime(lastFill.time);
+        }
+      } catch (e) {
+        console.error('Error fetching fills:', e);
+      }
+    };
+
+    fetchEntryTime();
+
+    return () => { mounted = false; };
+  }, [accountAddress, selectedAsset?.symbol, entryPrice]); // Re-run if entryPrice determined (position exists)
+
   if (!selectedAsset) {
     return (
       <Card>
@@ -263,61 +318,7 @@ export function SparklineChart({ selectedAsset, userState, openOrders, accountAd
     return height - padding - ((price - min) / priceRange) * (height - 2 * padding);
   };
 
-  // ----- Extract Position Data -----
-  let entryPrice: number | null = null;
-  let entryPercent: number | null = null;
-  let tpPrice: number | null = null;
-  let tpPercent: number | null = null;
-  let slPrice: number | null = null;
-  let slPercent: number | null = null;
-  const [entryTime, setEntryTime] = useState<number | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    const fetchEntryTime = async () => {
-      if (!accountAddress || !selectedAsset || !entryPrice) {
-        if (mounted) setEntryTime(null);
-        return;
-      }
-
-      try {
-        const fills = await getUserFills(accountAddress);
-        // Find the most recent fill for this coin that is on the same side as current position
-        // Actually, just finding the last fill for the coin is a good approximation for "entry"
-        // if we assume linear position building.
-        // Fills are usually returned latest first? API returns all fills.
-        const assetFills = fills.filter((f: any) => f.coin === selectedAsset.symbol);
-
-        if (assetFills.length > 0) {
-          // Sort descending by time
-          assetFills.sort((a: any, b: any) => b.time - a.time);
-          const lastFill = assetFills[0];
-          if (mounted) setEntryTime(lastFill.time);
-        }
-      } catch (e) {
-        console.error('Error fetching fills:', e);
-      }
-    };
-
-    fetchEntryTime();
-
-    return () => { mounted = false; };
-  }, [accountAddress, selectedAsset?.symbol, entryPrice]); // Re-run if entryPrice determined (position exists)
-
-
-  if (selectedAsset && currentPrice && userState?.assetPositions) {
-    // Find active position
-    const position = userState.assetPositions.find(
-      (p: any) => p.position.coin === selectedAsset.symbol
-    );
-    if (position) {
-      const rawEntry = parseFloat(position.position.entryPx);
-      if (!isNaN(rawEntry) && rawEntry > 0) {
-        entryPrice = rawEntry;
-        entryPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
-      }
-    }
-  }
 
   if (selectedAsset && currentPrice && openOrders) {
     // Filter orders for this asset
@@ -770,30 +771,7 @@ export function SparklineChart({ selectedAsset, userState, openOrders, accountAd
                 </div>
               )}
 
-              {/* Hover Tooltip */}
-              {hoverData && (
-                <div
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: `${hoverData.x}%`,
-                    top: `${hoverData.y}%`,
-                    transform: 'translate(-50%, -100%)',
-                  }}
-                >
-                  <div className="bg-popover border border-border rounded-md px-2 py-1 shadow-lg mb-2 z-10">
-                    <div className="text-xs font-semibold">
-                      ${formatPrice(hoverData.price)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {new Date(hoverData.time).toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                  </div>
-                  <div className="w-2 h-2 bg-primary rounded-full mx-auto"></div>
-                </div>
-              )}
+
 
               {/* Y-Axis (Right) */}
               {priceLevels && (

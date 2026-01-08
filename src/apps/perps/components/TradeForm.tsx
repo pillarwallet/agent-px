@@ -30,6 +30,7 @@ import {
   placeMarketOrderAgent,
   placeLimitOrderAgent,
   placeTriggerOrderAgent,
+  updateLeverageAgent,
 } from '../lib/hyperliquid/sdk';
 import { parsePositionForSymbol } from '../lib/hyperliquid/parsers';
 import { PasteStrategyButton } from './PasteStrategyButton';
@@ -44,6 +45,7 @@ const tradeSchema = z
       .positive()
       .min(10, { message: 'Amount must be at least 10 USDC' }),
     leverage: z.number().min(1).max(50),
+    marginMode: z.enum(['cross', 'isolated']).default('cross'),
     stopLoss: z
       .object({
         price: z.number().nonnegative().optional(),
@@ -108,6 +110,7 @@ export function TradeForm({
       side: 'long',
       amountUSD: 25,
       leverage: selectedAsset ? Math.floor(selectedAsset.maxLeverage / 2) : 1,
+      marginMode: 'cross',
       takeProfits: [], // Initialize as empty array
       stopLoss: undefined,
     },
@@ -125,6 +128,7 @@ export function TradeForm({
   const entryPrice = watch('entryPrice');
   const stopLoss = watch('stopLoss');
   const takeProfits = watch('takeProfits');
+  const marginMode = watch('marginMode');
 
   // Helper to calculate distributed ratios
   const getDistributedRatios = (count: number) => {
@@ -247,7 +251,7 @@ export function TradeForm({
       if (prefilledData.stopLoss) {
         setValue('stopLoss', {
           price: prefilledData.stopLoss,
-          distance: calculateDistance(prefilledData.stopLoss, ep, isLong),
+          distance: calculateDistance(prefilledData.stopLoss, ep),
         });
       }
       if (prefilledData.takeProfits) {
@@ -261,7 +265,7 @@ export function TradeForm({
           tps.map((p) => ({
             price: p,
             ratio: ratio,
-            distance: calculateDistance(p, ep, isLong),
+            distance: calculateDistance(p, ep),
           }))
         );
       }
@@ -291,8 +295,7 @@ export function TradeForm({
         price: strategy.stopLoss,
         distance: calculateDistance(
           strategy.stopLoss,
-          strategy.entryPrice,
-          strategy.side === 'long'
+          strategy.entryPrice
         ),
       });
     }
@@ -313,8 +316,7 @@ export function TradeForm({
           ratio: index === 0 ? baseRatio + remainder : baseRatio,
           distance: calculateDistance(
             p,
-            strategy.entryPrice,
-            strategy.side === 'long'
+            strategy.entryPrice
           ),
         }))
       );
@@ -418,6 +420,25 @@ export function TradeForm({
         toast.error(`Amount too small for ${selectedAsset.symbol}`, {
           id: toastId,
           description: `Minimum required: $${minRequired.toFixed(2)} at ${data.leverage}x leverage`,
+        });
+        return;
+      }
+
+      // Update leverage and margin mode before placing orders
+      try {
+        await updateLeverageAgent(privateKey as `0x${string}`, {
+          coinId: selectedAsset.id,
+          leverage: data.leverage,
+          isCross: data.marginMode === 'cross',
+        });
+        console.log(
+          `[TradeForm] Updated leverage: ${data.leverage}x ${data.marginMode}`
+        );
+      } catch (leverageError: any) {
+        console.error('[TradeForm] Failed to update leverage:', leverageError);
+        toast.error('Failed to set leverage/margin mode', {
+          id: toastId,
+          description: leverageError.message || 'Please try again',
         });
         return;
       }
@@ -601,7 +622,12 @@ export function TradeForm({
             </Select>
 
             {/* Margin Mode Dropdown */}
-            <Select defaultValue="cross">
+            <Select
+              value={marginMode}
+              onValueChange={(v) =>
+                setValue('marginMode', v as 'cross' | 'isolated')
+              }
+            >
               <SelectTrigger className="w-auto border-0 bg-transparent p-0 h-auto text-sm font-medium focus:ring-0 px-0 hover:bg-transparent data-[state=open]:bg-transparent gap-2">
                 <SelectValue />
               </SelectTrigger>
@@ -667,12 +693,12 @@ export function TradeForm({
           <span className="text-foreground font-mono-numbers">
             {userState?.marginSummary
               ? `$${(
-                  parseFloat(userState.marginSummary.accountValue) -
-                  parseFloat(userState.marginSummary.totalMarginUsed)
-                ).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })} USDC`
+                parseFloat(userState.marginSummary.accountValue) -
+                parseFloat(userState.marginSummary.totalMarginUsed)
+              ).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} USDC`
               : '0.00 USDC'}
           </span>
         </div>
@@ -1078,13 +1104,12 @@ export function TradeForm({
               defaultPrevented: e.defaultPrevented,
             });
           }}
-          className={`w-full ${
-            errors.amountUSD || isBelowMinimum
-              ? 'bg-muted text-muted-foreground hover:bg-muted'
-              : side === 'long'
-                ? 'bg-green-600 hover:bg-green-700 text-white'
-                : 'bg-red-600 hover:bg-red-700 text-white'
-          }`}
+          className={`w-full ${errors.amountUSD || isBelowMinimum
+            ? 'bg-muted text-muted-foreground hover:bg-muted'
+            : side === 'long'
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-red-600 hover:bg-red-700 text-white'
+            }`}
         >
           {errors.amountUSD?.message ||
             (isBelowMinimum && minUSD

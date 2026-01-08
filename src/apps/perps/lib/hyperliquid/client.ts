@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { SignedAction, UserState, AssetInfo } from './types';
+import type { SignedAction, UserState, AssetInfo, HyperliquidOrder, UniverseAsset, AssetContext } from './types';
 
 const EXCHANGE_URL = 'https://api.hyperliquid.xyz/exchange';
 const INFO_URL = 'https://api.hyperliquid.xyz/info';
@@ -89,7 +89,7 @@ export async function getMetaInfo(): Promise<any> {
 export async function getOpenOrders(
   address: string,
   symbol?: string
-): Promise<any[]> {
+): Promise<HyperliquidOrder[]> {
   try {
     const response = await axios.post(
       INFO_URL,
@@ -139,7 +139,7 @@ export async function getUserFills(address: string): Promise<any[]> {
   }
 }
 
-export async function getFrontendOpenOrders(address: string): Promise<any[]> {
+export async function getFrontendOpenOrders(address: string): Promise<HyperliquidOrder[]> {
   try {
     const response = await axios.post(
       INFO_URL,
