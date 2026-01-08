@@ -47,12 +47,7 @@ import type { UserState } from '../lib/hyperliquid/types';
 import { PinSetupModal } from './PinSetupModal';
 import { UnlockWalletModal } from './UnlockWalletModal';
 import { PrivateKeyModal } from './PrivateKeyModal';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
+
 import {
   storeAgentWallet,
   updateAgentApprovalRemote,
