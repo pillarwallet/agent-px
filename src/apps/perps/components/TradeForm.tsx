@@ -17,14 +17,14 @@ import {
 } from './ui/select';
 import { Slider } from './ui/slider';
 import { toast } from 'sonner';
-import { getAgentWallet, getImportedAccount } from '../lib/hyperliquid/keystore';
+import {
+  getAgentWallet,
+  getImportedAccount,
+} from '../lib/hyperliquid/keystore';
 import { getMarkPrice, getUserState } from '../lib/hyperliquid/client';
 import { useWalletClient } from 'wagmi';
 import useTransactionKit from '../../../hooks/useTransactionKit';
-import {
-  computeSizeUSD,
-  roundToSzDecimals,
-} from '../lib/hyperliquid/order';
+import { computeSizeUSD, roundToSzDecimals } from '../lib/hyperliquid/order';
 import { TokenIcon } from './TokenIcon';
 import {
   placeMarketOrderAgent,
@@ -39,24 +39,31 @@ const tradeSchema = z
   .object({
     side: z.enum(['long', 'short']),
     entryPrice: z.number().positive().optional(),
-    amountUSD: z.number().positive().min(10, { message: 'Amount must be at least 10 USDC' }),
+    amountUSD: z
+      .number()
+      .positive()
+      .min(10, { message: 'Amount must be at least 10 USDC' }),
     leverage: z.number().min(1).max(50),
-    stopLoss: z.object({
-      price: z.number().nonnegative().optional(),
-      distance: z.number().optional(),
-    }).optional(),
-    takeProfits: z.array(z.object({
-      price: z.number().nonnegative(),
-      ratio: z.number().min(0).max(100),
-      distance: z.number().optional(),
-    })).optional(),
+    stopLoss: z
+      .object({
+        price: z.number().nonnegative().optional(),
+        distance: z.number().optional(),
+      })
+      .optional(),
+    takeProfits: z
+      .array(
+        z.object({
+          price: z.number().nonnegative(),
+          ratio: z.number().min(0).max(100),
+          distance: z.number().optional(),
+        })
+      )
+      .optional(),
   })
-  .refine(
-    (data) => {
-      // Basic validation logic
-      return true;
-    }
-  );
+  .refine((data) => {
+    // Basic validation logic
+    return true;
+  });
 
 type TradeFormData = z.infer<typeof tradeSchema>;
 
@@ -106,7 +113,11 @@ export function TradeForm({
     },
   });
 
-  const { fields: tpFields, append: appendTp, remove: removeTp } = useFieldArray({
+  const {
+    fields: tpFields,
+    append: appendTp,
+    remove: removeTp,
+  } = useFieldArray({
     control,
     name: 'takeProfits',
   });
@@ -120,7 +131,9 @@ export function TradeForm({
     if (count <= 0) return [];
     const base = Math.floor(100 / count);
     const remainder = 100 % count;
-    return Array(count).fill(base).map((val, i) => i < remainder ? val + 1 : val);
+    return Array(count)
+      .fill(base)
+      .map((val, i) => (i < remainder ? val + 1 : val));
   };
 
   // Handle adding TP with auto-redistribution
@@ -133,14 +146,14 @@ export function TradeForm({
     const currentValues = getValues('takeProfits') || [];
     const updatedValues = currentValues.map((tp, i) => ({
       ...tp,
-      ratio: ratios[i]
+      ratio: ratios[i],
     }));
 
     // Add new field with its calculated ratio
     updatedValues.push({
       price: 0,
       ratio: ratios[newCount - 1],
-      distance: 0
+      distance: 0,
     });
 
     // Replace all with new values
@@ -156,7 +169,7 @@ export function TradeForm({
       const ratios = getDistributedRatios(keptValues.length);
       const updatedValues = keptValues.map((tp, i) => ({
         ...tp,
-        ratio: ratios[i]
+        ratio: ratios[i],
       }));
       setValue('takeProfits', updatedValues);
     } else {
@@ -170,9 +183,13 @@ export function TradeForm({
     return Math.abs((targetPrice - currentEntry) / currentEntry) * 100;
   };
 
-
   // Helper to calculate price from distance
-  const calculatePriceFromDistance = (distancePercent: number, currentEntry: number, isLong: boolean, isStopLoss: boolean) => {
+  const calculatePriceFromDistance = (
+    distancePercent: number,
+    currentEntry: number,
+    isLong: boolean,
+    isStopLoss: boolean
+  ) => {
     if (!currentEntry) return 0;
     const change = (distancePercent / 100) * currentEntry;
     if (isStopLoss) {
@@ -230,17 +247,23 @@ export function TradeForm({
       if (prefilledData.stopLoss) {
         setValue('stopLoss', {
           price: prefilledData.stopLoss,
-          distance: calculateDistance(prefilledData.stopLoss, ep, isLong)
+          distance: calculateDistance(prefilledData.stopLoss, ep, isLong),
         });
       }
       if (prefilledData.takeProfits) {
-        const tps = prefilledData.takeProfits.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+        const tps = prefilledData.takeProfits
+          .split(',')
+          .map((s) => parseFloat(s.trim()))
+          .filter((n) => !isNaN(n));
         const ratio = tps.length > 0 ? Math.floor(100 / tps.length) : 0;
-        setValue('takeProfits', tps.map(p => ({
-          price: p,
-          ratio: ratio,
-          distance: calculateDistance(p, ep, isLong)
-        })));
+        setValue(
+          'takeProfits',
+          tps.map((p) => ({
+            price: p,
+            ratio: ratio,
+            distance: calculateDistance(p, ep, isLong),
+          }))
+        );
       }
     }
   }, [prefilledData, setValue, entryPrice, side]);
@@ -266,19 +289,35 @@ export function TradeForm({
     if (strategy.stopLoss) {
       setValue('stopLoss', {
         price: strategy.stopLoss,
-        distance: calculateDistance(strategy.stopLoss, strategy.entryPrice, strategy.side === 'long')
+        distance: calculateDistance(
+          strategy.stopLoss,
+          strategy.entryPrice,
+          strategy.side === 'long'
+        ),
       });
     }
 
     // Transform TP
     if (strategy.takeProfits) {
-      const tps = strategy.takeProfits.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-      const ratio = tps.length > 0 ? Math.floor(100 / tps.length) : 0;
-      setValue('takeProfits', tps.map(p => ({
-        price: p,
-        ratio: ratio,
-        distance: calculateDistance(p, strategy.entryPrice, strategy.side === 'long')
-      })));
+      const tps = strategy.takeProfits
+        .split(',')
+        .map((s) => parseFloat(s.trim()))
+        .filter((n) => !isNaN(n));
+      const baseRatio = tps.length > 0 ? Math.floor(100 / tps.length) : 0;
+      const remainder = tps.length > 0 ? 100 - baseRatio * tps.length : 0;
+
+      setValue(
+        'takeProfits',
+        tps.map((p, index) => ({
+          price: p,
+          ratio: index === 0 ? baseRatio + remainder : baseRatio,
+          distance: calculateDistance(
+            p,
+            strategy.entryPrice,
+            strategy.side === 'long'
+          ),
+        }))
+      );
     }
 
     setIsMarketOrder(false); // Always use limit order for pasted strategies
@@ -342,8 +381,14 @@ export function TradeForm({
     }
 
     if (!privateKey) {
-      toast.error('No active signing wallet found. Please create an agent or import an account.', { id: toastId });
-      console.log('DEBUG: Failed to find privateKey', { masterAddress, privateKey });
+      toast.error(
+        'No active signing wallet found. Please create an agent or import an account.',
+        { id: toastId }
+      );
+      console.log('DEBUG: Failed to find privateKey', {
+        masterAddress,
+        privateKey,
+      });
       return;
     }
 
@@ -377,7 +422,6 @@ export function TradeForm({
         return;
       }
 
-
       // Place entry order via SDK
       // toast.info('Placing entry order...');
 
@@ -405,9 +449,10 @@ export function TradeForm({
         // Calculate limit price with slippage buffer
         // For Long: SL triggers below entry, so limit should be even lower (0.99x)
         // For Short: SL triggers above entry, so limit should be even higher (1.01x)
-        const slLimitPrice = data.side === 'long'
-          ? data.stopLoss.price * 0.99
-          : data.stopLoss.price * 1.01;
+        const slLimitPrice =
+          data.side === 'long'
+            ? data.stopLoss.price * 0.99
+            : data.stopLoss.price * 1.01;
 
         await placeTriggerOrderAgent(privateKey as `0x${string}`, {
           coinId: selectedAsset.id,
@@ -427,7 +472,10 @@ export function TradeForm({
         // Validate total ratio
         const totalRatio = tps.reduce((sum, tp) => sum + (tp.ratio || 0), 0);
         if (Math.abs(totalRatio - 100) > 0.1) {
-          toast.error(`Total Take Profit ratio must be 100% (Currently: ${totalRatio.toFixed(0)}%)`, { id: toastId });
+          toast.error(
+            `Total Take Profit ratio must be 100% (Currently: ${totalRatio.toFixed(0)}%)`,
+            { id: toastId }
+          );
           setIsSubmitting(false);
           return;
         }
@@ -446,9 +494,8 @@ export function TradeForm({
           // Calculate limit price with slippage buffer
           // For Long: TP triggers above entry, so limit should be slightly lower (1.01x is generous)
           // For Short: TP triggers below entry, so limit should be slightly higher (0.99x)
-          const tpLimitPrice = data.side === 'long'
-            ? tp.price * 0.99
-            : tp.price * 1.01;
+          const tpLimitPrice =
+            data.side === 'long' ? tp.price * 0.99 : tp.price * 1.01;
 
           await placeTriggerOrderAgent(privateKey as `0x${string}`, {
             coinId: selectedAsset.id,
@@ -517,7 +564,9 @@ export function TradeForm({
         onSubmit={handleSubmit(onSubmit, (errors) => {
           console.error('Form Validation Errors:', errors);
           toast.error('Form validation failed', {
-            description: Object.values(errors).map(e => e?.message).join(', ')
+            description: Object.values(errors)
+              .map((e) => e?.message)
+              .join(', '),
           });
         })}
         className="space-y-4"
@@ -525,7 +574,9 @@ export function TradeForm({
         <div className="flex flex-col gap-4 mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {selectedAsset && <TokenIcon symbol={selectedAsset.symbol} size={24} />}
+              {selectedAsset && (
+                <TokenIcon symbol={selectedAsset.symbol} size={24} />
+              )}
               <h3 className="text-lg font-semibold">
                 Trade {selectedAsset ? selectedAsset.symbol : ''}
               </h3>
@@ -566,13 +617,14 @@ export function TradeForm({
               onValueChange={(v) => setValue('leverage', parseInt(v))}
             >
               <SelectTrigger className="w-auto border-0 bg-transparent p-0 h-auto text-sm font-medium focus:ring-0 px-0 hover:bg-transparent data-[state=open]:bg-transparent gap-2">
-                <SelectValue>
-                  {leverage}x
-                </SelectValue>
+                <SelectValue>{leverage}x</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {[2, 5, 10, 20, 50, selectedAsset.maxLeverage]
-                  .filter((v, i, a) => v <= selectedAsset.maxLeverage && a.indexOf(v) === i)
+                  .filter(
+                    (v, i, a) =>
+                      v <= selectedAsset.maxLeverage && a.indexOf(v) === i
+                  )
                   .sort((a, b) => a - b)
                   .map((lev) => (
                     <SelectItem key={lev} value={lev.toString()}>
@@ -614,10 +666,13 @@ export function TradeForm({
           <span className="text-muted-foreground">Avail. to Trade</span>
           <span className="text-foreground font-mono-numbers">
             {userState?.marginSummary
-              ? `$${(parseFloat(userState.marginSummary.accountValue) - parseFloat(userState.marginSummary.totalMarginUsed)).toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} USDC`
+              ? `$${(
+                  parseFloat(userState.marginSummary.accountValue) -
+                  parseFloat(userState.marginSummary.totalMarginUsed)
+                ).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })} USDC`
               : '0.00 USDC'}
           </span>
         </div>
@@ -664,7 +719,9 @@ export function TradeForm({
         <div className="grid grid-cols-1 gap-3 mt-4">
           <div className="space-y-3">
             {/* Size Input Row */}
-            <div className={`relative flex items-center w-full rounded-md border bg-background/50 ${errors.amountUSD ? 'border-destructive' : 'border-input'}`}>
+            <div
+              className={`relative flex items-center w-full rounded-md border bg-background/50 ${errors.amountUSD ? 'border-destructive' : 'border-input'}`}
+            >
               <div className="pl-3 text-sm text-muted-foreground whitespace-nowrap">
                 Size
               </div>
@@ -681,8 +738,6 @@ export function TradeForm({
               </div>
             </div>
 
-
-
             {/* Slider and Percentage Display */}
             <div className="flex items-center gap-4 pt-2 px-1">
               <div className="flex-1">
@@ -690,14 +745,22 @@ export function TradeForm({
                   min={0}
                   max={100}
                   step={1}
-                  value={[(() => {
-                    const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
-                    const maxBuyingPower = total * (leverage || 1);
-                    return maxBuyingPower > 0 ? (amountUSD / maxBuyingPower) * 100 : 0;
-                  })()]}
+                  value={[
+                    (() => {
+                      const total = userState?.marginSummary?.totalRawUsd
+                        ? parseFloat(userState.marginSummary.totalRawUsd)
+                        : 0;
+                      const maxBuyingPower = total * (leverage || 1);
+                      return maxBuyingPower > 0
+                        ? (amountUSD / maxBuyingPower) * 100
+                        : 0;
+                    })(),
+                  ]}
                   onValueChange={(vals) => {
                     const percentage = vals[0];
-                    const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
+                    const total = userState?.marginSummary?.totalRawUsd
+                      ? parseFloat(userState.marginSummary.totalRawUsd)
+                      : 0;
                     if (total > 0) {
                       const maxBuyingPower = total * (leverage || 1);
                       const newAmount = (maxBuyingPower * percentage) / 100;
@@ -711,9 +774,14 @@ export function TradeForm({
               <div className="flex items-center justify-center w-[80px] h-[28px] rounded-lg border border-[#2d3748] bg-[#1a202c]">
                 <span className="text-sm font-medium">
                   {(() => {
-                    const total = userState?.marginSummary?.totalRawUsd ? parseFloat(userState.marginSummary.totalRawUsd) : 0;
+                    const total = userState?.marginSummary?.totalRawUsd
+                      ? parseFloat(userState.marginSummary.totalRawUsd)
+                      : 0;
                     const maxBuyingPower = total * (leverage || 1);
-                    const currentPercent = maxBuyingPower > 0 ? (amountUSD / maxBuyingPower) * 100 : 0;
+                    const currentPercent =
+                      maxBuyingPower > 0
+                        ? (amountUSD / maxBuyingPower) * 100
+                        : 0;
                     return Math.round(currentPercent);
                   })()}
                 </span>
@@ -748,7 +816,9 @@ export function TradeForm({
           {stopLoss && (
             <div className="flex gap-3 items-center">
               <div className="relative flex-1 flex items-center rounded-md border border-input bg-background/50">
-                <span className="pl-3 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">Price</span>
+                <span className="pl-3 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
+                  Price
+                </span>
                 <Input
                   type="number"
                   step="any"
@@ -764,9 +834,13 @@ export function TradeForm({
                     const val = parseFloat(e.target.value);
                     if (!isNaN(val)) {
                       setValue('stopLoss.price', val);
-                      const refPrice = entryPrice || marketPrice || selectedAsset?.price || 0;
+                      const refPrice =
+                        entryPrice || marketPrice || selectedAsset?.price || 0;
                       const dist = calculateDistance(val, refPrice);
-                      setValue('stopLoss.distance', parseFloat(dist.toFixed(2)));
+                      setValue(
+                        'stopLoss.distance',
+                        parseFloat(dist.toFixed(2))
+                      );
                     }
                   }}
                 />
@@ -792,15 +866,23 @@ export function TradeForm({
                         entryPrice,
                         marketPrice,
                         selectedAssetPrice: selectedAsset?.price,
-                        side
+                        side,
                       });
-                      const refPrice = entryPrice || marketPrice || selectedAsset?.price || 0;
-                      const price = calculatePriceFromDistance(val, refPrice, side === 'long', true);
+                      const refPrice =
+                        entryPrice || marketPrice || selectedAsset?.price || 0;
+                      const price = calculatePriceFromDistance(
+                        val,
+                        refPrice,
+                        side === 'long',
+                        true
+                      );
                       setValue('stopLoss.price', parseFloat(price.toFixed(2)));
                     }
                   }}
                 />
-                <span className="pr-3 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">%</span>
+                <span className="pr-3 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
+                  %
+                </span>
               </div>
               <Button
                 type="button"
@@ -841,7 +923,10 @@ export function TradeForm({
 
           <div className="space-y-2">
             {tpFields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-[1fr_70px_90px_24px] gap-2 items-center">
+              <div
+                key={field.id}
+                className="grid grid-cols-[1fr_70px_90px_24px] gap-2 items-center"
+              >
                 {/* Price Input */}
                 <div className="flex items-center rounded-md border border-input bg-background/50">
                   <Input
@@ -849,7 +934,9 @@ export function TradeForm({
                     step="any"
                     className="border-0 bg-transparent px-3 py-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
                     placeholder="Price"
-                    {...register(`takeProfits.${index}.price` as const, { valueAsNumber: true })}
+                    {...register(`takeProfits.${index}.price` as const, {
+                      valueAsNumber: true,
+                    })}
                     onFocus={(e) => {
                       if (e.target.value === '0') {
                         e.target.value = '';
@@ -859,9 +946,16 @@ export function TradeForm({
                       const val = parseFloat(e.target.value);
                       if (!isNaN(val)) {
                         setValue(`takeProfits.${index}.price`, val);
-                        const refPrice = entryPrice || marketPrice || selectedAsset?.price || 0;
+                        const refPrice =
+                          entryPrice ||
+                          marketPrice ||
+                          selectedAsset?.price ||
+                          0;
                         const dist = calculateDistance(val, refPrice);
-                        setValue(`takeProfits.${index}.distance`, parseFloat(dist.toFixed(2)));
+                        setValue(
+                          `takeProfits.${index}.distance`,
+                          parseFloat(dist.toFixed(2))
+                        );
                       }
                     }}
                   />
@@ -873,9 +967,13 @@ export function TradeForm({
                     type="number"
                     className="border-0 bg-transparent text-right pr-1 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 w-full"
                     placeholder="20"
-                    {...register(`takeProfits.${index}.ratio` as const, { valueAsNumber: true })}
+                    {...register(`takeProfits.${index}.ratio` as const, {
+                      valueAsNumber: true,
+                    })}
                   />
-                  <span className="pr-2 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">%</span>
+                  <span className="pr-2 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
+                    %
+                  </span>
                 </div>
 
                 {/* Distance Input */}
@@ -885,7 +983,9 @@ export function TradeForm({
                     step="0.01"
                     className="border-0 bg-transparent text-right pr-1 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 w-full"
                     placeholder="0"
-                    {...register(`takeProfits.${index}.distance` as const, { valueAsNumber: true })}
+                    {...register(`takeProfits.${index}.distance` as const, {
+                      valueAsNumber: true,
+                    })}
                     onFocus={(e) => {
                       if (e.target.value === '0') {
                         e.target.value = '';
@@ -895,13 +995,27 @@ export function TradeForm({
                       const val = parseFloat(e.target.value);
                       if (!isNaN(val)) {
                         setValue(`takeProfits.${index}.distance`, val);
-                        const refPrice = entryPrice || marketPrice || selectedAsset?.price || 0;
-                        const price = calculatePriceFromDistance(val, refPrice, side === 'long', false);
-                        setValue(`takeProfits.${index}.price`, parseFloat(price.toFixed(2)));
+                        const refPrice =
+                          entryPrice ||
+                          marketPrice ||
+                          selectedAsset?.price ||
+                          0;
+                        const price = calculatePriceFromDistance(
+                          val,
+                          refPrice,
+                          side === 'long',
+                          false
+                        );
+                        setValue(
+                          `takeProfits.${index}.price`,
+                          parseFloat(price.toFixed(2))
+                        );
                       }
                     }}
                   />
-                  <span className="pr-2 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">%</span>
+                  <span className="pr-2 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
+                    %
+                  </span>
                 </div>
 
                 <Button
@@ -920,11 +1034,15 @@ export function TradeForm({
             {(() => {
               const currentTps = watch('takeProfits') || [];
               if (currentTps.length > 0) {
-                const totalRatio = currentTps.reduce((sum, tp) => sum + (tp.ratio || 0), 0);
+                const totalRatio = currentTps.reduce(
+                  (sum, tp) => sum + (tp.ratio || 0),
+                  0
+                );
                 if (Math.abs(totalRatio - 100) > 0.1) {
                   return (
                     <div className="text-xs text-destructive px-1">
-                      Total ratio must be 100% (Currently: {totalRatio.toFixed(0)}%)
+                      Total ratio must be 100% (Currently:{' '}
+                      {totalRatio.toFixed(0)}%)
                     </div>
                   );
                 }
@@ -932,10 +1050,7 @@ export function TradeForm({
               return null;
             })()}
           </div>
-
         </div>
-
-
 
         {(errors.amountUSD || (isBelowMinimum && minUSD)) && (
           <div className="hidden" /> // Keeping logical check but hiding element as we move to button
@@ -949,7 +1064,7 @@ export function TradeForm({
             isBelowMinimum,
             minUSD,
             amountUSD,
-            disabled: isSubmitting || !!errors.amountUSD || isBelowMinimum
+            disabled: isSubmitting || !!errors.amountUSD || isBelowMinimum,
           });
           return null;
         })()}
@@ -960,23 +1075,25 @@ export function TradeForm({
           onClick={(e) => {
             console.log('[TradeForm] Submit button clicked event', {
               disabled: isSubmitting || !!errors.amountUSD || isBelowMinimum,
-              defaultPrevented: e.defaultPrevented
+              defaultPrevented: e.defaultPrevented,
             });
           }}
-          className={`w-full ${errors.amountUSD || isBelowMinimum
-            ? 'bg-muted text-muted-foreground hover:bg-muted'
-            : side === 'long'
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-red-600 hover:bg-red-700 text-white'
-            }`}
+          className={`w-full ${
+            errors.amountUSD || isBelowMinimum
+              ? 'bg-muted text-muted-foreground hover:bg-muted'
+              : side === 'long'
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-red-600 hover:bg-red-700 text-white'
+          }`}
         >
-          {errors.amountUSD?.message || (isBelowMinimum && minUSD ? `Minimum size: $${minUSD.toFixed(2)}` : (
-            isSubmitting
-              ? 'Placing Trade...'
-              : `Place ${side === 'long' ? 'Long' : 'Short'} Order`
-          ))}
+          {errors.amountUSD?.message ||
+            (isBelowMinimum && minUSD
+              ? `Minimum size: $${minUSD.toFixed(2)}`
+              : isSubmitting
+                ? 'Placing Trade...'
+                : `Place ${side === 'long' ? 'Long' : 'Short'} Order`)}
         </Button>
-      </form >
-    </Card >
+      </form>
+    </Card>
   );
 }
