@@ -92,6 +92,8 @@ export function PositionsCard({
     setIsLoading(true);
     try {
       console.log('DEBUG: Fetching data for', masterAddress);
+      console.log('DEBUG: External User State:', externalUserState ? 'Present' : 'Missing', externalUserState);
+      console.log('DEBUG: External Open Orders:', externalOpenOrders ? 'Present' : 'Missing', externalOpenOrders?.length);
 
       // If we have external data, we only need metadata and prices
       // checks if we need to fetch user data
@@ -181,6 +183,10 @@ export function PositionsCard({
       }
 
       setOpenOrders(orders || []);
+      console.log('DEBUG: Final Open Orders set:', orders?.length);
+      console.log('DEBUG: Final Positions set:', positions.length); // Use current state or expected variable? 
+      // Warning: 'positions' here refers to state which hasn't updated yet.
+      // We should log 'openPositions' inside the if block for clarity.
     } catch (error) {
       console.error('DEBUG: Error fetching data:', error);
     } finally {
@@ -192,7 +198,7 @@ export function PositionsCard({
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, [masterAddress]);
+  }, [masterAddress, externalUserState, externalOpenOrders]);
 
   // Auto-collapse when there are no positions or orders, auto-open when there are
   useEffect(() => {
