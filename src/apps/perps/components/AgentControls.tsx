@@ -215,22 +215,28 @@ export function AgentControls({
   };
 
   const handleCreateAgentClick = () => {
+    console.log('[AgentControls] Create Agent Clicked. Address:', address);
     if (!address) {
       toast.error('Please connect your wallet first');
       return;
     }
     // Check for existing first
     getAgentWallet(address).then((existing) => {
+      console.log('[AgentControls] Existing wallet check result:', existing);
       if (existing) {
         setAgentAddress(existing.address);
         setAgentStatus(existing.approved ? 'approved' : 'created');
         toast.success('Agent wallet already exists!');
       } else if (isAgentWalletEncrypted(address)) {
+        console.log('[AgentControls] Wallet is encrypted/locked');
         setAgentStatus('locked');
         toast.info('Wallet is locked. Please unlock it.');
       } else {
+        console.log('[AgentControls] Opening Pin Setup...');
         setShowPinSetup(true);
       }
+    }).catch(err => {
+      console.error('[AgentControls] Error checking wallet:', err);
     });
   };
 

@@ -2,6 +2,9 @@ import type { Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { encryptWithPin, decryptWithPin, type EncryptedData } from '../encryption';
 
+// Module-level cache for unlocked private key (cleared on page refresh)
+let cachedPrivateKey: Hex | null = null;
+
 export function generateAgentWallet(): { address: string; privateKey: Hex } {
   const privateKey = generatePrivateKey();
   const account = privateKeyToAccount(privateKey);
