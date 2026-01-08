@@ -7,10 +7,14 @@ import {
     DialogTitle,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+    InputOTP,
+    InputOTPGroup,
+    InputOTPSlot,
+} from './ui/input-otp';
 
 interface UnlockWalletModalProps {
     isOpen: boolean;
@@ -24,8 +28,8 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (pin.length < 4) {
-            toast.error('PIN must be at least 4 digits');
+        if (pin.length !== 4) {
+            toast.error('PIN must be 4 digits');
             return;
         }
 
@@ -58,27 +62,29 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="pin">PIN Code</Label>
-                        <Input
-                            id="pin"
-                            type="password"
-                            placeholder="Enter PIN"
+                <form onSubmit={handleSubmit} className="space-y-6 py-4">
+                    <div className="space-y-2 flex flex-col items-center">
+                        <Label htmlFor="pin" className="w-full text-left">PIN Code</Label>
+                        <InputOTP
+                            maxLength={4}
                             value={pin}
-                            onChange={(e) => setPin(e.target.value)}
-                            className="text-center text-lg tracking-widest"
-                            autoFocus
-                            maxLength={6}
+                            onChange={(value) => setPin(value)}
                             disabled={isLoading}
-                        />
+                        >
+                            <InputOTPGroup>
+                                <InputOTPSlot index={0} masked />
+                                <InputOTPSlot index={1} masked />
+                                <InputOTPSlot index={2} masked />
+                                <InputOTPSlot index={3} masked />
+                            </InputOTPGroup>
+                        </InputOTP>
                     </div>
 
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 pt-2">
                         <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isLoading || pin.length < 4}>
+                        <Button type="submit" disabled={isLoading || pin.length !== 4}>
                             {isLoading ? 'Unlocking...' : 'Unlock'}
                         </Button>
                     </div>

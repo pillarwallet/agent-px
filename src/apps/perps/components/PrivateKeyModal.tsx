@@ -79,7 +79,7 @@ export function PrivateKeyModal({
                     </DialogTitle>
                     <DialogDescription>
                         {mode === 'created'
-                            ? "Your agent wallet has been encrypted. Please save your private key now. You won't be able to see it again without your PIN."
+                            ? "Your agent wallet can perform actions on behalf of your account without having withdrawal permissions. You must still use your account's address to withdraw"
                             : "Be careful! Anyone with this key can access your funds."
                         }
                     </DialogDescription>

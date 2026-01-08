@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -7,10 +6,14 @@ import {
     DialogTitle,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+    InputOTP,
+    InputOTPGroup,
+    InputOTPSlot,
+} from './ui/input-otp';
 
 interface PinSetupModalProps {
     isOpen: boolean;
@@ -24,8 +27,8 @@ export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProp
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (pin.length < 4) {
-            toast.error('PIN must be at least 4 digits');
+        if (pin.length !== 4) {
+            toast.error('PIN must be 4 digits');
             return;
         }
         if (pin !== confirmPin) {
@@ -48,43 +51,48 @@ export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProp
                         Set Wallet PIN
                     </DialogTitle>
                     <DialogDescription>
-                        Create a PIN to secure your agent wallet. You will need this to unlock trading sessions.
+                        Create a 4-digit PIN to secure your agent wallet.
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="pin">Enter PIN</Label>
-                        <Input
-                            id="pin"
-                            type="password"
-                            placeholder="Create PIN"
+                <form onSubmit={handleSubmit} className="space-y-6 py-4">
+                    <div className="space-y-2 flex flex-col items-center">
+                        <Label htmlFor="pin" className="w-full text-left">Enter PIN</Label>
+                        <InputOTP
+                            maxLength={4}
                             value={pin}
-                            onChange={(e) => setPin(e.target.value)}
-                            className="text-center text-lg tracking-widest"
-                            autoFocus
-                            maxLength={6}
-                        />
+                            onChange={(value) => setPin(value)}
+                        >
+                            <InputOTPGroup>
+                                <InputOTPSlot index={0} masked />
+                                <InputOTPSlot index={1} masked />
+                                <InputOTPSlot index={2} masked />
+                                <InputOTPSlot index={3} masked />
+                            </InputOTPGroup>
+                        </InputOTP>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="confirmPin">Confirm PIN</Label>
-                        <Input
-                            id="confirmPin"
-                            type="password"
-                            placeholder="Confirm PIN"
+                    <div className="space-y-2 flex flex-col items-center">
+                        <Label htmlFor="confirmPin" className="w-full text-left">Confirm PIN</Label>
+                        <InputOTP
+                            maxLength={4}
                             value={confirmPin}
-                            onChange={(e) => setConfirmPin(e.target.value)}
-                            className="text-center text-lg tracking-widest"
-                            maxLength={6}
-                        />
+                            onChange={(value) => setConfirmPin(value)}
+                        >
+                            <InputOTPGroup>
+                                <InputOTPSlot index={0} masked />
+                                <InputOTPSlot index={1} masked />
+                                <InputOTPSlot index={2} masked />
+                                <InputOTPSlot index={3} masked />
+                            </InputOTPGroup>
+                        </InputOTP>
                     </div>
 
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 pt-2">
                         <Button type="button" variant="outline" onClick={onCancel}>
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={!pin || pin !== confirmPin}>
+                        <Button type="submit" disabled={pin.length !== 4 || pin !== confirmPin}>
                             Confirm & Create
                         </Button>
                     </div>
