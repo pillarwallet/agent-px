@@ -865,107 +865,109 @@ export function AgentControls({
               >
                 Cancel
               </Button>
-            </DialogContent>
-          </Dialog>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-          {agentStatus === 'locked' && (
+      {agentStatus === 'locked' && (
+        <Button
+          onClick={() => {
+            setRevealMode('unlock');
+            setShowUnlockReveal(true);
+          }}
+          className="w-full mb-2"
+          size="sm"
+        >
+          Unlock Wallet
+        </Button>
+      )}
+
+      {agentStatus === 'created' && (
+        <div className="space-y-1.5">
+          {masterBalance < 10 ? (
+            <DepositModal
+              userState={userState!}
+              trigger={
+                <Button className="w-full" size="sm">
+                  Deposit $10 USDC to Trade
+                </Button>
+              }
+            />
+          ) : (
             <Button
-              onClick={() => {
-                setRevealMode('unlock');
-                setShowUnlockReveal(true);
-              }}
-              className="w-full mb-2"
+              onClick={handleApproveAgent}
+              disabled={isApproving || !address}
+              className="w-full"
               size="sm"
             >
-              Unlock Wallet
+              {isApproving ? 'Approving...' : 'Activate Account'}
             </Button>
           )}
 
-          {agentStatus === 'created' && (
-            <div className="space-y-1.5">
-              {masterBalance < 10 ? (
-                <DepositModal
-                  userState={userState!}
-                  trigger={
-                    <Button className="w-full" size="sm">
-                      Deposit $10 USDC to Trade
+          <Button
+            onClick={handleRemoveAgent}
+            disabled={isRemoving || isApproving}
+            variant="outline"
+            className="w-full text-xs"
+            size="sm"
+          >
+            {isRemoving ? 'Removing...' : 'Remove Account'}
+          </Button>
+
+          <PinSetupModal
+            isOpen={showPinSetup}
+            onConfirm={handleAgentCreationWithPin}
+            onCancel={() => setShowPinSetup(false)}
+          />
+
+          <UnlockWalletModal
+            isOpen={showUnlockReveal}
+            onUnlock={handleUnlockForReveal}
+            onClose={() => setShowUnlockReveal(false)}
+          />
+        </div>
+      )
+      }
+
+      {
+        agentStatus === 'approved' && (
+          <div className="space-y-3">
+            <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <span className="text-sm font-medium text-success">
+                    Imported Account Active
+                  </span>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <Settings className="h-4 w-4" />
                     </Button>
-                  }
-                />
-              ) : (
-                <Button
-                  onClick={handleApproveAgent}
-                  disabled={isApproving || !address}
-                  className="w-full"
-                  size="sm"
-                >
-                  {isApproving ? 'Approving...' : 'Activate Account'}
-                </Button>
-              )}
-
-              <Button
-                onClick={handleRemoveAgent}
-                disabled={isRemoving || isApproving}
-                variant="outline"
-                className="w-full text-xs"
-                size="sm"
-              >
-                {isRemoving ? 'Removing...' : 'Remove Account'}
-              </Button>
-
-              <PinSetupModal
-                isOpen={showPinSetup}
-                onConfirm={handleAgentCreationWithPin}
-                onCancel={() => setShowPinSetup(false)}
-              />
-
-              <UnlockWalletModal
-                isOpen={showUnlockReveal}
-                onUnlock={handleUnlockForReveal}
-                onClose={() => setShowUnlockReveal(false)}
-              />
-            </div>
-          )
-          }
-
-          {
-            agentStatus === 'approved' && (
-              <div className="space-y-3">
-                <div className="bg-success/10 border border-success/30 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                      <span className="text-sm font-medium text-success">
-                        Imported Account Active
-                      </span>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={handleRemoveAccount}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Remove Account
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">Address:</span>
-                    <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
-                      {agentAddress}
-                    </div>
-                  </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={handleRemoveAccount}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remove Account
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Address:</span>
+                <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
+                  {agentAddress}
                 </div>
               </div>
-            )
-          }
-        </Card >
-        );
+            </div>
+          </div>
+        )
+      }
+    </Card >
+  );
 }
