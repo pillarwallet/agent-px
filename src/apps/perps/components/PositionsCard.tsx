@@ -512,7 +512,9 @@ export function PositionsCard({
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <CardTitle className="text-lg">Positions & Orders</CardTitle>
+            <CardTitle className="text-lg">
+              Positions & Orders <span className="text-xs font-mono text-muted-foreground">({masterAddress})</span>
+            </CardTitle>
             <ChevronDown
               className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
             />
