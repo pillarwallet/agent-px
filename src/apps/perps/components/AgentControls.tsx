@@ -457,28 +457,7 @@ export function AgentControls({
     }
   };
 
-  const handleUnlockForReveal = async (pin: string): Promise<boolean> => {
-    if (!address) return false;
-    try {
-      const unlocked = await unlockAgentWallet(address, pin);
-      if (unlocked) {
-        setAgentPrivateKey(unlocked.privateKey);
-        setShowUnlockReveal(false);
 
-        // Proceed with action
-        if (revealMode === 'copy') {
-          navigator.clipboard.writeText(unlocked.privateKey);
-          toast.success('Private key copied to clipboard!');
-        } else {
-          downloadKeyFile(unlocked.address, unlocked.privateKey);
-        }
-        return true;
-      }
-      return false;
-    } catch (e) {
-      throw e; // Modal handles error
-    }
-  };
 
   const copyPrivateKey = () => {
     if (agentPrivateKey) {
