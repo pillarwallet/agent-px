@@ -58,6 +58,7 @@ import {
   getAgentAddress,
   isAgentWalletEncrypted
 } from '../lib/hyperliquid/keystore';
+import { cn } from '../lib/utils';
 
 type AgentStatus = 'none' | 'created' | 'approved' | 'locked';
 
@@ -262,6 +263,11 @@ export function AgentControls({
           privateKey: pendingImportData.privateKey,
           mode: 'created'
         });
+
+        // Update local state immediately
+        setAgentAddress(importAccountAddress.trim() || pendingImportData.address);
+        setAgentPrivateKey(pendingImportData.privateKey);
+        setAgentStatus('approved');
 
       } else {
         // Generate NEW wallet
