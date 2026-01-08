@@ -100,12 +100,16 @@ const Index = () => {
         )}
 
         {/* Open Positions - Full Width */}
-        {address && setupStatus === 'setup' && (
+        {address && setupStatus === 'setup' && userState && (
           <div className="mb-6">
+            {/* DEBUG: Log userState passing */}
+            {console.log('DEBUG [Index]: Passing userState to PositionsCard', userState)}
             <PositionsCard
+              key={activeAddress || address}
               masterAddress={activeAddress || address}
               onPositionClick={handlePositionClick}
-              userState={userState || undefined}
+              userState={userState}
+              assetPositions={userState?.assetPositions} // Pass directly
               openOrders={openOrders}
               onRefresh={loadBalance}
             />
@@ -155,13 +159,7 @@ const Index = () => {
           </div>
         </div>
 
-        {!address && (
-          <div className="text-center py-20">
-            <p className="text-muted-foreground text-lg">
-              Connect your wallet to start trading
-            </p>
-          </div>
-        )}
+        {!address && null}
       </div>
     </div>
   );

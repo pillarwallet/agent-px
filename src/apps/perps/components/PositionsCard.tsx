@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -53,17 +53,19 @@ import { TokenIcon } from './TokenIcon';
 interface PositionsCardProps {
   masterAddress: string;
   onPositionClick?: (symbol: string) => void;
-  onRefresh?: () => void;
-  userState?: any; // Using any for now to avoid strict type issues with passed state, or import UserState
-  openOrders?: any[];
+  onRefresh: () => void;
+  userState?: UserState; // Using any for now to avoid strict type issues with passed state, or  userState?: UserState;
+  assetPositions?: HyperliquidPosition[]; // Direct pass-through
+  openOrders?: HyperliquidOrder[];
 }
 
 export function PositionsCard({
   masterAddress,
   onPositionClick,
-  onRefresh,
-  userState: externalUserState,
+  userState,
+  assetPositions: directPositions, // Rename
   openOrders: externalOpenOrders,
+  onRefresh,
 }: PositionsCardProps) {
   const isMobile = useIsMobile();
   const [positions, setPositions] = useState<HyperliquidPosition[]>([]);
@@ -78,6 +80,8 @@ export function PositionsCard({
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [universe, setUniverse] = useState<UniverseAsset[]>([]);
   const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
+  const [internalUserState, setInternalUserState] = useState<UserState | null>(null);
+
 
   const handlePositionClick = (coin: string) => {
     // 1. Load asset into chart/trade form via parent
@@ -86,18 +90,14 @@ export function PositionsCard({
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!masterAddress) return;
 
     setIsLoading(true);
     try {
-      console.log('DEBUG: Fetching data for', masterAddress);
-      console.log('DEBUG: External User State:', externalUserState ? 'Present' : 'Missing', externalUserState);
-      console.log('DEBUG: External Open Orders:', externalOpenOrders ? 'Present' : 'Missing', externalOpenOrders?.length);
-
       // If we have external data, we only need metadata and prices
       // checks if we need to fetch user data
-      const shouldFetchUser = !externalUserState;
+      const shouldFetchUser = !userState && !directPositions; // Only fetch if no external userState or directPositions
 
       const promises: Promise<any>[] = [
         getMetaAndAssetCtxs(),
@@ -110,21 +110,11 @@ export function PositionsCard({
 
       const results = await Promise.all(promises);
       const metaData = results[0];
-      const userState = shouldFetchUser ? results[1] : externalUserState;
-      const orders = shouldFetchUser ? results[2] : externalOpenOrders;
+      const fetchedUserState = shouldFetchUser ? results[1] : userState;
+      const fetchedOrders = shouldFetchUser ? results[2] : externalOpenOrders;
 
-      console.log('DEBUG: API Results', {
-        userState: !!userState,
-        ordersCount: Array.isArray(orders) ? orders.length : 'not-array',
-        metaData: !!metaData,
-      });
-
-      // Log the actual order structure to debug
-      if (orders && orders.length > 0) {
-        console.log(
-          'DEBUG: First order structure:',
-          JSON.stringify(orders[0], null, 2)
-        );
+      if (shouldFetchUser) {
+        setInternalUserState(fetchedUserState);
       }
 
       // Create a map of symbol -> mark price
@@ -147,15 +137,27 @@ export function PositionsCard({
         });
       }
 
-      if (userState?.assetPositions) {
-        console.log(
-          'DEBUG: Processing positions',
-          userState.assetPositions.length
-        );
-        const openPositions = userState.assetPositions
+      const effectiveState = userState || internalUserState;
+      // Prefer direct positions if available, otherwise check state
+      const sourcePositions = directPositions || effectiveState?.assetPositions;
+
+      if (sourcePositions) {
+        const uniqueKeys = new Set();
+
+        // Robust Mapping Logic
+        const openPositions = sourcePositions
           .map((pos: any) => {
             try {
-              const rawPos = pos.position;
+              // Handle potential structure mismatch (wrapped vs flat)
+              const rawPos = pos.position || pos;
+
+              // Ensure uniqueness based on coin
+              if (uniqueKeys.has(rawPos.coin)) {
+                console.warn(`Duplicate position for ${rawPos.coin} found, skipping.`);
+                return null;
+              }
+              uniqueKeys.add(rawPos.coin);
+
               // Enrich with mark price if missing or zero
               let markPx = rawPos.markPx;
               if (
@@ -185,35 +187,33 @@ export function PositionsCard({
                 coinInfo,
               };
             } catch (e) {
-              console.error('Error processing position:', e);
+              console.warn('CRITICAL WARNING: Error processing position item:', e, pos);
               return null;
             }
           })
-          .filter((p: any) => p && parseFloat(p.szi) !== 0);
+          .filter((p: any) => !!p); // Only filter nulls/errors, allow 0 size for debugging
 
-        console.log('DEBUG: Setting positions', openPositions.length);
         setPositions(openPositions);
       } else {
-        console.log('DEBUG: No assetPositions in userState');
+        setPositions([]); // Clear positions if none found
       }
 
-      setOpenOrders(orders || []);
-      console.log('DEBUG: Final Open Orders set:', orders?.length);
-      console.log('DEBUG: Final Positions set:', positions.length); // Use current state or expected variable? 
-      // Warning: 'positions' here refers to state which hasn't updated yet.
-      // We should log 'openPositions' inside the if block for clarity.
+      setOpenOrders(fetchedOrders || []);
     } catch (error) {
-      console.error('DEBUG: Error fetching data:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [masterAddress, userState, directPositions, externalOpenOrders, internalUserState]); // Added internalUserState to dependencies, removed universe
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, [masterAddress, externalUserState, externalOpenOrders]);
+    // Only poll if we don't have external data (to avoid rate limiting)
+    if (!userState && !directPositions) {
+      const interval = setInterval(fetchData, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchData, userState, directPositions]); // Re-run when external data changes
 
   // Auto-collapse when there are no positions or orders, auto-open when there are
   useEffect(() => {
@@ -447,14 +447,14 @@ export function PositionsCard({
           order.orderType.toLowerCase().includes('stop')
         ) {
           sls.push({ price, size });
-        } else {
-          // Fallback to price logic if orderType not available
+        } else if (order.reduceOnly) {
+          // Fallback: classify based on price comparison for reduceOnly orders
           const position = positions.find((p) => p.coin === coin);
           const markPx = parseFloat(
             position?.markPx || position?.entryPx || '0'
           );
 
-          if (triggerPx > 0) {
+          if (markPx > 0 && price > 0) {
             if (isLong) {
               // Long: TP > Mark, SL < Mark
               if (price > markPx) tps.push({ price, size });
@@ -527,7 +527,9 @@ export function PositionsCard({
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <CardTitle className="text-lg">Positions & Orders</CardTitle>
+            <CardTitle className="text-lg">
+              Positions & Orders
+            </CardTitle>
             <ChevronDown
               className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
             />
@@ -876,25 +878,23 @@ export function PositionsCard({
                                     </span>
                                   </div>
                                 ) : (
-                                  <span className="flex gap-1">
-                                    <span
-                                      className={
-                                        position.tpPrice ? 'text-green-500' : ''
-                                      }
-                                    >
-                                      {position.tpPrice
-                                        ? formatPrice(position.tpPrice)
-                                        : '-'}
-                                    </span>
-                                    <span
-                                      className={
-                                        position.slPrice ? 'text-red-500' : ''
-                                      }
-                                    >
-                                      {position.slPrice
-                                        ? formatPrice(position.slPrice)
-                                        : '-'}
-                                    </span>
+                                  <span className="flex gap-1 justify-end">
+                                    {tps.length === 0 && sls.length === 0 ? (
+                                      <span>-</span>
+                                    ) : (
+                                      <>
+                                        {tps.length > 0 && (
+                                          <span className="text-green-500">
+                                            ${formatPrice(tps[0].price)}
+                                          </span>
+                                        )}
+                                        {sls.length > 0 && (
+                                          <span className="text-red-500">
+                                            ${formatPrice(sls[0].price)}
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
                                   </span>
                                 )}
                               </span>
@@ -976,28 +976,22 @@ export function PositionsCard({
                             </div>
                           ) : (
                             <div className="flex flex-col items-end text-xs leading-tight">
-                              <span
-                                className={
-                                  position.tpPrice
-                                    ? 'text-green-500'
-                                    : 'text-muted-foreground'
-                                }
-                              >
-                                {position.tpPrice
-                                  ? formatPrice(position.tpPrice)
-                                  : '-'}
-                              </span>
-                              <span
-                                className={
-                                  position.slPrice
-                                    ? 'text-red-500'
-                                    : 'text-muted-foreground'
-                                }
-                              >
-                                {position.slPrice
-                                  ? formatPrice(position.slPrice)
-                                  : '-'}
-                              </span>
+                              {tps.length === 0 && sls.length === 0 ? (
+                                <span className="text-muted-foreground">-</span>
+                              ) : (
+                                <>
+                                  {tps.length > 0 && (
+                                    <span className="text-green-500">
+                                      {formatPrice(tps[0].price)}
+                                    </span>
+                                  )}
+                                  {sls.length > 0 && (
+                                    <span className="text-red-500">
+                                      {formatPrice(sls[0].price)}
+                                    </span>
+                                  )}
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1044,14 +1038,34 @@ export function PositionsCard({
                     </div>
                   )}
 
-                  {openOrders.map((order) => {
+                  {openOrders.map((order, orderIndex) => {
                     const buy = isBuy(order.side);
                     const position = positions.find(
                       (p) => p.coin === order.coin
                     );
 
-                    // Use orderType from API if available, otherwise default to 'Limit'
-                    let type = order.orderType || 'Limit';
+                    // Determine order type based on reduceOnly and price comparison
+                    let type = 'Limit';
+
+                    if (order.reduceOnly && position) {
+                      const isLong = parseFloat(position.szi) > 0;
+                      const isClosing = (isLong && !buy) || (!isLong && buy);
+
+                      if (isClosing) {
+                        const limitPrice = parseFloat(order.limitPx);
+                        const markPrice = parseFloat(position.markPx || position.entryPx || '0');
+
+                        if (markPrice > 0) {
+                          if (isLong) {
+                            // Long position: TP if limit > mark, SL if limit < mark
+                            type = limitPrice > markPrice ? 'Take Profit Limit' : 'Stop Loss Limit';
+                          } else {
+                            // Short position: TP if limit < mark, SL if limit > mark
+                            type = limitPrice < markPrice ? 'Take Profit Limit' : 'Stop Loss Limit';
+                          }
+                        }
+                      }
+                    }
                     let sideLabel = buy ? 'Long' : 'Short';
                     const isLong = position
                       ? parseFloat(position.szi) > 0

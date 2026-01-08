@@ -50,13 +50,18 @@ import { PrivateKeyModal } from './PrivateKeyModal';
 
 import {
   storeAgentWallet,
-  updateAgentApprovalRemote,
   clearAgentWallet,
   storeAgentWalletEncrypted,
   unlockAgentWallet,
   getAgentWallet,
   getAgentAddress,
-  isAgentWalletEncrypted
+  isAgentWalletEncrypted,
+  isImportedAccountEncrypted,
+  getImportedAccountAddress,
+  getImportedAccount,
+  clearImportedAccount,
+  unlockImportedAccount,
+  storeImportedAccountEncrypted,
 } from '../lib/hyperliquid/keystore';
 import { cn } from '../lib/utils';
 
@@ -64,6 +69,7 @@ type AgentStatus = 'none' | 'created' | 'approved' | 'locked';
 
 interface AgentControlsProps {
   onStatusChange?: () => void;
+  onAgentAddressChange?: (address: string | null) => void;
   userState?: UserState;
 }
 
@@ -72,6 +78,7 @@ type RevealMode = 'copy' | 'download' | 'unlock';
 
 export function AgentControls({
   onStatusChange,
+  onAgentAddressChange,
   userState,
 }: AgentControlsProps) {
   const { walletAddress: address, walletProvider } = useTransactionKit();
@@ -122,33 +129,70 @@ export function AgentControls({
     mode: 'created'
   });
 
-
-
   // Check status on mount / address change
   useEffect(() => {
-    if (!address) return;
-
     const checkStatus = async () => {
-      // 1. Try to get unlocked wallet
+      // Priority 1: Check for GLOBAL imported account (locked or unlocked)
+      const isEncrypted = isImportedAccountEncrypted();
+
+
+      if (isEncrypted) {
+
+        const addr = getImportedAccountAddress();
+        if (addr) {
+          setAgentAddress(addr);
+          setAgentStatus('locked');
+          // Auto-prompt check
+          setRevealMode('unlock');
+          setShowUnlockReveal(true);
+          return;
+        }
+      }
+
+      // Priority 2: Check for unlocked imported account (legacy plaintext)
+      const imported = getImportedAccount();
+
+
+      if (imported) {
+        setAgentAddress(imported.accountAddress);
+        setAgentPrivateKey(imported.privateKey);
+        setAgentStatus('approved');
+        return;
+      }
+
+      // Priority 3: Check for agent wallet (if connected wallet exists)
+      if (!address) {
+
+        setAgentStatus('none');
+        return;
+      }
+
+
+
+      // 3a. Try to get unlocked agent wallet
       const wallet = await getAgentWallet(address);
       if (wallet) {
+
         setAgentAddress(wallet.address);
         setAgentPrivateKey(wallet.privateKey);
         setAgentStatus(wallet.approved ? 'approved' : 'created');
         return;
       }
 
-      // 2. Check if locked
+      // 3b. Check if agent wallet is locked
       if (isAgentWalletEncrypted(address)) {
+
         const addr = getAgentAddress(address);
         if (addr) {
           setAgentAddress(addr);
           setAgentStatus('locked');
-          return;
+          setRevealMode('unlock');
+          setShowUnlockReveal(true);
         }
+        return;
       }
 
-      // 3. None
+
       setAgentStatus('none');
     };
 
@@ -165,6 +209,21 @@ export function AgentControls({
     }
   }, [validationStatus]);
 
+  // Notify parent of agent address changes
+  useEffect(() => {
+    if (onAgentAddressChange) {
+      onAgentAddressChange(agentAddress || null);
+    }
+  }, [agentAddress, onAgentAddressChange]);
+
+  // Auto-show unlock modal when wallet becomes locked
+  useEffect(() => {
+    if (agentStatus === 'locked' && !showUnlockReveal) {
+      setRevealMode('unlock');
+      setShowUnlockReveal(true);
+    }
+  }, [agentStatus]);
+
   const handleUnlockClick = () => {
     setShowUnlockReveal(true);
     setRevealMode('copy'); // Default mode, but actually we just want to unlock session
@@ -175,8 +234,40 @@ export function AgentControls({
 
   // Modify handleUnlockForReveal to handle simple unlock
   const handleUnlockForReveal = async (pin: string): Promise<boolean> => {
-    if (!address) return false;
     try {
+      // Priority 1: Try unlocking imported account
+      // Priority 1: Try unlocking imported account
+      if (isImportedAccountEncrypted()) {
+        const unlocked = await unlockImportedAccount(pin);
+        if (unlocked) {
+          setAgentAddress(unlocked.accountAddress);
+          setAgentPrivateKey(unlocked.privateKey);
+          setAgentStatus('approved');
+          setShowUnlockReveal(false);
+
+          // Show Key in Modal ONLY if revealed
+          if (revealMode === 'reveal') {
+            setPrivateKeyModalState({
+              isOpen: true,
+              address: unlocked.accountAddress,
+              privateKey: unlocked.privateKey,
+              mode: 'revealed'
+            });
+          } else {
+            toast.success('Wallet unlocked');
+          }
+
+          // Trigger data refresh on parent
+          if (onStatusChange) {
+            onStatusChange();
+          }
+
+          return true;
+        }
+      }
+
+      // Priority 2: Try unlocking agent wallet (if connected)
+      if (!address) return false;
       const unlocked = await unlockAgentWallet(address, pin);
       if (unlocked) {
         setAgentPrivateKey(unlocked.privateKey);
@@ -209,29 +300,15 @@ export function AgentControls({
   };
 
   const handleCreateAgentClick = () => {
-    console.log('[AgentControls] Create Agent Clicked. Address:', address);
     if (!address) {
       toast.error('Please connect your wallet first');
       return;
     }
-    // Check for existing first
-    getAgentWallet(address).then((existing) => {
-      console.log('[AgentControls] Existing wallet check result:', existing);
-      if (existing) {
-        setAgentAddress(existing.address);
-        setAgentStatus(existing.approved ? 'approved' : 'created');
-        toast.success('Agent wallet already exists!');
-      } else if (isAgentWalletEncrypted(address)) {
-        console.log('[AgentControls] Wallet is encrypted/locked');
-        setAgentStatus('locked');
-        toast.info('Wallet is locked. Please unlock it.');
-      } else {
-        console.log('[AgentControls] Opening Pin Setup...');
-        setShowPinSetup(true);
-      }
-    }).catch(err => {
-      console.error('[AgentControls] Error checking wallet:', err);
-    });
+
+    // Proceed directly to setup - if UI shows "Create New", we assume we can create new.
+    // Any existing data will be overwritten.
+    setPendingImportData(null);
+    setShowPinSetup(true);
   };
 
   const handleAgentCreationWithPin = async (pin: string) => {
@@ -239,21 +316,11 @@ export function AgentControls({
     setIsCreating(true);
     try {
       if (pendingImportData) {
-        // Encypt IMPORTED wallet
-        console.log('Encrypting imported wallet...');
-        // Imported wallet is treated as the agent for this connected wallet
-        // If the user provided a specific ImportAccountAddress, that is the "Account" being controlled.
-        // But for storage, we key it by the CONNECTED wallet (address) so it appears when they are connected.
-        // Wait, if importAccountAddress !== address (connected), then we are setting an agent for a DIFFERENT account?
-        // No, usually "Import" means "I have this key, use it".
-        // The previous logic checked validation against importAccountAddress.
-
-        await storeAgentWalletEncrypted(
-          address as string,
+        // Encrypt IMPORTED wallet as GLOBAL account
+        await storeImportedAccountEncrypted(
           importAccountAddress.trim() || pendingImportData.address,
           pendingImportData.privateKey,
-          pin,
-          true // Imported accounts are assumed "approved" or we validated them
+          pin
         );
 
         // Show Success Modal instead of just toast
@@ -269,12 +336,13 @@ export function AgentControls({
         setAgentPrivateKey(pendingImportData.privateKey);
         setAgentStatus('approved');
 
+
       } else {
         // Generate NEW wallet
-        console.log('Generating new agent wallet...');
+
         const wallet = generateAgentWallet();
 
-        console.log('Storing encrypted agent wallet...');
+
         await storeAgentWalletEncrypted(address as string, wallet.address, wallet.privateKey, pin, false);
 
         setAgentAddress(wallet.address);
@@ -322,14 +390,10 @@ export function AgentControls({
 
     setIsApproving(true);
     try {
-      console.log('Building approval action...');
-      console.log('WalletProvider object:', walletProvider);
-
       let accountToUse = address as Hex;
 
       // Probe walletProvider structure
       if (walletProvider) {
-        console.log('walletProvider keys:', Object.keys(walletProvider));
         // Check if we need to request accounts
         if ('request' in walletProvider) {
           try {
@@ -337,11 +401,9 @@ export function AgentControls({
             const accounts = await walletProvider.request({
               method: 'eth_accounts',
             });
-            console.log('Connected accounts:', accounts);
             if (accounts && Array.isArray(accounts) && accounts.length > 0) {
               // Use the account from the provider to ensure case match
               accountToUse = accounts[0];
-              console.log('Using provider account:', accountToUse);
             } else {
               console.warn(
                 'No accounts found from provider. Requesting access...'
@@ -368,11 +430,11 @@ export function AgentControls({
             const chainId = await walletProvider.request({
               method: 'eth_chainId',
             });
-            console.log('Current Chain ID:', chainId);
+
             const targetChainId = '0xa4b1'; // Arbitrum One
 
             if (chainId !== targetChainId) {
-              console.log(`Switching to Arbitrum (${targetChainId})...`);
+
               try {
                 // @ts-ignore
                 await walletProvider.request({
@@ -382,7 +444,7 @@ export function AgentControls({
               } catch (switchError: any) {
                 // This error code indicates that the chain has not been added to MetaMask.
                 if (switchError.code === 4902) {
-                  console.log('Chain not found, adding Arbitrum...');
+
                   // @ts-ignore
                   await walletProvider.request({
                     method: 'wallet_addEthereumChain',
@@ -430,7 +492,7 @@ export function AgentControls({
         actionConfig.nonce
       );
 
-      console.log('Requesting signature...');
+
       // Note: walletProvider is already a viem WalletClient in this context
       // We cast it to any/WalletClient to access signTypedData
       const signature = await (walletProvider as any).signTypedData({
@@ -441,7 +503,7 @@ export function AgentControls({
         message,
       });
 
-      console.log('Signature received');
+
 
       // Ensure agent address is lowercase for API
       // And include signatureChainId as it is required by the API
@@ -461,13 +523,10 @@ export function AgentControls({
         vaultAddress: null,
       };
 
-      console.log(
-        'Posting agent approval to Hyperliquid...',
-        JSON.stringify(payload)
-      );
+
       const response = await postExchange(payload);
 
-      console.log('Approval result:', response);
+
 
       if (response.status === 'ok') {
         // Store approval status locally
@@ -548,16 +607,24 @@ export function AgentControls({
 
   const handleRemoveAccount = async () => {
     try {
-      const { clearImportedAccount } = await import(
-        '../lib/hyperliquid/keystore'
-      );
+      // Clear data
       clearImportedAccount();
 
+      // Reset all local state
       setAgentAddress('');
       setAgentPrivateKey('');
       setAgentStatus('none');
-      setValidationStatus('idle');
+
+      // Close any open modals
+      setShowPinSetup(false);
+      setShowUnlockReveal(false);
+      setRevealMode('unlock'); // Reset default
+
+      // Reset validation state
       setValidationData({});
+      // Note: Setting validationStatus to 'idle' will trigger the useEffect to run checkStatus()
+      // This is desired behavior - it will re-check and find 'none' (or fallback to native agent)
+      setValidationStatus('idle');
 
       toast.success('Imported account removed');
 
@@ -602,7 +669,6 @@ export function AgentControls({
 
       const account = privateKeyToAccount(formattedKey);
 
-      console.log('[Import Agent] Validating account on Hyperliquid...');
       toast.loading('Checking Hyperliquid connection...', { id: loadingToast });
 
       // Validate that the ACCOUNT ADDRESS exists on Hyperliquid (not the agent)
@@ -618,13 +684,6 @@ export function AgentControls({
           });
           return;
         }
-
-        console.log('[Import Agent] Account validated:', {
-          accountAddress: importAccountAddress.trim(),
-          agentAddress: account.address,
-          balance: accountState.marginSummary?.totalRawUsd,
-          positions: accountState.assetPositions?.length || 0,
-        });
 
         toast.loading('Saving credentials...', { id: loadingToast });
 
@@ -666,7 +725,6 @@ export function AgentControls({
 
         // Trigger data refresh
         if (onStatusChange) {
-          console.log('[Import Agent] Triggering data refresh...');
           onStatusChange();
         }
       } catch (validationError: any) {
@@ -781,44 +839,7 @@ export function AgentControls({
             {config.label}
           </Badge>
         </div>
-
-        {/* Settings / Actions (Pointer events re-enabled) */}
-        <div className="pointer-events-auto flex items-center gap-2">
-          {/* Show Settings ONLY if not 'none' and not 'locked' (unless we want to allow reveal while unlocked? Yes) */}
-          {agentStatus !== 'none' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Settings className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => {
-                  setRevealMode('reveal');
-                  setShowUnlockReveal(true);
-                }}>
-                  Reveal Private Key
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
       </div>
-      {agentAddress && (
-        <div className="space-y-1 mt-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">
-              {agentAddress.slice(0, 10)}...{agentAddress.slice(-8)}
-            </span>
-            <button
-              onClick={copyAddress}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Validation Status Display */}
       {validationStatus !== 'idle' && (
@@ -835,17 +856,13 @@ export function AgentControls({
 
       {agentStatus === 'none' && (
         <>
-          {!address ? (
-            <div className="text-sm text-muted-foreground text-center py-3">
-              Please connect your wallet to create an agent
-            </div>
-          ) : isLoadingAgent ? (
+          {!address ? null : isLoadingAgent ? (
             <div className="text-sm text-muted-foreground text-center py-3">
               Loading agent wallet...
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
                 <Button
                   onClick={handleCreateAgentClick}
                   disabled={isCreating}
@@ -938,7 +955,7 @@ export function AgentControls({
 
       {agentStatus === 'locked' && (
         <Button
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-11"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-11 mt-4"
           onClick={() => {
             setRevealMode('unlock');
             setShowUnlockReveal(true);
@@ -949,7 +966,7 @@ export function AgentControls({
       )}
 
       {agentStatus === 'created' && (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 mt-4">
           {masterBalance < 10 ? (
             <DepositModal
               userState={userState!}
@@ -987,13 +1004,13 @@ export function AgentControls({
 
       {
         agentStatus === 'approved' && (
-          <div className="space-y-3">
+          <div className="space-y-3 mt-4">
             <div className="bg-success/10 border border-success/30 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <span className="text-sm font-medium text-success">
-                    Imported Account Active
+                    Imported Account
                   </span>
                 </div>
                 <DropdownMenu>
@@ -1003,6 +1020,13 @@ export function AgentControls({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      setRevealMode('reveal');
+                      setShowUnlockReveal(true);
+                    }}>
+                      Reveal Private Key
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={handleRemoveAccount}
                       className="text-destructive"

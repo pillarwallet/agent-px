@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -25,51 +25,79 @@ interface UnlockWalletModalProps {
 export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletModalProps) {
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (pin.length !== 4) {
-            toast.error('PIN must be 4 digits');
-            return;
+    // Reset PIN when modal opens/closes
+    useEffect(() => {
+        if (!isOpen) {
+            setPin('');
+            setIsLoading(false);
+        } else {
+            // Auto-focus the input when modal opens
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
         }
+    }, [isOpen]);
+
+    const handleUnlockAttempt = async (pinValue: string) => {
+        if (pinValue.length !== 4) return;
 
         setIsLoading(true);
         try {
-            const success = await onUnlock(pin);
+            const success = await onUnlock(pinValue);
             if (success) {
                 toast.success('Wallet unlocked!');
                 setPin(''); // Clear PIN on success
             }
         } catch (error) {
-            // Error handling is likely done in onUnlock or just toast here
             console.error('Unlock failed', error);
             toast.error('Incorrect PIN');
+            setPin(''); // Clear PIN on failure to allow retry
+            // Refocus input on failure
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
         } finally {
             setIsLoading(false);
         }
     };
 
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        handleUnlockAttempt(pin);
+    };
+
+    // Auto-submit when PIN is complete
+    useEffect(() => {
+        if (pin.length === 4 && !isLoading) {
+            handleUnlockAttempt(pin);
+        }
+    }, [pin]);
+
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-md">
+        <Dialog open={isOpen} onOpenChange={() => { }}>
+            <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
+                    <DialogTitle className="flex items-center justify-center gap-2 text-center">
                         <Lock className="h-5 w-5" />
                         Unlock Agent Wallet
                     </DialogTitle>
-                    <DialogDescription>
+                    <DialogDescription className="text-center">
                         Enter your PIN to unlock your trading agent.
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6 py-4">
                     <div className="space-y-2 flex flex-col items-center">
-                        <Label htmlFor="pin" className="w-full text-left">PIN Code</Label>
+                        <Label htmlFor="pin" className="w-full text-center">PIN Code</Label>
                         <InputOTP
+                            ref={inputRef}
                             maxLength={4}
                             value={pin}
                             onChange={(value) => setPin(value)}
                             disabled={isLoading}
+                            autoFocus
                         >
                             <InputOTPGroup>
                                 <InputOTPSlot index={0} masked />
@@ -80,11 +108,8 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
                         </InputOTP>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-2">
-                        <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={isLoading || pin.length !== 4}>
+                    <div className="flex justify-end pt-2">
+                        <Button type="submit" disabled={isLoading || pin.length !== 4} className="w-full">
                             {isLoading ? 'Unlocking...' : 'Unlock'}
                         </Button>
                     </div>

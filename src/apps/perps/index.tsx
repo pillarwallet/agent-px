@@ -51,6 +51,11 @@ const Index = () => {
     priceChangePercent: 0,
   });
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
+
+  const handleSetAgentAddress = (addr: string | null) => {
+    console.log('DEBUG: index.tsx setAgentAddress called with:', addr);
+    setAgentAddress(addr);
+  };
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
   const [agentOpenOrders, setAgentOpenOrders] = useState<HyperliquidOrder[]>([]);
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
@@ -240,6 +245,7 @@ const Index = () => {
             <div>
               <AgentControls
                 onStatusChange={handleRefresh}
+                onAgentAddressChange={setAgentAddress}
                 userState={userState}
               />
             </div>
@@ -296,6 +302,8 @@ const Index = () => {
               masterAddress={agentAddress || address}
               onPositionClick={handlePositionClick}
               onRefresh={handleRefresh}
+              userState={agentUserState || userState}
+              openOrders={agentOpenOrders.length > 0 ? agentOpenOrders : openOrders}
             />
           </div>
         )}
@@ -320,13 +328,7 @@ const Index = () => {
           </div>
         )}
 
-        {!address && !agentAddress && (
-          <div className="text-center py-20">
-            <p className="text-muted-foreground text-lg">
-              Connect your wallet or import an agent to start trading
-            </p>
-          </div>
-        )}
+        {!address && !agentAddress && !isLoadingAgent && null}
       </div>
     </div>
   );

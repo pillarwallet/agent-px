@@ -145,12 +145,85 @@ export function clearAgentWalletLocal(masterAddress: string): void {
 
 // Global imported account storage (also plaintext by default in old code, ideally should encrypt too)
 // For now, leaving as is or upgrading if requested. User request focused on agent wallet.
-const GLOBAL_ACCOUNT_KEY = 'hl_imported_account';
+// Global Imported Account Storage
+const GLOBAL_IMPORTED_ADDRESS_KEY = 'hl_imported_address';
+const GLOBAL_IMPORTED_ENCRYPTED_KEY = 'hl_imported_encrypted_key';
+const GLOBAL_ACCOUNT_KEY = 'hl_imported_account'; // Legacy plaintext
+
+let cachedImportedKey: Hex | null = null;
+
+export async function storeImportedAccountEncrypted(
+  address: string,
+  privateKey: Hex,
+  pin: string
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const encrypted = await encryptWithPin(privateKey, pin);
+    const storageData = JSON.stringify(encrypted);
+
+    localStorage.setItem(GLOBAL_IMPORTED_ADDRESS_KEY, address);
+    localStorage.setItem(GLOBAL_IMPORTED_ENCRYPTED_KEY, storageData);
+
+    // Clear legacy plaintext
+    localStorage.removeItem(GLOBAL_ACCOUNT_KEY);
+
+    // Cache it
+    cachedImportedKey = privateKey;
+  } catch (error) {
+    console.error('Failed to encrypt imported account:', error);
+    throw new Error('Encryption failed');
+  }
+}
+
+export async function unlockImportedAccount(
+  pin: string
+): Promise<{ accountAddress: string; privateKey: Hex } | null> {
+  if (typeof window === 'undefined') return null;
+
+  const address = localStorage.getItem(GLOBAL_IMPORTED_ADDRESS_KEY);
+  const encryptedkeyData = localStorage.getItem(GLOBAL_IMPORTED_ENCRYPTED_KEY);
+
+  if (!address || !encryptedkeyData) return null;
+
+  try {
+    const encryptedData: EncryptedData = JSON.parse(encryptedkeyData);
+    const privateKey = await decryptWithPin(encryptedData, pin);
+
+    cachedImportedKey = privateKey as Hex;
+
+    return {
+      accountAddress: address,
+      privateKey: privateKey as Hex,
+    };
+  } catch (error) {
+    console.error('Failed to unlock imported account:', error);
+    throw error;
+  }
+}
+
+export function isImportedAccountEncrypted(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem(GLOBAL_IMPORTED_ENCRYPTED_KEY);
+}
+
+export function getImportedAccountAddress(): string | null {
+  if (typeof window === 'undefined') return null;
+  // Check new key first, then legacy
+  return (
+    localStorage.getItem(GLOBAL_IMPORTED_ADDRESS_KEY) ||
+    (localStorage.getItem(GLOBAL_ACCOUNT_KEY)
+      ? JSON.parse(localStorage.getItem(GLOBAL_ACCOUNT_KEY)!).accountAddress
+      : null)
+  );
+}
 
 export function storeImportedAccount(
   accountAddress: string,
   privateKey: Hex
 ): void {
+  // Legacy plaintext fallback - prefer storeImportedAccountEncrypted
   if (typeof window === 'undefined') return;
 
   const data = {
@@ -160,6 +233,7 @@ export function storeImportedAccount(
   };
 
   localStorage.setItem(GLOBAL_ACCOUNT_KEY, JSON.stringify(data));
+  cachedImportedKey = privateKey;
 }
 
 export function getImportedAccount(): {
@@ -168,23 +242,42 @@ export function getImportedAccount(): {
 } | null {
   if (typeof window === 'undefined') return null;
 
-  const data = localStorage.getItem(GLOBAL_ACCOUNT_KEY);
-  if (!data) return null;
+  // 1. Check Cache
+  if (cachedImportedKey) {
+    const address = getImportedAccountAddress();
+    if (address) {
+      return { accountAddress: address, privateKey: cachedImportedKey };
+    }
+  }
 
-  try {
-    const parsed = JSON.parse(data);
-    return {
-      accountAddress: parsed.accountAddress,
-      privateKey: parsed.privateKey as Hex,
-    };
-  } catch {
+  // 2. Check Legacy Plaintext
+  const data = localStorage.getItem(GLOBAL_ACCOUNT_KEY);
+  if (data) {
+    try {
+      const parsed = JSON.parse(data);
+      return {
+        accountAddress: parsed.accountAddress,
+        privateKey: parsed.privateKey as Hex,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // 3. If Encrypted and not cached force user to unlock (return null here)
+  if (isImportedAccountEncrypted()) {
     return null;
   }
+
+  return null;
 }
 
 export function clearImportedAccount(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(GLOBAL_ACCOUNT_KEY);
+  localStorage.removeItem(GLOBAL_IMPORTED_ADDRESS_KEY);
+  localStorage.removeItem(GLOBAL_IMPORTED_ENCRYPTED_KEY);
+  cachedImportedKey = null;
 }
 
 // Combined functions facade

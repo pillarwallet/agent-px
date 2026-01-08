@@ -78,6 +78,11 @@ export function useHyperliquid() {
       console.log('DEBUG: User State result for', targetAddress, state);
 
       if (state) {
+        // Ensure assetPositions exists
+        if (!state.assetPositions) {
+          console.warn('WARNING: assetPositions missing in state, defaulting to []');
+          state.assetPositions = [];
+        }
         setSetupStatus('setup');
         setUserState(state);
       } else {
@@ -146,7 +151,14 @@ export function useHyperliquid() {
 
       setActiveAddress(targetAddress);
 
+      console.log('DEBUG: Final User State to be set:', JSON.stringify(state, null, 2));
+
       if (state) {
+        // Ensure assetPositions exists
+        if (!state.assetPositions) {
+          console.warn('WARNING: assetPositions missing in state, defaulting to []');
+          state.assetPositions = [];
+        }
         setUserState(state);
       }
       if (orders) {
