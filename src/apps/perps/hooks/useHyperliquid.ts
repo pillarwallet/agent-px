@@ -61,24 +61,18 @@ export function useHyperliquid() {
       let orders = await getOpenOrders(address);
 
       // 2. Check Agent Address
-      // If Main is empty OR we have an explicit agent that might be the intended account
+      // If we have an linked agent, we ALMOST ALWAYS want to use it for data display
+      // in the context of this specific Perps app, especially for imported keys.
       const agentAddress = getAgentAddress(address);
       if (agentAddress) {
         const agentState = await getUserState(agentAddress);
         const agentOrders = await getOpenOrders(agentAddress);
 
-        // Decision Logic: Use Agent if it has value and Main is empty-ish, OR if Agent just has value
-        // We prioritize Agent because usually "Imported Agent" means "User wants to trade with this key"
-        // especially in this app context.
-        const mainValue = parseFloat(state?.marginSummary?.accountValue || '0');
-        const agentValue = parseFloat(agentState?.marginSummary?.accountValue || '0');
-
-        if (agentValue > 0 || agentOrders.length > 0) {
-          console.log('DEBUG: prioritizing Agent Address', agentAddress, 'Balance:', agentValue);
-          targetAddress = agentAddress;
-          state = agentState;
-          orders = agentOrders;
-        }
+        // Prioritize Agent
+        targetAddress = agentAddress;
+        state = agentState;
+        orders = agentOrders;
+        console.log('DEBUG: Using Agent Address:', agentAddress);
       }
 
       setActiveAddress(targetAddress);
@@ -145,14 +139,9 @@ export function useHyperliquid() {
         const agentState = await getUserState(agentAddress);
         const agentOrders = await getOpenOrders(agentAddress);
 
-        const mainValue = parseFloat(state?.marginSummary?.accountValue || '0');
-        const agentValue = parseFloat(agentState?.marginSummary?.accountValue || '0');
-
-        if (agentValue > 0 || agentOrders.length > 0) {
-          targetAddress = agentAddress;
-          state = agentState;
-          orders = agentOrders;
-        }
+        targetAddress = agentAddress;
+        state = agentState;
+        orders = agentOrders;
       }
 
       setActiveAddress(targetAddress);

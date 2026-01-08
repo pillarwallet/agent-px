@@ -115,7 +115,7 @@ const Index = () => {
         {/* Trade History - Full Width */}
         {address && setupStatus === 'setup' && (
           <div className="mb-6">
-            <TradeHistoryCard masterAddress={address} />
+            <TradeHistoryCard masterAddress={activeAddress || address} />
           </div>
         )}
 
