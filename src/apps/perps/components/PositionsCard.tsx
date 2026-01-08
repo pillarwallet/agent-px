@@ -53,13 +53,19 @@ import { TokenIcon } from './TokenIcon';
 interface PositionsCardProps {
   masterAddress: string;
   onPositionClick?: (symbol: string) => void;
+  onPositionClick?: (symbol: string) => void;
   onRefresh?: () => void;
+  userState?: any; // Using any for now to avoid strict type issues with passed state, or import UserState
+  openOrders?: any[];
 }
 
 export function PositionsCard({
   masterAddress,
   onPositionClick,
+  onPositionClick,
   onRefresh,
+  userState: externalUserState,
+  openOrders: externalOpenOrders,
 }: PositionsCardProps) {
   const isMobile = useIsMobile();
   const [positions, setPositions] = useState<HyperliquidPosition[]>([]);
@@ -89,11 +95,23 @@ export function PositionsCard({
     try {
       console.log('DEBUG: Fetching data for', masterAddress);
 
-      const [userState, orders, metaData] = await Promise.all([
-        getUserState(masterAddress),
-        getFrontendOpenOrders(masterAddress),
+      // If we have external data, we only need metadata and prices
+      // checks if we need to fetch user data
+      const shouldFetchUser = !externalUserState;
+
+      const promises: Promise<any>[] = [
         getMetaAndAssetCtxs(),
-      ]);
+      ];
+
+      if (shouldFetchUser) {
+        promises.push(getUserState(masterAddress));
+        promises.push(getFrontendOpenOrders(masterAddress));
+      }
+
+      const results = await Promise.all(promises);
+      const metaData = results[0];
+      const userState = shouldFetchUser ? results[1] : externalUserState;
+      const orders = shouldFetchUser ? results[2] : externalOpenOrders;
 
       console.log('DEBUG: API Results', {
         userState: !!userState,
