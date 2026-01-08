@@ -53,7 +53,6 @@ import { TokenIcon } from './TokenIcon';
 interface PositionsCardProps {
   masterAddress: string;
   onPositionClick?: (symbol: string) => void;
-  onPositionClick?: (symbol: string) => void;
   onRefresh?: () => void;
   userState?: any; // Using any for now to avoid strict type issues with passed state, or import UserState
   openOrders?: any[];
@@ -61,7 +60,6 @@ interface PositionsCardProps {
 
 export function PositionsCard({
   masterAddress,
-  onPositionClick,
   onPositionClick,
   onRefresh,
   userState: externalUserState,
