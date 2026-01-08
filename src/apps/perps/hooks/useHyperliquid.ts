@@ -53,28 +53,13 @@ export function useHyperliquid() {
 
     setIsLoading(true);
     try {
-      // 1. Try Main Address
-      let targetAddress = address;
-      let state = await getUserState(address);
-      let orders = await getOpenOrders(address);
+      console.log('DEBUG: Checking setup status for:', address);
+      const [state, orders] = await Promise.all([
+        getUserState(address),
+        getOpenOrders(address),
+      ]);
 
-      // 2. If Main is empty, checks if we have an active Agent with funds
-      // (This handles the case where user Imported an Account as an Agent)
-      if ((!state || parseFloat(state.marginSummary?.accountValue || '0') === 0) && !orders.length) {
-        const agentAddress = getAgentAddress(address);
-        if (agentAddress) {
-          const agentState = await getUserState(agentAddress);
-          const agentOrders = await getOpenOrders(agentAddress);
-
-          // If agent has funds or orders, use agent
-          if (agentState && (parseFloat(agentState.marginSummary?.accountValue || '0') > 0 || agentOrders.length > 0)) {
-            targetAddress = agentAddress;
-            state = agentState;
-            orders = agentOrders;
-            console.log('Using Agent Address for State:', agentAddress);
-          }
-        }
-      }
+      console.log('DEBUG: User State result:', state);
 
       if (state) {
         setSetupStatus('setup');
@@ -127,23 +112,11 @@ export function useHyperliquid() {
 
     setIsLoading(true);
     try {
-      // 1. Try Main Address
-      let state = await getUserState(address);
-      let orders = await getOpenOrders(address);
-
-      // 2. Fallback to Agent if Main is empty
-      if ((!state || parseFloat(state.marginSummary?.accountValue || '0') === 0) && (!orders || !orders.length)) {
-        const agentAddress = getAgentAddress(address);
-        if (agentAddress) {
-          const agentState = await getUserState(agentAddress);
-          const agentOrders = await getOpenOrders(agentAddress);
-
-          if (agentState && (parseFloat(agentState.marginSummary?.accountValue || '0') > 0 || agentOrders.length > 0)) {
-            state = agentState;
-            orders = agentOrders;
-          }
-        }
-      }
+      console.log('DEBUG: Loading balance for:', address);
+      const [state, orders] = await Promise.all([
+        getUserState(address),
+        getOpenOrders(address),
+      ]);
 
       if (state) {
         setUserState(state);
