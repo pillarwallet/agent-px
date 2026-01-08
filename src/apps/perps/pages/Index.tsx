@@ -154,6 +154,7 @@ const Index = () => {
               <TradeForm
                 selectedAsset={selectedAsset}
                 onTradeComplete={handleTradeComplete}
+                userState={userState}
               />
             )}
           </div>

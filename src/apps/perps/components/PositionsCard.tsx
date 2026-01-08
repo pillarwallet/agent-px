@@ -117,7 +117,6 @@ export function PositionsCard({
         setInternalUserState(fetchedUserState);
       }
 
-      // Create a map of symbol -> mark price
       const priceMap: Record<string, number> = {};
       if (
         metaData &&
@@ -1045,7 +1044,11 @@ export function PositionsCard({
                     );
 
                     // Determine order type based on reduceOnly and price comparison
-                    let type = 'Limit';
+                    let type = order.orderType || 'Limit';
+
+                    // Normalize trigger price
+                    const triggerPxStr = order.triggerPx || order.trigger?.triggerPx || order.triggerCondition?.triggerPx;
+                    const hasTrigger = !!triggerPxStr && parseFloat(triggerPxStr) > 0;
 
                     if (order.reduceOnly && position) {
                       const isLong = parseFloat(position.szi) > 0;
@@ -1053,19 +1056,32 @@ export function PositionsCard({
 
                       if (isClosing) {
                         const limitPrice = parseFloat(order.limitPx);
+                        const triggerPrice = hasTrigger ? parseFloat(triggerPxStr!) : 0;
+                        const executionPrice = hasTrigger ? triggerPrice : limitPrice;
+
                         const markPrice = parseFloat(position.markPx || position.entryPx || '0');
 
                         if (markPrice > 0) {
+                          let baseType = 'Limit';
                           if (isLong) {
-                            // Long position: TP if limit > mark, SL if limit < mark
-                            type = limitPrice > markPrice ? 'Take Profit Limit' : 'Stop Loss Limit';
+                            // Long position: TP if price > mark, SL if price < mark
+                            baseType = executionPrice > markPrice ? 'Take Profit' : 'Stop Loss';
                           } else {
-                            // Short position: TP if limit < mark, SL if limit > mark
-                            type = limitPrice < markPrice ? 'Take Profit Limit' : 'Stop Loss Limit';
+                            // Short position: TP if price < mark, SL if price > mark
+                            baseType = executionPrice < markPrice ? 'Take Profit' : 'Stop Loss';
                           }
+
+                          type = `${baseType} ${hasTrigger ? 'Trigger' : 'Limit'}`;
                         }
+                      } else {
+                        type = 'Reduce Only Limit';
                       }
+                    } else if (hasTrigger) {
+                      // If not reduced only but has trigger, likely a simpler trigger order
+                      type = 'Trigger Order';
+                      if (order.orderType) type = order.orderType;
                     }
+
                     let sideLabel = buy ? 'Long' : 'Short';
                     const isLong = position
                       ? parseFloat(position.szi) > 0

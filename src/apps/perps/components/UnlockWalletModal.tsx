@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -40,7 +40,7 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
         }
     }, [isOpen]);
 
-    const handleUnlockAttempt = async (pinValue: string) => {
+    const handleUnlockAttempt = useCallback(async (pinValue: string) => {
         if (pinValue.length !== 4) return;
 
         setIsLoading(true);
@@ -49,6 +49,13 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
             if (success) {
                 toast.success('Wallet unlocked!');
                 setPin(''); // Clear PIN on success
+            } else {
+                // Handle explicit failure (false returned)
+                toast.error('Incorrect PIN');
+                setPin('');
+                setTimeout(() => {
+                    inputRef.current?.focus();
+                }, 100);
             }
         } catch (error) {
             console.error('Unlock failed', error);
@@ -61,7 +68,7 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [onUnlock]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -73,7 +80,7 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
         if (pin.length === 4 && !isLoading) {
             handleUnlockAttempt(pin);
         }
-    }, [pin]);
+    }, [pin, handleUnlockAttempt, isLoading]);
 
     return (
         <Dialog open={isOpen} onOpenChange={() => { }}>

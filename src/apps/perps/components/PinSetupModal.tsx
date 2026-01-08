@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -25,6 +25,7 @@ interface PinSetupModalProps {
 export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProps) {
     const [pin, setPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
+    const confirmInputRef = useRef<HTMLInputElement>(null);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -43,22 +44,44 @@ export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProp
         setConfirmPin('');
     };
 
+    // Auto-focus confirm input when PIN is complete
+    useEffect(() => {
+        if (pin.length === 4) {
+            confirmInputRef.current?.focus();
+        }
+    }, [pin]);
+
+    // Auto-submit when confirm PIN matches
+    useEffect(() => {
+        if (confirmPin.length === 4) {
+            if (confirmPin === pin) {
+                onConfirm(pin);
+                setPin('');
+                setConfirmPin('');
+            } else {
+                toast.error('PINs do not match');
+                // Optional: Clear confirm pin to let them try again? 
+                // Let's keep it so they can see what they typed or backspace.
+            }
+        }
+    }, [confirmPin, pin, onConfirm]);
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
+                <DialogHeader className="items-center text-center">
+                    <DialogTitle className="flex items-center gap-2 justify-center">
                         <Lock className="h-5 w-5" />
                         Set Wallet PIN
                     </DialogTitle>
-                    <DialogDescription>
+                    <DialogDescription className="text-center">
                         Create a 4-digit PIN to secure your agent wallet.
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6 py-4">
                     <div className="space-y-2 flex flex-col items-center">
-                        <Label htmlFor="pin" className="w-full text-left">Enter PIN</Label>
+                        <Label htmlFor="pin" className="w-full text-center">Enter PIN</Label>
                         <InputOTP
                             maxLength={4}
                             value={pin}
@@ -74,8 +97,9 @@ export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProp
                     </div>
 
                     <div className="space-y-2 flex flex-col items-center">
-                        <Label htmlFor="confirmPin" className="w-full text-left">Confirm PIN</Label>
+                        <Label htmlFor="confirmPin" className="w-full text-center">Confirm PIN</Label>
                         <InputOTP
+                            ref={confirmInputRef}
                             maxLength={4}
                             value={confirmPin}
                             onChange={(value) => setConfirmPin(value)}
@@ -89,7 +113,7 @@ export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProp
                         </InputOTP>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-2">
+                    <div className="flex justify-center gap-2 pt-2">
                         <Button type="button" variant="outline" onClick={onCancel}>
                             Cancel
                         </Button>

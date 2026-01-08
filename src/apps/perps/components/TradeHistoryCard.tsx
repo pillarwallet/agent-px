@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     Card,
     CardContent,
@@ -39,7 +39,7 @@ export function TradeHistoryCard({ masterAddress }: TradeHistoryCardProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [showAllHistory, setShowAllHistory] = useState(false);
 
-    const fetchTrades = async () => {
+    const fetchTrades = useCallback(async () => {
         if (!masterAddress) return;
 
         console.log('[TradeHistory] Fetching trades for address:', masterAddress);
@@ -72,7 +72,7 @@ export function TradeHistoryCard({ masterAddress }: TradeHistoryCardProps) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [masterAddress]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -80,7 +80,7 @@ export function TradeHistoryCard({ masterAddress }: TradeHistoryCardProps) {
         fetchTrades();
         const interval = setInterval(fetchTrades, 10000);
         return () => clearInterval(interval);
-    }, [masterAddress, isOpen]);
+    }, [fetchTrades, isOpen]);
 
     // Removed auto-collapse/expand logic to rely on manual user control
 

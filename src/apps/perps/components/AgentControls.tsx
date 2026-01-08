@@ -9,6 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from './ui/collapsible';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import {
@@ -21,6 +26,7 @@ import {
   Trash2,
   Settings,
   Lock,
+  ChevronDown,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -47,9 +53,11 @@ import type { UserState } from '../lib/hyperliquid/types';
 import { PinSetupModal } from './PinSetupModal';
 import { UnlockWalletModal } from './UnlockWalletModal';
 import { PrivateKeyModal } from './PrivateKeyModal';
+import { useIsMobile } from '../hooks/use-mobile';
 
 import {
   storeAgentWallet,
+  updateAgentApproval,
   clearAgentWallet,
   storeAgentWalletEncrypted,
   unlockAgentWallet,
@@ -98,6 +106,21 @@ export function AgentControls({
   const [importPrivateKey, setImportPrivateKey] = useState('');
   const [importAccountAddress, setImportAccountAddress] = useState('');
   const [isRemoving, setIsRemoving] = useState(false);
+  const isMobile = useIsMobile();
+  const [isOpen, setIsOpen] = useState(true);
+
+  useEffect(() => {
+    if (isMobile) {
+      if (agentStatus === 'approved') {
+        setIsOpen(false);
+      } else {
+        setIsOpen(true);
+      }
+    } else {
+      setIsOpen(true);
+    }
+  }, [isMobile, agentStatus]);
+
   const [validationStatus, setValidationStatus] = useState<
     'idle' | 'validating' | 'success' | 'error'
   >('idle');
@@ -115,6 +138,7 @@ export function AgentControls({
   const [pendingImportData, setPendingImportData] = useState<{
     address: string;
     privateKey: Hex;
+    accountState?: any;
   } | null>(null);
 
   const [privateKeyModalState, setPrivateKeyModalState] = useState<{
@@ -132,12 +156,21 @@ export function AgentControls({
   // Check status on mount / address change
   useEffect(() => {
     const checkStatus = async () => {
-      // Priority 1: Check for GLOBAL imported account (locked or unlocked)
+      // Priority 1: Check for unlocked imported account (memory/cache)
+      // We check this FIRST so that if we just created/unlocked it, we don't force a re-unlock.
+      const imported = getImportedAccount();
+
+      if (imported) {
+        setAgentAddress(imported.accountAddress);
+        setAgentPrivateKey(imported.privateKey);
+        setAgentStatus('approved');
+        return;
+      }
+
+      // Priority 2: Check for GLOBAL imported account (locked)
       const isEncrypted = isImportedAccountEncrypted();
 
-
       if (isEncrypted) {
-
         const addr = getImportedAccountAddress();
         if (addr) {
           setAgentAddress(addr);
@@ -147,17 +180,6 @@ export function AgentControls({
           setShowUnlockReveal(true);
           return;
         }
-      }
-
-      // Priority 2: Check for unlocked imported account (legacy plaintext)
-      const imported = getImportedAccount();
-
-
-      if (imported) {
-        setAgentAddress(imported.accountAddress);
-        setAgentPrivateKey(imported.privateKey);
-        setAgentStatus('approved');
-        return;
       }
 
       // Priority 3: Check for agent wallet (if connected wallet exists)
@@ -199,15 +221,7 @@ export function AgentControls({
     checkStatus();
   }, [address, validationStatus]); // Re-run if validation finishes (import) or address changes
 
-  // Auto-dismiss validation success status
-  useEffect(() => {
-    if (validationStatus === 'success') {
-      const timer = setTimeout(() => {
-        setValidationStatus('idle');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [validationStatus]);
+
 
   // Notify parent of agent address changes
   useEffect(() => {
@@ -323,18 +337,25 @@ export function AgentControls({
           pin
         );
 
-        // Show Success Modal instead of just toast
-        setPrivateKeyModalState({
-          isOpen: true,
-          address: importAccountAddress.trim() || pendingImportData.address,
-          privateKey: pendingImportData.privateKey,
-          mode: 'created'
-        });
+
 
         // Update local state immediately
         setAgentAddress(importAccountAddress.trim() || pendingImportData.address);
         setAgentPrivateKey(pendingImportData.privateKey);
         setAgentStatus('approved');
+
+        // Restore Validation Success Logic (Deferred from Import)
+        // Restore Validation Success Logic (Deferred from Import)
+        // Data is already set in handleImportAgent
+
+
+        toast.success('✅ Account imported!', {
+          description: 'Agent wallet secured successfully.',
+          duration: 5000,
+        });
+
+        // Clear validation status now that flow is complete
+        setValidationStatus('idle');
 
 
       } else {
@@ -529,8 +550,8 @@ export function AgentControls({
 
 
       if (response.status === 'ok') {
-        // Store approval status locally
-        await storeAgentWallet(address, agent.address, agent.privateKey, true);
+        // Store approval status locally WITHOUT overwriting/touching the keys
+        updateAgentApproval(address, true);
         setAgentStatus('approved');
         toast.success('Agent approved successfully!');
 
@@ -692,38 +713,32 @@ export function AgentControls({
         setShowImportDialog(false);
 
         //Set pending data
+        //Set pending data
         setPendingImportData({
-          address: account.address, // Agent Address
-          privateKey: formattedKey
+          address: account.address,
+          privateKey: formattedKey,
+          accountState: accountState
         });
 
-        // Open PIN setup
-        setShowPinSetup(true);
-
-        // Logic will continue in handleAgentCreationWithPin
-
-
+        // Show Success status immediately - BEFORE Pin Setup
         const openPositions =
           accountState.assetPositions?.filter(
             (p: any) => parseFloat(p.position.szi) !== 0
           ).length || 0;
 
-        // Set success status with ACCOUNT data
         setValidationStatus('success');
         setValidationData({
-          agentAddress: importAccountAddress.trim(),
+          agentAddress: (importAccountAddress.trim() || account.address),
           balance: parseFloat(
             accountState.marginSummary?.totalRawUsd || '0'
           ).toFixed(2),
           openPositions,
         });
 
-        toast.success('✅ Account imported and validated!', {
-          description: `Balance: $${parseFloat(accountState.marginSummary?.totalRawUsd || '0').toFixed(2)} | Open Positions: ${openPositions}`,
-          duration: 5000,
-        });
+        // Open PIN setup
+        setShowPinSetup(true);
 
-        // Trigger data refresh
+        // Notify parent validation passed (optional, keeps UI fresh)
         if (onStatusChange) {
           onStatusChange();
         }
@@ -826,248 +841,266 @@ export function AgentControls({
 
   return (
     <Card className="p-3 pt-4 h-full">
-      <div className="flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-2">
-          <config.icon className={cn("h-4 w-4", config.color)} />
-          <h3 className={cn("text-base font-semibold", config.color)}>
-            Perps Account:
-          </h3>
-          <Badge
-            variant="outline"
-            className={cn("ml-2", config.bgColor, config.color)}
-          >
-            {config.label}
-          </Badge>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <config.icon className={cn("h-4 w-4", config.color)} />
+            <h3 className={cn("text-base font-semibold", config.color)}>
+              Perps Account:
+            </h3>
+            <Badge
+              variant="outline"
+              className={cn("ml-2", config.bgColor, config.color)}
+            >
+              {config.label}
+            </Badge>
+          </div>
+          {isMobile && (
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    isOpen ? "rotate-180" : ""
+                  )}
+                />
+                <span className="sr-only">Toggle</span>
+              </Button>
+            </CollapsibleTrigger>
+          )}
         </div>
-      </div>
 
-      {/* Validation Status Display */}
-      {validationStatus !== 'idle' && (
-        <div className="mb-3">
-          <ValidationStatus
-            status={validationStatus}
-            agentAddress={validationData.agentAddress}
-            balance={validationData.balance}
-            openPositions={validationData.openPositions}
-            errorMessage={validationData.errorMessage}
-          />
-        </div>
-      )}
+        <CollapsibleContent>
 
-      {agentStatus === 'none' && (
-        <>
-          {!address ? null : isLoadingAgent ? (
-            <div className="text-sm text-muted-foreground text-center py-3">
-              Loading agent wallet...
+          {/* Validation Status Display */}
+          {validationStatus !== 'idle' && (
+            <div className="mb-3">
+              <ValidationStatus
+                status={validationStatus}
+                agentAddress={validationData.agentAddress}
+                balance={validationData.balance}
+                openPositions={validationData.openPositions}
+                errorMessage={validationData.errorMessage}
+              />
             </div>
-          ) : (
+          )}
+
+          {agentStatus === 'none' && (
             <>
-              <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
-                <Button
-                  onClick={handleCreateAgentClick}
-                  disabled={isCreating}
-                  className="w-full"
-                  size="sm"
-                >
-                  {isCreating ? 'Creating...' : 'Create New'}
-                </Button>
-                <Button
-                  onClick={() => setShowImportDialog(true)}
-                  disabled={isCreating}
-                  className="w-full"
-                  variant="outline"
-                  size="sm"
-                >
-                  <Upload className="h-3 w-3 mr-2" />
-                  Import Account
-                </Button>
-              </div>
-              <div className="text-xs text-muted-foreground bg-muted border border-border rounded p-2">
-                💡 Create a new Hyperliquid agent wallet or import your existing
-                one
-              </div>
+              {!address ? null : isLoadingAgent ? (
+                <div className="text-sm text-muted-foreground text-center py-3">
+                  Loading agent wallet...
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
+                    <Button
+                      onClick={handleCreateAgentClick}
+                      disabled={isCreating}
+                      className="w-full"
+                      size="sm"
+                    >
+                      {isCreating ? 'Creating...' : 'Create New'}
+                    </Button>
+                    <Button
+                      onClick={() => setShowImportDialog(true)}
+                      disabled={isCreating}
+                      className="w-full"
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Upload className="h-3 w-3 mr-2" />
+                      Import Account
+                    </Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground bg-muted border border-border rounded p-2">
+                    💡 Create a new Hyperliquid agent wallet or import your existing
+                    one
+                  </div>
+                </>
+              )}
             </>
           )}
-        </>
-      )}
 
-      <Dialog
-        open={showImportDialog}
-        onOpenChange={(open) => {
-          setShowImportDialog(open);
-          if (open) {
-            // Pre-fill with connected wallet address when dialog opens
-            setImportAccountAddress(address || '');
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Import Existing Agent</DialogTitle>
-            <DialogDescription>
-              Enter the private key of your Hyperliquid agent wallet and specify
-              which account address to associate it with.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="accountAddress">Account Address</Label>
-              <Input
-                id="accountAddress"
-                type="text"
-                placeholder="0x..."
-                value={importAccountAddress}
-                onChange={(e) => setImportAccountAddress(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                This is the PillarX account that will control the agent. You can
-                change this to any address.
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="privateKey">Agent Private Key</Label>
-              <Input
-                id="privateKey"
-                type="password"
-                placeholder="0x..."
-                value={importPrivateKey}
-                onChange={(e) => setImportPrivateKey(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                The private key of your Hyperliquid agent wallet
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleImportAgent} className="flex-1">
-                Import
-              </Button>
-              <Button
-                onClick={() => setShowImportDialog(false)}
-                variant="outline"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {agentStatus === 'locked' && (
-        <Button
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-11 mt-4"
-          onClick={() => {
-            setRevealMode('unlock');
-            setShowUnlockReveal(true);
-          }}
-        >
-          Unlock Wallet
-        </Button>
-      )}
-
-      {agentStatus === 'created' && (
-        <div className="space-y-1.5 mt-4">
-          {masterBalance < 10 ? (
-            <DepositModal
-              userState={userState!}
-              trigger={
-                <Button className="w-full" size="sm">
-                  Deposit $10 USDC to Trade
-                </Button>
+          <Dialog
+            open={showImportDialog}
+            onOpenChange={(open) => {
+              setShowImportDialog(open);
+              if (open) {
+                // Pre-fill with connected wallet address when dialog opens
+                setImportAccountAddress(address || '');
               }
-            />
-          ) : (
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import Existing Agent</DialogTitle>
+                <DialogDescription>
+                  Enter the private key of your Hyperliquid agent wallet and specify
+                  which account address to associate it with.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="accountAddress">Account Address</Label>
+                  <Input
+                    id="accountAddress"
+                    type="text"
+                    placeholder="0x..."
+                    value={importAccountAddress}
+                    onChange={(e) => setImportAccountAddress(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This is the PillarX account that will control the agent. You can
+                    change this to any address.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="privateKey">Agent Private Key</Label>
+                  <Input
+                    id="privateKey"
+                    type="password"
+                    placeholder="0x..."
+                    value={importPrivateKey}
+                    onChange={(e) => setImportPrivateKey(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The private key of your Hyperliquid agent wallet
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleImportAgent} className="flex-1">
+                    Import
+                  </Button>
+                  <Button
+                    onClick={() => setShowImportDialog(false)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {agentStatus === 'locked' && (
             <Button
-              onClick={handleApproveAgent}
-              disabled={isApproving || !address}
-              className="w-full"
-              size="sm"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-11 mt-4"
+              onClick={() => {
+                setRevealMode('unlock');
+                setShowUnlockReveal(true);
+              }}
             >
-              {isApproving ? 'Approving...' : 'Activate Account'}
+              Unlock Wallet
             </Button>
           )}
 
-          <Button
-            onClick={handleRemoveAgent}
-            disabled={isRemoving || isApproving}
-            variant="outline"
-            className="w-full text-xs"
-            size="sm"
-          >
-            {isRemoving ? 'Removing...' : 'Remove Account'}
-          </Button>
-
-
-        </div>
-      )
-      }
-
-      {
-        agentStatus === 'approved' && (
-          <div className="space-y-3 mt-4">
-            <div className="bg-success/10 border border-success/30 rounded-lg p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <span className="text-sm font-medium text-success">
-                    Imported Account
-                  </span>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                      <Settings className="h-4 w-4" />
+          {agentStatus === 'created' && (
+            <div className="space-y-1.5 mt-4">
+              {masterBalance < 10 ? (
+                <DepositModal
+                  userState={userState!}
+                  trigger={
+                    <Button className="w-full" size="sm">
+                      Deposit $10 USDC to Trade
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      setRevealMode('reveal');
-                      setShowUnlockReveal(true);
-                    }}>
-                      Reveal Private Key
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleRemoveAccount}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Remove Account
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                <span className="font-medium">Address:</span>
-                <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
-                  {agentAddress}
+                  }
+                />
+              ) : (
+                <Button
+                  onClick={handleApproveAgent}
+                  disabled={isApproving || !address}
+                  className="w-full"
+                  size="sm"
+                >
+                  {isApproving ? 'Approving...' : 'Activate Account'}
+                </Button>
+              )}
+
+              <Button
+                onClick={handleRemoveAgent}
+                disabled={isRemoving || isApproving}
+                variant="outline"
+                className="w-full text-xs"
+                size="sm"
+              >
+                {isRemoving ? 'Removing...' : 'Remove Account'}
+              </Button>
+
+
+            </div>
+          )
+          }
+
+          {
+            agentStatus === 'approved' && (
+              <div className="space-y-3 mt-4">
+                <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      <span className="text-sm font-medium text-success">
+                        Imported Account
+                      </span>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                          setRevealMode('reveal');
+                          setShowUnlockReveal(true);
+                        }}>
+                          Reveal Private Key
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleRemoveAccount}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove Account
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">Address:</span>
+                    <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
+                      {agentAddress}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )
-      }
+            )
+          }
 
-      <PinSetupModal
-        isOpen={showPinSetup}
-        onConfirm={handleAgentCreationWithPin}
-        onCancel={() => setShowPinSetup(false)}
-      />
+          <PinSetupModal
+            isOpen={showPinSetup}
+            onConfirm={handleAgentCreationWithPin}
+            onCancel={() => setShowPinSetup(false)}
+          />
 
-      <UnlockWalletModal
-        isOpen={showUnlockReveal}
-        onUnlock={handleUnlockForReveal}
-        onClose={() => setShowUnlockReveal(false)}
-      />
+          <UnlockWalletModal
+            isOpen={showUnlockReveal}
+            onUnlock={handleUnlockForReveal}
+            onClose={() => setShowUnlockReveal(false)}
+          />
 
-      <PrivateKeyModal
-        isOpen={privateKeyModalState.isOpen}
-        address={privateKeyModalState.address}
-        privateKey={privateKeyModalState.privateKey}
-        mode={privateKeyModalState.mode}
-        onClose={() => setPrivateKeyModalState({ ...privateKeyModalState, isOpen: false })}
-      />
+          <PrivateKeyModal
+            isOpen={privateKeyModalState.isOpen}
+            address={privateKeyModalState.address}
+            privateKey={privateKeyModalState.privateKey}
+            mode={privateKeyModalState.mode}
+            onClose={() => setPrivateKeyModalState({ ...privateKeyModalState, isOpen: false })}
+          />
 
+        </CollapsibleContent>
+      </Collapsible>
     </Card >
   );
 }

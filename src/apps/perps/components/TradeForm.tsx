@@ -773,22 +773,26 @@ export function TradeForm({
                   step={1}
                   value={[
                     (() => {
-                      const total = userState?.marginSummary?.totalRawUsd
-                        ? parseFloat(userState.marginSummary.totalRawUsd)
-                        : 0;
-                      const maxBuyingPower = total * (leverage || 1);
-                      return maxBuyingPower > 0
-                        ? (amountUSD / maxBuyingPower) * 100
-                        : 0;
+                      if (!userState?.marginSummary) return 0;
+                      const availableMargin =
+                        parseFloat(userState.marginSummary.accountValue) -
+                        parseFloat(userState.marginSummary.totalMarginUsed);
+
+                      const maxBuyingPower = availableMargin * (leverage || 1);
+                      if (maxBuyingPower <= 0) return 0;
+
+                      return Math.min((amountUSD / maxBuyingPower) * 100, 100);
                     })(),
                   ]}
                   onValueChange={(vals) => {
+                    if (!userState?.marginSummary) return;
                     const percentage = vals[0];
-                    const total = userState?.marginSummary?.totalRawUsd
-                      ? parseFloat(userState.marginSummary.totalRawUsd)
-                      : 0;
-                    if (total > 0) {
-                      const maxBuyingPower = total * (leverage || 1);
+                    const availableMargin =
+                      parseFloat(userState.marginSummary.accountValue) -
+                      parseFloat(userState.marginSummary.totalMarginUsed);
+
+                    if (availableMargin > 0) {
+                      const maxBuyingPower = availableMargin * (leverage || 1);
                       const newAmount = (maxBuyingPower * percentage) / 100;
                       setValue('amountUSD', parseFloat(newAmount.toFixed(2)));
                     }
@@ -800,15 +804,17 @@ export function TradeForm({
               <div className="flex items-center justify-center w-[80px] h-[28px] rounded-lg border border-[#2d3748] bg-[#1a202c]">
                 <span className="text-sm font-medium">
                   {(() => {
-                    const total = userState?.marginSummary?.totalRawUsd
-                      ? parseFloat(userState.marginSummary.totalRawUsd)
-                      : 0;
-                    const maxBuyingPower = total * (leverage || 1);
+                    if (!userState?.marginSummary) return 0;
+                    const availableMargin =
+                      parseFloat(userState.marginSummary.accountValue) -
+                      parseFloat(userState.marginSummary.totalMarginUsed);
+
+                    const maxBuyingPower = availableMargin * (leverage || 1);
                     const currentPercent =
                       maxBuyingPower > 0
                         ? (amountUSD / maxBuyingPower) * 100
                         : 0;
-                    return Math.round(currentPercent);
+                    return Math.round(Math.min(currentPercent, 100));
                   })()}
                 </span>
                 <span className="ml-1 text-sm text-muted-foreground">%</span>

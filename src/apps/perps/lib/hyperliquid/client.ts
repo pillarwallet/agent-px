@@ -118,6 +118,29 @@ export async function getOpenOrders(
   }
 }
 
+export async function getFrontendOpenOrders(
+  address: string
+): Promise<HyperliquidOrder[]> {
+  try {
+    const response = await axios.post(
+      INFO_URL,
+      {
+        type: 'frontendOpenOrders',
+        user: address,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return response.data || [];
+  } catch (error: any) {
+    console.error('Frontend open orders error:', error.response?.data || error.message);
+    return [];
+  }
+}
+
 export async function getUserFills(address: string): Promise<any[]> {
   try {
     const response = await axios.post(
@@ -139,26 +162,7 @@ export async function getUserFills(address: string): Promise<any[]> {
   }
 }
 
-export async function getFrontendOpenOrders(address: string): Promise<HyperliquidOrder[]> {
-  try {
-    const response = await axios.post(
-      INFO_URL,
-      {
-        type: 'frontendOpenOrders',
-        user: address,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    return response.data || [];
-  } catch (error: any) {
-    console.error('Frontend open orders error:', error.response?.data || error.message);
-    return [];
-  }
-}
+
 
 export async function getMarkPrice(symbol: string): Promise<number | null> {
   try {

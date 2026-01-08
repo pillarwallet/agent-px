@@ -221,19 +221,11 @@ export function getImportedAccountAddress(): string | null {
 
 export function storeImportedAccount(
   accountAddress: string,
-  privateKey: Hex
+  privateKey: Hex,
+  pin: string
 ): void {
-  // Legacy plaintext fallback - prefer storeImportedAccountEncrypted
-  if (typeof window === 'undefined') return;
-
-  const data = {
-    accountAddress,
-    privateKey,
-    timestamp: Date.now(),
-  };
-
-  localStorage.setItem(GLOBAL_ACCOUNT_KEY, JSON.stringify(data));
-  cachedImportedKey = privateKey;
+  // Enforce encryption by delegating
+  storeImportedAccountEncrypted(accountAddress, privateKey, pin);
 }
 
 export function getImportedAccount(): {
@@ -282,15 +274,26 @@ export function clearImportedAccount(): void {
 
 // Combined functions facade
 
+export function updateAgentApproval(
+  masterAddress: string,
+  approved: boolean
+): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(getStorageKey(masterAddress, 'approved'), String(approved));
+}
+
+/**
+ * @deprecated Use storeAgentWalletEncrypted instead. This function stores keys in plaintext.
+ */
 export async function storeAgentWallet(
   masterAddress: string,
   address: string,
   privateKey: Hex,
-  approved?: boolean
+  pin: string,
+  approved: boolean = false
 ): Promise<void> {
-  // Legacy support facade - direct storage (plaintext)
-  // New code should call storeAgentWalletEncrypted directly
-  storeAgentWalletLocal(masterAddress, address, privateKey, approved);
+  // Enforce encryption
+  return storeAgentWalletEncrypted(masterAddress, address, privateKey, pin, approved);
 }
 
 export async function getAgentWallet(
@@ -338,10 +341,7 @@ export function getAgentAddress(masterAddress: string): string | null {
 }
 
 export async function checkWalletMatch(importedAddress: string, masterAddress: string): Promise<boolean> {
-  // This helper verifies if the imported wallet is the "right" one.
-  // In reality, any imported wallet can be used if it's authorized.
-  // But the prompt asked to "check if the users wallet is the same...".
-  // This usually means checking if the imported wallet is authorized by the connected master wallet.
-  // We can't verify that locally without an API call to Hyperliquid to check approvals.
-  return true; // Placeholder logic
+  // Normalize addresses for comparison
+  const normalize = (addr: string) => addr.toLowerCase();
+  return normalize(importedAddress) === normalize(getAgentAddress(masterAddress) || '');
 }
