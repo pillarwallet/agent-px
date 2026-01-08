@@ -301,11 +301,11 @@ const Sell = (props: SellProps) => {
           >
             {token ? (
               <div
-                className="flex items-center gap-2.5 p-1.5 bg-[#1E1D24] rounded-[6px] min-w-[120px] max-w-full"
+                className="relative w-[113px] h-[36px] bg-[#1E1D24] rounded-[6px] shrink-0"
                 data-testid={`pulse-sell-token-selected-${token.chainId}-${token.name}`}
               >
                 {/* Logo */}
-                <div className="relative w-6 h-6 flex-shrink-0">
+                <div className="absolute left-[6px] top-[6px] w-[24px] h-[24px]">
                   {token.logo ? (
                     <img
                       src={token.logo}
@@ -327,63 +327,60 @@ const Sell = (props: SellProps) => {
                   />
                 </div>
 
-                {/* Text Container */}
-                <div className="flex flex-col items-start min-w-0 flex-1">
-                  {/* Top Row: Symbol and Name */}
-                  <div className="flex items-center gap-1 w-full overflow-hidden">
-                    <p
-                      className="font-normal text-[12px] leading-tight tracking-[-0.02em] text-white truncate max-w-[60px]"
-                      data-testid="pulse-sell-token-selector-symbol"
-                    >
-                      {token.symbol}
-                    </p>
-                    <p
-                      className="font-normal text-[12px] leading-tight tracking-[-0.02em] text-white opacity-30 truncate"
-                      data-testid="pulse-sell-token-selector-name"
-                    >
-                      {token.name}
-                    </p>
-                  </div>
+                {/* Top Row: Symbol and Name */}
+                <div className="absolute left-[36px] top-[6px] flex items-center gap-[4px] max-w-[90px]">
+                  <p
+                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white truncate shrink-0 max-w-[50px]"
+                    data-testid="pulse-sell-token-selector-symbol"
+                  >
+                    {token.symbol}
+                  </p>
+                  <p
+                    className="font-normal text-[12px] leading-[12px] tracking-[-0.02em] text-white opacity-30 truncate block"
+                    data-testid="pulse-sell-token-selector-name"
+                  >
+                    {token.name}
+                  </p>
+                </div>
 
-                  {/* Bottom Row: Price and Change */}
-                  <div className="flex items-center gap-1.5 w-full">
-                    <p
-                      className="font-normal text-[10px] leading-tight tracking-[-0.02em] text-white opacity-50 whitespace-nowrap"
-                      data-testid="pulse-sell-token-selector-price"
-                    >
-                      ${formatExponentialSmallNumber(token.usdValue)}
-                    </p>
+                {/* Bottom Row: Price and Change */}
+                <div className="absolute left-[36px] top-[20px] flex items-center gap-[6px]">
+                  <p
+                    className="font-normal text-[10px] leading-[10px] tracking-[-0.02em] text-white opacity-50"
+                    data-testid="pulse-sell-token-selector-price"
+                  >
+                    ${formatExponentialSmallNumber(token.usdValue)}
+                  </p>
 
-                    <div className="flex items-center gap-0.5 min-w-0">
-                      {/* Triangle Indicator */}
-                      {token.dailyPriceChange !== 0 && (
-                        <div
-                          className={`w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent ${
-                            token.dailyPriceChange >= 0
-                              ? 'border-b-[4px] border-b-[#5CFF93]'
-                              : 'border-t-[4px] border-t-[#FF366C]'
-                          } opacity-50`}
-                        />
-                      )}
-
-                      <p
-                        className={`font-normal text-[10px] leading-tight tracking-[-0.02em] opacity-50 truncate ${
+                  <div className="flex items-center gap-[2px]">
+                    {/* Triangle Indicator */}
+                    {token.dailyPriceChange !== 0 && (
+                      <div
+                        className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent ${
                           token.dailyPriceChange >= 0
-                            ? 'text-[#5CFF93]'
-                            : 'text-[#FF366C]'
-                        }`}
-                      >
-                        {Math.abs(token.dailyPriceChange).toFixed(2)}%
-                      </p>
-                    </div>
+                            ? 'border-b-[6px] border-b-[#5CFF93]'
+                            : 'border-t-[6px] border-t-[#FF366C]'
+                        } opacity-50`}
+                      />
+                    )}
+
+                    <p
+                      className={`font-normal text-[10px] leading-[10px] tracking-[-0.02em] opacity-50 ${
+                        token.dailyPriceChange >= 0
+                          ? 'text-[#5CFF93]'
+                          : 'text-[#FF366C]'
+                      }`}
+                    >
+                      {Math.abs(token.dailyPriceChange).toFixed(2)}%
+                    </p>
                   </div>
                 </div>
 
                 {/* Chevron */}
-                <div className="flex-shrink-0 px-0.5">
+                <div className="absolute right-[12px] top-[15px]">
                   <img
                     src={ArrowDown}
-                    className="w-3 h-1.5 opacity-50"
+                    className="w-[12px] h-[6px] opacity-50"
                     alt="arrow-down"
                   />
                 </div>

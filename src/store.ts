@@ -37,21 +37,8 @@ export const addReducer = (newReducer: {
   reducerPath: string;
   reducer: Reducer;
 }) => {
-  const path = newReducer.reducerPath;
-  if (!path) {
-    throw new Error(
-      `Reducer path is missing for reducer: ${JSON.stringify(newReducer)}`
-    );
-  } else {
-    const actualReducer = newReducer.reducer;
-    if (!actualReducer) {
-      throw new Error(
-        `Reducer is undefined/null for path: ${path}. This will cause Redux store to fail!`
-      );
-    }
-    middlewareReducers[path] = actualReducer;
-    store.replaceReducer(combineReducers(middlewareReducers));
-  }
+  middlewareReducers[newReducer.reducerPath as string] = newReducer.reducer;
+  store.replaceReducer(combineReducers(middlewareReducers));
 };
 
 /**
@@ -101,20 +88,11 @@ addMiddleware(pillarXApiPresence);
 addMiddleware(pillarXApiTransactionsHistory);
 addMiddleware(pillarXApiWalletTransactions);
 addMiddleware(relayApi);
-addReducer({ reducerPath: swapSlice.name, reducer: swapSlice.reducer });
-addReducer({
-  reducerPath: tokenAtlasSlice.name,
-  reducer: tokenAtlasSlice.reducer,
-});
-addReducer({ reducerPath: depositSlice.name, reducer: depositSlice.reducer });
-addReducer({
-  reducerPath: walletPortfolioSlice.name,
-  reducer: walletPortfolioSlice.reducer,
-});
-addReducer({
-  reducerPath: leaderboardSlice.name,
-  reducer: leaderboardSlice.reducer,
-});
+addReducer(swapSlice);
+addReducer(tokenAtlasSlice);
+addReducer(depositSlice);
+addReducer(walletPortfolioSlice);
+addReducer(leaderboardSlice);
 
 // optional, but required for refetchOnFocus/refetchOnReconnect behaviors
 // see `setupListeners` docs - takes an optional callback as the 2nd arg for customization

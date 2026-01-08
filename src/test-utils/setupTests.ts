@@ -386,11 +386,7 @@ import.meta.env.VITE_PRIVY_APP_ID = 'test';
 // We need to mock the actual resolved paths that components use
 const React = require('react');
 const SvgMock = React.forwardRef(function SvgMock(props: any, ref: any) {
-  return React.createElement('svg', {
-    ...props,
-    ref,
-    'data-testid': 'svg-mock',
-  });
+  return React.createElement('svg', { ...props, ref, 'data-testid': 'svg-mock' });
 });
 SvgMock.displayName = 'SvgMock';
 
@@ -405,15 +401,7 @@ vi.mock('../apps/developer-apps/assets/icons/lock.svg', () => createSvgMock());
 vi.mock('../apps/developer-apps/assets/icons/error.svg', () => createSvgMock());
 vi.mock('../apps/developer-apps/assets/icons/cube.svg', () => createSvgMock());
 vi.mock('../apps/developer-apps/assets/icons/close.svg', () => createSvgMock());
-vi.mock('../apps/developer-apps/assets/icons/x-twitter.svg', () =>
-  createSvgMock()
-);
-vi.mock('../apps/developer-apps/assets/icons/telegram.svg', () =>
-  createSvgMock()
-);
-vi.mock('../apps/developer-apps/assets/icons/facebook.svg', () =>
-  createSvgMock()
-);
-vi.mock('../apps/developer-apps/assets/icons/tiktok.svg', () =>
-  createSvgMock()
-);
+vi.mock('../apps/developer-apps/assets/icons/x-twitter.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/telegram.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/facebook.svg', () => createSvgMock());
+vi.mock('../apps/developer-apps/assets/icons/tiktok.svg', () => createSvgMock());

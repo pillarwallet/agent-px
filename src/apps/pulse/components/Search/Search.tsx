@@ -53,18 +53,6 @@ import BackArrowIcon from '../../assets/back-arrow-icon.svg';
 import ClearSearchIcon from '../../assets/clear-search-icon.svg';
 import SearchIcon from '../../assets/seach-icon.svg';
 
-const getDailyPriceChange = (item: Asset | Token): number => {
-  const assetItem = item as { priceChange24h?: number | null };
-  if (typeof assetItem.priceChange24h === 'number')
-    return assetItem.priceChange24h;
-
-  const tokenItem = item as { price_change_24h?: number | null };
-  if (typeof tokenItem.price_change_24h === 'number')
-    return tokenItem.price_change_24h;
-
-  return 0;
-};
-
 interface SearchProps {
   setSearching: Dispatch<SetStateAction<boolean>>;
   isBuy: boolean;
@@ -458,7 +446,8 @@ export default function Search({
           usdValue: formatExponentialSmallNumber(
             limitDigitsNumber(item.price || 0)
           ),
-          dailyPriceChange: getDailyPriceChange(item),
+          dailyPriceChange:
+            'priceChange24h' in item ? item.priceChange24h || 0.0 : 0.0,
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,
@@ -476,7 +465,8 @@ export default function Search({
           usdValue: formatExponentialSmallNumber(
             limitDigitsNumber(item.price || 0)
           ),
-          dailyPriceChange: getDailyPriceChange(item),
+          dailyPriceChange:
+            'price_change_24h' in item ? item.price_change_24h || 0.0 : 0.0,
           chainId: selectedChainId,
           decimals: selectedDecimals,
           address: selectedContract,
@@ -490,7 +480,8 @@ export default function Search({
         usdValue: formatExponentialSmallNumber(
           limitDigitsNumber(item.price || 0)
         ),
-        dailyPriceChange: getDailyPriceChange(item),
+        dailyPriceChange:
+          'priceChange24h' in item ? item.priceChange24h || 0.0 : 0.0,
         decimals: item.decimals,
         address: item.contract,
       };
