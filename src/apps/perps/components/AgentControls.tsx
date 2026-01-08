@@ -20,6 +20,7 @@ import {
   Upload,
   Trash2,
   Settings,
+  Lock,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,13 +50,17 @@ import { postExchange } from '../lib/hyperliquid/client';
 import { ValidationStatus } from './ValidationStatus';
 import { DepositModal } from './DepositModal';
 import type { UserState } from '../lib/hyperliquid/types';
+import { PinSetupModal } from './PinSetupModal';
+import { UnlockWalletModal } from './UnlockWalletModal';
+import { storeAgentWalletEncrypted, unlockAgentWallet, getAgentWallet, getAgentAddress, isAgentWalletEncrypted } from '../lib/hyperliquid/keystore';
 
-type AgentStatus = 'none' | 'created' | 'approved';
+type AgentStatus = 'none' | 'created' | 'approved' | 'locked';
 
-interface AgentControlsProps {
-  onStatusChange?: () => void;
-  userState?: UserState;
+userState ?: UserState;
 }
+
+// Add 'unlock' to revealMode type
+type RevealMode = 'copy' | 'download' | 'unlock';
 
 export function AgentControls({
   onStatusChange,
@@ -87,6 +92,11 @@ export function AgentControls({
     openPositions?: number;
     errorMessage?: string;
   }>({});
+
+  // PIN & Encryption State
+  const [showPinSetup, setShowPinSetup] = useState(false);
+  const [showUnlockReveal, setShowUnlockReveal] = useState(false);
+  const [revealMode, setRevealMode] = useState<RevealMode>('unlock');
 
   // Auto-fetch imported account from global storage
   useEffect(() => {
@@ -123,6 +133,37 @@ export function AgentControls({
     loadImportedAccount();
   }, []);
 
+  // Check status on mount / address change
+  useEffect(() => {
+    if (!address) return;
+
+    const checkStatus = async () => {
+      // 1. Try to get unlocked wallet
+      const wallet = await getAgentWallet(address);
+      if (wallet) {
+        setAgentAddress(wallet.address);
+        setAgentPrivateKey(wallet.privateKey);
+        setAgentStatus(wallet.approved ? 'approved' : 'created');
+        return;
+      }
+
+      // 2. Check if locked
+      if (isAgentWalletEncrypted(address)) {
+        const addr = getAgentAddress(address);
+        if (addr) {
+          setAgentAddress(addr);
+          setAgentStatus('locked');
+          return;
+        }
+      }
+
+      // 3. None
+      setAgentStatus('none');
+    };
+
+    checkStatus();
+  }, [address, validationStatus]); // Re-run if validation finishes (import) or address changes
+
   // Auto-dismiss validation success status
   useEffect(() => {
     if (validationStatus === 'success') {
@@ -133,49 +174,81 @@ export function AgentControls({
     }
   }, [validationStatus]);
 
-  const handleCreateAgent = async () => {
-    console.log('handleCreateAgent called', { address });
+  const handleUnlockClick = () => {
+    setShowUnlockReveal(true);
+    setRevealMode('copy'); // Default mode, but actually we just want to unlock session
+    // We need to distinguish between "Unlock Session" and "Reveal Key".
+    // For now, let's just use the same modal. 
+    // If we rename revealMode to 'unlock' | 'copy' | 'download'?
+  };
+
+  // Modify handleUnlockForReveal to handle simple unlock
+  const handleUnlockForReveal = async (pin: string): Promise<boolean> => {
+    if (!address) return false;
+    try {
+      const unlocked = await unlockAgentWallet(address, pin);
+      if (unlocked) {
+        setAgentPrivateKey(unlocked.privateKey);
+        setAgentStatus(unlocked.approved ? 'approved' : 'created');
+        setShowUnlockReveal(false);
+
+        if (revealMode === 'copy') {
+          navigator.clipboard.writeText(unlocked.privateKey);
+          toast.success('Private key copied to clipboard!');
+        } else if (revealMode === 'download') {
+          downloadKeyFile(unlocked.address, unlocked.privateKey);
+        } else {
+          // Just unlock
+          toast.success('Wallet unlocked!');
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      throw e;
+    }
+  };
+
+  const handleCreateAgentClick = () => {
     if (!address) {
       toast.error('Please connect your wallet first');
       return;
     }
-
-    setIsCreating(true);
-    try {
-      console.log('Checking for existing agent wallet...');
-      // Check if agent wallet already exists
-      const existing = await getAgentWallet(address);
-      console.log('Existing agent check result:', existing);
-
+    // Check for existing first
+    getAgentWallet(address).then((existing) => {
       if (existing) {
         setAgentAddress(existing.address);
         setAgentStatus(existing.approved ? 'approved' : 'created');
-        toast.success('Agent wallet already exists!', {
-          description: `Address: ${existing.address.slice(0, 10)}...`,
-        });
-        return;
+        toast.success('Agent wallet already exists!');
+      } else if (isAgentWalletEncrypted(address)) {
+        setAgentStatus('locked');
+        toast.info('Wallet is locked. Please unlock it.');
+      } else {
+        setShowPinSetup(true);
       }
+    });
+  };
 
+  const handleAgentCreationWithPin = async (pin: string) => {
+    setShowPinSetup(false);
+    setIsCreating(true);
+    try {
       console.log('Generating new agent wallet...');
-      // Create new agent wallet
       const wallet = generateAgentWallet();
-      console.log('Generated wallet:', wallet.address);
 
-      console.log('Storing agent wallet...');
-      await storeAgentWallet(address, wallet.address, wallet.privateKey, false);
-      console.log('Agent wallet stored');
+      console.log('Storing encrypted agent wallet...');
+      await storeAgentWalletEncrypted(address as string, wallet.address, wallet.privateKey, pin, false);
 
       setAgentAddress(wallet.address);
-      setAgentPrivateKey(wallet.privateKey);
+      setAgentPrivateKey(wallet.privateKey); // Keep in memory for this session
       setAgentStatus('created');
-      toast.success('Agent wallet created!', {
+
+      toast.success('Agent wallet created & secured with PIN!', {
         description: `Address: ${wallet.address.slice(0, 10)}...`,
       });
     } catch (error: any) {
       console.error('Agent creation error:', error);
-      toast.error('Failed to create agent wallet', {
-        description: error.message,
-      });
+      toast.error('Failed to create agent wallet');
     } finally {
       setIsCreating(false);
     }
@@ -379,37 +452,71 @@ export function AgentControls({
     }
   };
 
+  const handleUnlockForReveal = async (pin: string): Promise<boolean> => {
+    if (!address) return false;
+    try {
+      const unlocked = await unlockAgentWallet(address, pin);
+      if (unlocked) {
+        setAgentPrivateKey(unlocked.privateKey);
+        setShowUnlockReveal(false);
+
+        // Proceed with action
+        if (revealMode === 'copy') {
+          navigator.clipboard.writeText(unlocked.privateKey);
+          toast.success('Private key copied to clipboard!');
+        } else {
+          downloadKeyFile(unlocked.address, unlocked.privateKey);
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      throw e; // Modal handles error
+    }
+  };
+
   const copyPrivateKey = () => {
     if (agentPrivateKey) {
       navigator.clipboard.writeText(agentPrivateKey);
-      toast.success('Private key copied to clipboard!');
+      toast.success('Private key copied!');
+    } else {
+      setRevealMode('copy');
+      setShowUnlockReveal(true);
     }
   };
 
   const downloadPrivateKey = () => {
-    if (agentPrivateKey && agentAddress) {
-      const data = JSON.stringify(
-        {
-          address: agentAddress,
-          privateKey: agentPrivateKey,
-          createdAt: new Date().toISOString(),
-        },
-        null,
-        2
-      );
-
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `agent-wallet-${agentAddress.slice(0, 8)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast.success('Private key downloaded!');
+    if (agentPrivateKey) {
+      downloadKeyFile(agentAddress, agentPrivateKey);
+    } else {
+      setRevealMode('download');
+      setShowUnlockReveal(true);
     }
+  };
+
+  const downloadKeyFile = (addr: string, key: string) => {
+    const data = JSON.stringify(
+      {
+        address: addr,
+        privateKey: key,
+        createdAt: new Date().toISOString(),
+        note: "KEEP THIS SAFE. DO NOT SHARE."
+      },
+      null,
+      2
+    );
+
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agent-wallet-${addr.slice(0, 8)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success('Private key downloaded!');
   };
 
   const handleRemoveAccount = async () => {
@@ -597,6 +704,12 @@ export function AgentControls({
   };
 
   const statusConfig = {
+    locked: {
+      icon: Lock,
+      label: 'Locked',
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/10 border-orange-500/30',
+    },
     none: {
       icon: AlertCircle,
       label: 'No Agent',
@@ -619,6 +732,11 @@ export function AgentControls({
 
   const config = statusConfig[agentStatus];
   const Icon = config.icon;
+
+  // Add Lock icon import if not present (Wait, imports are at top)
+  // I need to add Lock to imports at top manually in first block?
+  // Or assume lucide-react has it (it does).
+  // Let's add the button for Locked state.
 
   return (
     <Card className="p-3 pt-4 h-full">
@@ -679,7 +797,7 @@ export function AgentControls({
             <>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <Button
-                  onClick={handleCreateAgent}
+                  onClick={handleCreateAgentClick}
                   disabled={isCreating}
                   className="w-full"
                   size="sm"
@@ -763,81 +881,107 @@ export function AgentControls({
               >
                 Cancel
               </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
 
-      {agentStatus === 'created' && (
-        <div className="space-y-1.5">
-          {masterBalance < 10 ? (
-            <DepositModal
-              userState={userState!}
-              trigger={
-                <Button className="w-full" size="sm">
-                  Deposit $10 USDC to Trade
-                </Button>
-              }
-            />
-          ) : (
+          {agentStatus === 'locked' && (
             <Button
-              onClick={handleApproveAgent}
-              disabled={isApproving || !address}
-              className="w-full"
+              onClick={() => {
+                setRevealMode('unlock');
+                setShowUnlockReveal(true);
+              }}
+              className="w-full mb-2"
               size="sm"
             >
-              {isApproving ? 'Approving...' : 'Activate Account'}
+              Unlock Wallet
             </Button>
           )}
 
-          <Button
-            onClick={handleRemoveAgent}
-            disabled={isRemoving || isApproving}
-            variant="outline"
-            className="w-full text-xs"
-            size="sm"
-          >
-            {isRemoving ? 'Removing...' : 'Remove Account'}
-          </Button>
-        </div>
-      )}
+          {agentStatus === 'created' && (
+            <div className="space-y-1.5">
+              {masterBalance < 10 ? (
+                <DepositModal
+                  userState={userState!}
+                  trigger={
+                    <Button className="w-full" size="sm">
+                      Deposit $10 USDC to Trade
+                    </Button>
+                  }
+                />
+              ) : (
+                <Button
+                  onClick={handleApproveAgent}
+                  disabled={isApproving || !address}
+                  className="w-full"
+                  size="sm"
+                >
+                  {isApproving ? 'Approving...' : 'Activate Account'}
+                </Button>
+              )}
 
-      {agentStatus === 'approved' && (
-        <div className="space-y-3">
-          <div className="bg-success/10 border border-success/30 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-success" />
-                <span className="text-sm font-medium text-success">
-                  Imported Account Active
-                </span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={handleRemoveAccount}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Remove Account
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button
+                onClick={handleRemoveAgent}
+                disabled={isRemoving || isApproving}
+                variant="outline"
+                className="w-full text-xs"
+                size="sm"
+              >
+                {isRemoving ? 'Removing...' : 'Remove Account'}
+              </Button>
+
+              <PinSetupModal
+                isOpen={showPinSetup}
+                onConfirm={handleAgentCreationWithPin}
+                onCancel={() => setShowPinSetup(false)}
+              />
+
+              <UnlockWalletModal
+                isOpen={showUnlockReveal}
+                onUnlock={handleUnlockForReveal}
+                onClose={() => setShowUnlockReveal(false)}
+              />
             </div>
-            <div className="text-xs text-muted-foreground">
-              <span className="font-medium">Address:</span>
-              <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
-                {agentAddress}
+          )
+          }
+
+          {
+            agentStatus === 'approved' && (
+              <div className="space-y-3">
+                <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      <span className="text-sm font-medium text-success">
+                        Imported Account Active
+                      </span>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={handleRemoveAccount}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove Account
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">Address:</span>
+                    <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
+                      {agentAddress}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </Card>
-  );
+            )
+          }
+        </Card >
+        );
 }

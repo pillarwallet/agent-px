@@ -17,12 +17,14 @@ import useTransactionKit from '../../../hooks/useTransactionKit';
 
 interface DepositModalProps {
   userState: any;
+  targetAddress?: string;
   trigger?: React.ReactNode;
   disabled?: boolean;
 }
 
 export function DepositModal({
   userState,
+  targetAddress,
   trigger,
   disabled,
 }: DepositModalProps) {
@@ -33,6 +35,8 @@ export function DepositModal({
   const [txHash, setTxHash] = useState<string | null>(null);
   const { toast } = useToast();
   const { walletAddress: address, kit, walletProvider } = useTransactionKit();
+
+  const isAddressMatch = !targetAddress || !address || targetAddress.toLowerCase() === address.toLowerCase();
 
   // Re-export contract addresses from bridge logic or define them here
   const BRIDGE_CONTRACT_ADDRESS = '0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7';
@@ -283,6 +287,20 @@ export function DepositModal({
           <DialogTitle>Deposit USDC</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {!isAddressMatch && (
+            <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md flex items-start gap-2">
+              <span className="mt-0.5">⚠️</span>
+              <div>
+                <strong>Wallet Mismatch</strong>
+                <p className="mt-1">
+                  You are connected with {address?.slice(0, 6)}... but trying to deposit to {targetAddress?.slice(0, 6)}...
+                  <br />
+                  Please switch your wallet to the correct account to deposit defined funds.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">
               Current Hyperliquid Balance
@@ -342,7 +360,7 @@ export function DepositModal({
 
           <Button
             onClick={handleDeposit}
-            disabled={isLoading || !amount || parseFloat(amount) <= 0}
+            disabled={isLoading || !amount || parseFloat(amount) <= 0 || !isAddressMatch}
             className="w-full"
           >
             {isLoading ? 'Processing...' : 'Bridge USDC'}
