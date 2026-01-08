@@ -120,40 +120,7 @@ export function AgentControls({
     mode: 'created'
   });
 
-  // Auto-fetch imported account from global storage
-  useEffect(() => {
-    const loadImportedAccount = async () => {
-      setIsLoadingAgent(true);
-      try {
-        const { getImportedAccount } = await import(
-          '../lib/hyperliquid/keystore'
-        );
-        const imported = getImportedAccount();
 
-        if (imported) {
-          setAgentAddress(imported.accountAddress);
-          setAgentPrivateKey(imported.privateKey);
-          setAgentStatus('approved');
-          console.log(
-            '[AgentControls] Imported account loaded:',
-            imported.accountAddress
-          );
-        } else {
-          setAgentStatus('none');
-          setAgentAddress('');
-          setAgentPrivateKey('');
-        }
-      } catch (error) {
-        console.error('[AgentControls] Error loading imported account:', error);
-        setAgentStatus('none');
-        setAgentAddress('');
-      } finally {
-        setIsLoadingAgent(false);
-      }
-    };
-
-    loadImportedAccount();
-  }, []);
 
   // Check status on mount / address change
   useEffect(() => {
@@ -746,7 +713,7 @@ export function AgentControls({
   const statusConfig = {
     locked: {
       icon: Lock,
-      label: 'Locked',
+      label: 'Active (Locked)',
       color: 'text-orange-500',
       bgColor: 'bg-orange-500/10 border-orange-500/30',
     },
