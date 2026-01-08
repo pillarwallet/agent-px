@@ -165,16 +165,31 @@ export function PositionsCard({
                 markPx = priceMap[rawPos.coin].toString();
               }
 
+              // Robust Universe Lookup
+              let coinInfo = universe.find((u) => u.name === rawPos.coin);
+
+              if (!coinInfo) {
+                // FALLBACK: If coin not found in universe, use default formatting
+                // This ensures we show the position even if metadata is missing/loading
+                console.warn(`Warning: Universe metadata missing for ${rawPos.coin}, using defaults`);
+                coinInfo = {
+                  name: rawPos.coin,
+                  szDecimals: 4, // Default for most assets
+                  maxLeverage: 50,
+                };
+              }
+
               return {
                 ...rawPos,
                 markPx,
+                coinInfo,
               };
-            } catch (err) {
-              console.error('DEBUG: Error mapping position', err);
-              return pos.position;
+            } catch (e) {
+              console.error('Error processing position:', e);
+              return null;
             }
           })
-          .filter((p: any) => parseFloat(p.szi) !== 0);
+          .filter((p: any) => p && parseFloat(p.szi) !== 0);
 
         console.log('DEBUG: Setting positions', openPositions.length);
         setPositions(openPositions);
