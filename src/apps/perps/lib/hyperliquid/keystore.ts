@@ -41,6 +41,9 @@ export async function storeAgentWalletEncrypted(
     localStorage.removeItem(getStorageKey(masterAddress, 'key'));
 
     localStorage.setItem(getStorageKey(masterAddress, 'approved'), String(approved));
+
+    // Hot-load the cache so it's immediately available without unlocking again
+    cachedPrivateKey = privateKey;
   } catch (error) {
     console.error('Failed to encrypt wallet:', error);
     throw new Error('Encryption failed');

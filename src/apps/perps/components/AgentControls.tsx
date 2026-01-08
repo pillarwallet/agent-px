@@ -273,6 +273,11 @@ export function AgentControls({
           mode: 'created'
         });
       }
+
+      // Trigger data refresh on parent
+      if (onStatusChange) {
+        onStatusChange();
+      }
     } catch (error: any) {
       console.error('Agent creation/import error:', error);
       toast.error('Failed to secure agent wallet');
