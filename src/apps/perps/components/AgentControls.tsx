@@ -48,6 +48,12 @@ import { PinSetupModal } from './PinSetupModal';
 import { UnlockWalletModal } from './UnlockWalletModal';
 import { PrivateKeyModal } from './PrivateKeyModal';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import {
   storeAgentWallet,
   updateAgentApprovalRemote,
   clearAgentWallet,
@@ -102,7 +108,7 @@ export function AgentControls({
   // PIN & Encryption State
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showUnlockReveal, setShowUnlockReveal] = useState(false);
-  const [revealMode, setRevealMode] = useState<RevealMode>('unlock');
+  const [revealMode, setRevealMode] = useState<'unlock' | 'reveal'>('unlock'); // 'unlock' = just unlock, 'reveal' = show key
   const [pendingImportData, setPendingImportData] = useState<{
     address: string;
     privateKey: Hex;
@@ -181,13 +187,22 @@ export function AgentControls({
         setAgentStatus(unlocked.approved ? 'approved' : 'created');
         setShowUnlockReveal(false);
 
-        // Show Key in Modal
-        setPrivateKeyModalState({
-          isOpen: true,
-          address: unlocked.address,
-          privateKey: unlocked.privateKey,
-          mode: 'revealed'
-        });
+        // Show Key in Modal ONLY if revealed
+        if (revealMode === 'reveal') {
+          setPrivateKeyModalState({
+            isOpen: true,
+            address: unlocked.address,
+            privateKey: unlocked.privateKey,
+            mode: 'revealed'
+          });
+        } else {
+          toast.success('Wallet unlocked'); // Silent unlock
+        }
+
+        // Trigger data refresh on parent
+        if (onStatusChange) {
+          onStatusChange();
+        }
 
         return true;
       }
@@ -752,35 +767,57 @@ export function AgentControls({
 
   return (
     <Card className="p-3 pt-4 h-full">
-      <div className="flex items-center justify-between mb-2 md:mb-6">
-        <div className="flex items-center gap-3">
-          <Shield className="h-4 w-4 text-primary" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">Perps Account:</span>
-              <Badge variant="outline" className={config.color}>
-                <Icon className="h-3 w-3 mr-1" />
-                {config.label}
-              </Badge>
-            </div>
-            {agentAddress && (
-              <div className="space-y-1 mt-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {agentAddress.slice(0, 10)}...{agentAddress.slice(-8)}
-                  </span>
-                  <button
-                    onClick={copyAddress}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Copy className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+      <div className="flex items-center justify-between pointer-events-none">
+        <div className="flex items-center gap-2">
+          <config.icon className={cn("h-4 w-4", config.color)} />
+          <h3 className={cn("text-base font-semibold", config.color)}>
+            Perps Account:
+          </h3>
+          <Badge
+            variant="outline"
+            className={cn("ml-2", config.bgColor, config.color)}
+          >
+            {config.label}
+          </Badge>
+        </div>
+
+        {/* Settings / Actions (Pointer events re-enabled) */}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {/* Show Settings ONLY if not 'none' and not 'locked' (unless we want to allow reveal while unlocked? Yes) */}
+          {agentStatus !== 'none' && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setRevealMode('reveal');
+                  setShowUnlockReveal(true);
+                }}>
+                  Reveal Private Key
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
+      {agentAddress && (
+        <div className="space-y-1 mt-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-muted-foreground">
+              {agentAddress.slice(0, 10)}...{agentAddress.slice(-8)}
+            </span>
+            <button
+              onClick={copyAddress}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Copy className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Validation Status Display */}
       {validationStatus !== 'idle' && (
@@ -900,12 +937,11 @@ export function AgentControls({
 
       {agentStatus === 'locked' && (
         <Button
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-11"
           onClick={() => {
             setRevealMode('unlock');
             setShowUnlockReveal(true);
           }}
-          className="w-full mb-2"
-          size="sm"
         >
           Unlock Wallet
         </Button>
