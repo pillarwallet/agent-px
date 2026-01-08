@@ -150,6 +150,16 @@ vi.mock('../../../../../hooks/useDeployWallet', () => ({
   }),
 }));
 
+// Mock environment variable for swap button
+Object.defineProperty(import.meta, 'env', {
+  value: {
+    ...import.meta.env,
+    VITE_SWAP_BUTTON_SWITCH: 'true',
+  },
+  writable: true,
+  configurable: true,
+});
+
 describe('<CardsSwap />', () => {
   beforeEach(() => {
     vi.clearAllMocks();
