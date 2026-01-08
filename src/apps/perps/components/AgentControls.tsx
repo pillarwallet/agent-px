@@ -102,6 +102,10 @@ export function AgentControls({
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showUnlockReveal, setShowUnlockReveal] = useState(false);
   const [revealMode, setRevealMode] = useState<RevealMode>('unlock');
+  const [pendingImportData, setPendingImportData] = useState<{
+    address: string;
+    privateKey: Hex;
+  } | null>(null);
 
   // Auto-fetch imported account from global storage
   useEffect(() => {
@@ -244,22 +248,49 @@ export function AgentControls({
     setShowPinSetup(false);
     setIsCreating(true);
     try {
-      console.log('Generating new agent wallet...');
-      const wallet = generateAgentWallet();
+      if (pendingImportData) {
+        // Encypt IMPORTED wallet
+        console.log('Encrypting imported wallet...');
+        // Imported wallet is treated as the agent for this connected wallet
+        // If the user provided a specific ImportAccountAddress, that is the "Account" being controlled.
+        // But for storage, we key it by the CONNECTED wallet (address) so it appears when they are connected.
+        // Wait, if importAccountAddress !== address (connected), then we are setting an agent for a DIFFERENT account?
+        // No, usually "Import" means "I have this key, use it".
+        // The previous logic checked validation against importAccountAddress.
 
-      console.log('Storing encrypted agent wallet...');
-      await storeAgentWalletEncrypted(address as string, wallet.address, wallet.privateKey, pin, false);
+        await storeAgentWalletEncrypted(
+          address as string,
+          importAccountAddress.trim() || pendingImportData.address,
+          pendingImportData.privateKey,
+          pin,
+          true // Imported accounts are assumed "approved" or we validated them
+        );
 
-      setAgentAddress(wallet.address);
-      setAgentPrivateKey(wallet.privateKey); // Keep in memory for this session
-      setAgentStatus('created');
+        setAgentAddress(importAccountAddress.trim() || pendingImportData.address);
+        setAgentPrivateKey(pendingImportData.privateKey);
+        setAgentStatus('approved');
+        setPendingImportData(null); // Clear pending
+        toast.success('Imported wallet secured with PIN!');
 
-      toast.success('Agent wallet created & secured with PIN!', {
-        description: `Address: ${wallet.address.slice(0, 10)}...`,
-      });
+      } else {
+        // Generate NEW wallet
+        console.log('Generating new agent wallet...');
+        const wallet = generateAgentWallet();
+
+        console.log('Storing encrypted agent wallet...');
+        await storeAgentWalletEncrypted(address as string, wallet.address, wallet.privateKey, pin, false);
+
+        setAgentAddress(wallet.address);
+        setAgentPrivateKey(wallet.privateKey); // Keep in memory for this session
+        setAgentStatus('created');
+
+        toast.success('Agent wallet created & secured with PIN!', {
+          description: `Address: ${wallet.address.slice(0, 10)}...`,
+        });
+      }
     } catch (error: any) {
-      console.error('Agent creation error:', error);
-      toast.error('Failed to create agent wallet');
+      console.error('Agent creation/import error:', error);
+      toast.error('Failed to secure agent wallet');
     } finally {
       setIsCreating(false);
     }
@@ -591,20 +622,21 @@ export function AgentControls({
 
         toast.loading('Saving credentials...', { id: loadingToast });
 
-        // Store in GLOBAL storage (not tied to connected wallet)
-        const { storeImportedAccount } = await import(
-          '../lib/hyperliquid/keystore'
-        );
-        storeImportedAccount(importAccountAddress.trim(), formattedKey);
-
-        setAgentAddress(importAccountAddress.trim()); // Monitor account address
-        setAgentPrivateKey(formattedKey);
-        setAgentStatus('approved');
-        setShowImportDialog(false);
-        setImportPrivateKey('');
-        setImportAccountAddress('');
-
+        // INSTEAD of storing immediately, we now PROMPT FOR PIN
         toast.dismiss(loadingToast);
+        setShowImportDialog(false);
+
+        //Set pending data
+        setPendingImportData({
+          address: account.address, // Agent Address
+          privateKey: formattedKey
+        });
+
+        // Open PIN setup
+        setShowPinSetup(true);
+
+        // Logic will continue in handleAgentCreationWithPin
+
 
         const openPositions =
           accountState.assetPositions?.filter(
