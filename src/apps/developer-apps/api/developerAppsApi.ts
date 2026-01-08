@@ -86,10 +86,7 @@ export const developerAppsApi = createApi({
   tagTypes: ['DeveloperApp'],
   endpoints: (builder) => ({
     // Get all developer apps
-    getAllDeveloperApps: builder.query<
-      ApiResponse<DeveloperApp[]>,
-      { eoaAddress?: string } | void
-    >({
+    getAllDeveloperApps: builder.query<ApiResponse<DeveloperApp[]>, { eoaAddress?: string } | void>({
       query: (params = {}) => {
         const searchParams = new URLSearchParams();
         if (params?.eoaAddress) {
@@ -103,9 +100,7 @@ export const developerAppsApi = createApi({
     // Get single developer app
     getDeveloperApp: builder.query<ApiResponse<DeveloperApp>, string>({
       query: (appId) => `/${appId}`,
-      providesTags: (_result, _error, appId) => [
-        { type: 'DeveloperApp', id: appId },
-      ],
+      providesTags: (_result, _error, appId) => [{ type: 'DeveloperApp', id: appId }],
     }),
 
     // Create developer app
@@ -122,21 +117,15 @@ export const developerAppsApi = createApi({
             body: arg,
             headers: { 'x-signature': signature },
           });
-
+          
           // Check for 401 unauthorized response
-          if (
-            'error' in result &&
-            result.error &&
-            typeof result.error === 'object'
-          ) {
+          if ('error' in result && result.error && typeof result.error === 'object') {
             const error = result.error as { status?: number; data?: unknown };
             if (error.status === 401) {
-              alert(
-                'You are not authorized to perform this operation. Please ensure you are connected with the correct wallet.'
-              );
+              alert('You are not authorized to perform this operation. Please ensure you are connected with the correct wallet.');
             }
           }
-
+          
           return result as any;
         } catch (error) {
           return { error } as any;
@@ -159,21 +148,15 @@ export const developerAppsApi = createApi({
             body: arg.data,
             headers: { 'x-signature': signature },
           });
-
+          
           // Check for 401 unauthorized response
-          if (
-            'error' in result &&
-            result.error &&
-            typeof result.error === 'object'
-          ) {
+          if ('error' in result && result.error && typeof result.error === 'object') {
             const error = result.error as { status?: number; data?: unknown };
             if (error.status === 401) {
-              alert(
-                'You are not authorized to perform this operation. Please ensure you are connected with the correct wallet.'
-              );
+              alert('You are not authorized to perform this operation. Please ensure you are connected with the correct wallet.');
             }
           }
-
+          
           return result as any;
         } catch (error) {
           return { error } as any;
@@ -199,21 +182,15 @@ export const developerAppsApi = createApi({
             body: arg.data,
             headers: { 'x-signature': signature },
           });
-
+          
           // Check for 401 unauthorized response
-          if (
-            'error' in result &&
-            result.error &&
-            typeof result.error === 'object'
-          ) {
+          if ('error' in result && result.error && typeof result.error === 'object') {
             const error = result.error as { status?: number; data?: unknown };
             if (error.status === 401) {
-              alert(
-                'You are not authorized to perform this operation. Please ensure you are connected with the correct wallet.'
-              );
+              alert('You are not authorized to perform this operation. Please ensure you are connected with the correct wallet.');
             }
           }
-
+          
           return result as any;
         } catch (error) {
           return { error } as any;
@@ -233,3 +210,4 @@ export const {
   useUpdateDeveloperAppMutation,
   useDeleteDeveloperAppMutation,
 } = developerAppsApi;
+

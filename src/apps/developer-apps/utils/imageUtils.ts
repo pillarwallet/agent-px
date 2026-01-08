@@ -4,15 +4,15 @@
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-
+    
     reader.onload = () => {
       resolve(reader.result as string);
     };
-
+    
     reader.onerror = () => {
       reject(new Error('Failed to read file'));
     };
-
+    
     reader.readAsDataURL(file);
   });
 };
@@ -20,17 +20,9 @@ export const fileToBase64 = (file: File): Promise<string> => {
 /**
  * Validate image file
  */
-export const validateImageFile = (
-  file: File
-): { valid: boolean; error?: string } => {
+export const validateImageFile = (file: File): { valid: boolean; error?: string } => {
   // Check file type
-  const validTypes = [
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
-    'image/gif',
-    'image/webp',
-  ];
+  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
   if (!validTypes.includes(file.type)) {
     return {
       valid: false,
@@ -64,7 +56,7 @@ export const validateImageDimensions = (
 
     img.onload = () => {
       URL.revokeObjectURL(url);
-
+      
       if (img.width < minWidth || img.height < minHeight) {
         resolve({
           valid: false,
@@ -86,3 +78,4 @@ export const validateImageDimensions = (
     img.src = url;
   });
 };
+

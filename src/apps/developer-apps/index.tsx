@@ -60,9 +60,7 @@ const EditAppPage: React.FC = () => {
           <ErrorIcon className="w-10 h-10 text-red-400" />
         </div>
         <h2 className="text-xl font-bold text-white mb-2">App Not Found</h2>
-        <p className="text-gray-400 mb-6">
-          The app you're looking for doesn't exist.
-        </p>
+        <p className="text-gray-400 mb-6">The app you're looking for doesn't exist.</p>
         <a
           href="/app/developer-apps"
           className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white rounded-lg font-medium transition-all duration-300"
@@ -92,3 +90,4 @@ const DevelopersApp: React.FC = () => {
 };
 
 export default DevelopersApp;
+

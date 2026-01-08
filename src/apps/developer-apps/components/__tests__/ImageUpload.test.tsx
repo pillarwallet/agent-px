@@ -32,7 +32,9 @@ describe('<ImageUpload />', () => {
 
   it('renders correctly and matches snapshot', () => {
     const tree = renderer
-      .create(<ImageUpload label="Logo" value="" onChange={mockOnChange} />)
+      .create(
+        <ImageUpload label="Logo" value="" onChange={mockOnChange} />
+      )
       .toJSON();
     expect(tree).toMatchSnapshot();
   });
@@ -44,9 +46,7 @@ describe('<ImageUpload />', () => {
   });
 
   it('displays required indicator when required', () => {
-    render(
-      <ImageUpload label="Logo" value="" onChange={mockOnChange} required />
-    );
+    render(<ImageUpload label="Logo" value="" onChange={mockOnChange} required />);
 
     const requiredIndicator = screen.getByText('*');
     expect(requiredIndicator).toBeInTheDocument();
@@ -67,9 +67,7 @@ describe('<ImageUpload />', () => {
 
   it('displays preview image when value is provided', () => {
     const base64Image = 'data:image/png;base64,mockBase64Data';
-    render(
-      <ImageUpload label="Logo" value={base64Image} onChange={mockOnChange} />
-    );
+    render(<ImageUpload label="Logo" value={base64Image} onChange={mockOnChange} />);
 
     const preview = screen.getByAltText('Preview');
     expect(preview).toBeInTheDocument();
@@ -84,27 +82,21 @@ describe('<ImageUpload />', () => {
 
   it('shows change button when image is already uploaded', () => {
     const base64Image = 'data:image/png;base64,mockBase64Data';
-    render(
-      <ImageUpload label="Logo" value={base64Image} onChange={mockOnChange} />
-    );
+    render(<ImageUpload label="Logo" value={base64Image} onChange={mockOnChange} />);
 
     expect(screen.getByText('Change Image')).toBeInTheDocument();
   });
 
   it('calls onChange with base64 when valid image is uploaded', async () => {
     vi.spyOn(imageUtils, 'validateImageFile').mockReturnValue({ valid: true });
-    vi.spyOn(imageUtils, 'fileToBase64').mockResolvedValue(
-      'data:image/png;base64,mockBase64Data'
-    );
+    vi.spyOn(imageUtils, 'fileToBase64').mockResolvedValue('data:image/png;base64,mockBase64Data');
 
     render(<ImageUpload label="Logo" value="" onChange={mockOnChange} />);
 
     const fileInput = screen.getByRole('button', { name: /upload image/i });
     fireEvent.click(fileInput);
 
-    const input = document.querySelector(
-      'input[type="file"]'
-    ) as HTMLInputElement;
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['mock'], 'test.png', { type: 'image/png' });
     Object.defineProperty(input, 'files', {
       value: [file],
@@ -114,9 +106,7 @@ describe('<ImageUpload />', () => {
     fireEvent.change(input);
 
     await waitFor(() => {
-      expect(mockOnChange).toHaveBeenCalledWith(
-        'data:image/png;base64,mockBase64Data'
-      );
+      expect(mockOnChange).toHaveBeenCalledWith('data:image/png;base64,mockBase64Data');
     });
   });
 
@@ -131,9 +121,7 @@ describe('<ImageUpload />', () => {
     const fileInput = screen.getByRole('button', { name: /upload image/i });
     fireEvent.click(fileInput);
 
-    const input = document.querySelector(
-      'input[type="file"]'
-    ) as HTMLInputElement;
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['mock'], 'test.txt', { type: 'text/plain' });
     Object.defineProperty(input, 'files', {
       value: [file],
@@ -144,9 +132,7 @@ describe('<ImageUpload />', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          'Invalid file type. Please use PNG, JPG, GIF, or WEBP.'
-        )
+        screen.getByText('Invalid file type. Please use PNG, JPG, GIF, or WEBP.')
       ).toBeInTheDocument();
     });
 
@@ -168,9 +154,7 @@ describe('<ImageUpload />', () => {
 
   it('calls onChange with empty string when remove button is clicked', () => {
     const base64Image = 'data:image/png;base64,mockBase64Data';
-    render(
-      <ImageUpload label="Logo" value={base64Image} onChange={mockOnChange} />
-    );
+    render(<ImageUpload label="Logo" value={base64Image} onChange={mockOnChange} />);
 
     const removeButton = screen.getByRole('button', { name: '' });
     fireEvent.click(removeButton);
@@ -183,10 +167,7 @@ describe('<ImageUpload />', () => {
     vi.spyOn(imageUtils, 'fileToBase64').mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(
-            () => resolve('data:image/png;base64,mockBase64Data'),
-            100
-          );
+          setTimeout(() => resolve('data:image/png;base64,mockBase64Data'), 100);
         })
     );
 
@@ -195,9 +176,7 @@ describe('<ImageUpload />', () => {
     const fileInput = screen.getByRole('button', { name: /upload image/i });
     fireEvent.click(fileInput);
 
-    const input = document.querySelector(
-      'input[type="file"]'
-    ) as HTMLInputElement;
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['mock'], 'test.png', { type: 'image/png' });
     Object.defineProperty(input, 'files', {
       value: [file],
@@ -215,18 +194,14 @@ describe('<ImageUpload />', () => {
 
   it('displays error when file processing fails', async () => {
     vi.spyOn(imageUtils, 'validateImageFile').mockReturnValue({ valid: true });
-    vi.spyOn(imageUtils, 'fileToBase64').mockRejectedValue(
-      new Error('Processing failed')
-    );
+    vi.spyOn(imageUtils, 'fileToBase64').mockRejectedValue(new Error('Processing failed'));
 
     render(<ImageUpload label="Logo" value="" onChange={mockOnChange} />);
 
     const fileInput = screen.getByRole('button', { name: /upload image/i });
     fireEvent.click(fileInput);
 
-    const input = document.querySelector(
-      'input[type="file"]'
-    ) as HTMLInputElement;
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['mock'], 'test.png', { type: 'image/png' });
     Object.defineProperty(input, 'files', {
       value: [file],
@@ -247,10 +222,7 @@ describe('<ImageUpload />', () => {
     vi.spyOn(imageUtils, 'fileToBase64').mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(
-            () => resolve('data:image/png;base64,mockBase64Data'),
-            100
-          );
+          setTimeout(() => resolve('data:image/png;base64,mockBase64Data'), 100);
         })
     );
 
@@ -259,9 +231,7 @@ describe('<ImageUpload />', () => {
     const fileInput = screen.getByRole('button', { name: /upload image/i });
     fireEvent.click(fileInput);
 
-    const input = document.querySelector(
-      'input[type="file"]'
-    ) as HTMLInputElement;
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['mock'], 'test.png', { type: 'image/png' });
     Object.defineProperty(input, 'files', {
       value: [file],
@@ -278,3 +248,4 @@ describe('<ImageUpload />', () => {
     });
   });
 });
+

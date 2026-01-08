@@ -27,9 +27,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>('');
 
-  const handleFileSelect = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -70,9 +68,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       <label className="block text-sm font-medium text-gray-300 mb-2">
         {label} {required && <span className="text-red-400">*</span>}
       </label>
-      {description && (
-        <p className="text-xs text-gray-500 mb-3">{description}</p>
-      )}
+      {description && <p className="text-xs text-gray-500 mb-3">{description}</p>}
 
       <div className="space-y-3">
         {/* Preview */}
@@ -108,11 +104,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             disabled={uploading}
             className="px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-700/50 text-purple-300 rounded text-sm font-medium transition-colors disabled:opacity-50"
           >
-            {uploading
-              ? 'Processing...'
-              : value
-                ? 'Change Image'
-                : 'Upload Image'}
+            {uploading ? 'Processing...' : value ? 'Change Image' : 'Upload Image'}
           </button>
         </div>
       </div>
@@ -126,3 +118,4 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 };
 
 export default ImageUpload;
+

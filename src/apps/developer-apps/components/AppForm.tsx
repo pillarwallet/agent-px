@@ -31,19 +31,11 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
   const { wallets } = useWallets();
   const eoaAddress = wallets?.[0]?.address;
 
-  const {
-    formData,
-    errors,
-    updateField,
-    validateForm,
-    prepareSubmitData,
-    setFormData,
-  } = useAppForm(existingApp);
+  const { formData, errors, updateField, validateForm, prepareSubmitData, setFormData } =
+    useAppForm(existingApp);
 
-  const [createApp, { isLoading: isCreating }] =
-    useCreateDeveloperAppMutation();
-  const [updateApp, { isLoading: isUpdating }] =
-    useUpdateDeveloperAppMutation();
+  const [createApp, { isLoading: isCreating }] = useCreateDeveloperAppMutation();
+  const [updateApp, { isLoading: isUpdating }] = useUpdateDeveloperAppMutation();
 
   const isLoading = isCreating || isUpdating;
 
@@ -71,15 +63,12 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
       if (mode === 'create') {
         const data = prepareSubmitData(eoaAddress);
         await createApp(data).unwrap();
-        alert(
-          `PillarX needs to be reloaded for ${formData.name} to be available in the Action Bar apps pane.`
-        );
+        alert(`PillarX needs to be reloaded for ${formData.name} to be available in the Action Bar apps pane.`);
         window.location.href = '/developer-apps';
       } else if (existingApp) {
         // For updates, exclude appId from the data to be signed
-        const { appId, ownerEoaAddress, ...updateData } =
-          prepareSubmitData(eoaAddress);
-
+        const { appId, ownerEoaAddress, ...updateData } = prepareSubmitData(eoaAddress);
+        
         await updateApp({
           appId: existingApp.appId,
           data: {
@@ -91,25 +80,19 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
       }
     } catch (err: unknown) {
       console.error('Failed to save app:', err);
-
+      
       // Check for MetaMask signature rejection
       if (err && typeof err === 'object' && 'message' in err) {
         const errorMessage = err.message as string;
-        if (
-          errorMessage.includes('MetaMask') ||
-          errorMessage.includes('signature required')
-        ) {
-          alert(
-            'Please approve the signature request in MetaMask to save the app.'
-          );
+        if (errorMessage.includes('MetaMask') || errorMessage.includes('signature required')) {
+          alert('Please approve the signature request in MetaMask to save the app.');
           return;
         }
       }
-
-      const errorMessage =
-        err && typeof err === 'object' && 'data' in err
-          ? (err.data as { error?: string })?.error || 'Failed to save app'
-          : 'Failed to save app';
+      
+      const errorMessage = err && typeof err === 'object' && 'data' in err
+        ? (err.data as { error?: string })?.error || 'Failed to save app'
+        : 'Failed to save app';
       alert(errorMessage);
     }
   };
@@ -124,9 +107,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
         <div className="w-20 h-20 mb-6 rounded-full bg-purple-900/20 border border-purple-700/30 flex items-center justify-center">
           <LockIcon className="w-10 h-10 text-purple-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">
-          Connect Your Wallet
-        </h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Connect Your Wallet</h2>
         <p className="text-gray-400 max-w-md">
           Please connect your wallet to {mode} applications.
         </p>
@@ -152,12 +133,9 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
       <form onSubmit={handleSubmit} className="space-y-6 mb-20">
         {/* Basic Info Section */}
         <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-900/30 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-6">
-            Basic Information
-          </h2>
+          <h2 className="text-xl font-semibold text-white mb-6">Basic Information</h2>
           <p className="text-sm text-gray-400 mb-6">
-            The basic information is used to display your app in the Web3 App
-            Store listings and inside the PillarX action bar.
+            The basic information is used to display your app in the Web3 App Store listings and inside the PillarX action bar.
           </p>
           <div className="space-y-5">
             {/* App Name */}
@@ -172,12 +150,9 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 className="w-full px-4 py-2 bg-gray-900/50 border border-purple-700/30 rounded text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
                 placeholder="My Awesome App"
               />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-400">{errors.name}</p>
-              )}
+              {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name}</p>}
               <p className="mt-1 text-xs text-gray-500">
-                This is the public name of your app that will be displayed to
-                users.
+                This is the public name of your app that will be displayed to users.
               </p>
             </div>
 
@@ -189,21 +164,15 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
               <input
                 type="text"
                 value={formData.appId}
-                onChange={(e) =>
-                  updateField('appId', sanitizeAppId(e.target.value))
-                }
+                onChange={(e) => updateField('appId', sanitizeAppId(e.target.value))}
                 disabled={mode === 'edit'}
                 className="w-full px-4 py-2 bg-gray-900/50 border border-purple-700/30 rounded text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                 placeholder="my-awesome-app"
               />
               <p className="mt-1 text-xs text-gray-500">
-                This becomes part of the PillarX URL. Lowercase letters,
-                numbers, hyphens, and underscores only. Cannot be changed after
-                creation.
+                This becomes part of the PillarX URL. Lowercase letters, numbers, hyphens, and underscores only. Cannot be changed after creation.
               </p>
-              {errors.appId && (
-                <p className="mt-1 text-sm text-red-400">{errors.appId}</p>
-              )}
+              {errors.appId && <p className="mt-1 text-sm text-red-400">{errors.appId}</p>}
             </div>
 
             {/* Short Description */}
@@ -213,26 +182,18 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
               </label>
               <textarea
                 value={formData.shortDescription}
-                onChange={(e) =>
-                  updateField('shortDescription', e.target.value)
-                }
+                onChange={(e) => updateField('shortDescription', e.target.value)}
                 rows={2}
                 maxLength={200}
                 className="w-full px-4 py-2 bg-gray-900/50 border border-purple-700/30 rounded text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors resize-none"
                 placeholder="A brief description of your app (max 200 characters)"
               />
               <div className="flex justify-between items-center mt-1">
-                <p className="text-xs text-gray-500">
-                  Brief overview - shown in the Web3 App Store listings
-                </p>
-                <p className="text-xs text-gray-500">
-                  {formData.shortDescription.length}/200
-                </p>
+                <p className="text-xs text-gray-500">Brief overview - shown in the Web3 App Store listings</p>
+                <p className="text-xs text-gray-500">{formData.shortDescription.length}/200</p>
               </div>
               {errors.shortDescription && (
-                <p className="mt-1 text-sm text-red-400">
-                  {errors.shortDescription}
-                </p>
+                <p className="mt-1 text-sm text-red-400">{errors.shortDescription}</p>
               )}
             </div>
 
@@ -248,9 +209,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 className="w-full px-4 py-2 bg-gray-900/50 border border-purple-700/30 rounded text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors resize-none"
                 placeholder="A detailed description of your app's features and benefits"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Detailed information - shown in the Web3 App Store listings
-              </p>
+              <p className="mt-1 text-xs text-gray-500">Detailed information - shown in the Web3 App Store listings</p>
             </div>
 
             {/* Tags */}
@@ -265,13 +224,8 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 className="w-full px-4 py-2 bg-gray-900/50 border border-purple-700/30 rounded text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
                 placeholder="defi, trading, wallet"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Comma-separated tags (e.g. defi, trading, nft) - shown and used
-                for search and filtering in the Web3 App Store listings
-              </p>
-              {errors.tags && (
-                <p className="mt-1 text-sm text-red-400">{errors.tags}</p>
-              )}
+              <p className="mt-1 text-xs text-gray-500">Comma-separated tags (e.g. defi, trading, nft) - shown and used for search and filtering in the Web3 App Store listings</p>
+              {errors.tags && <p className="mt-1 text-sm text-red-400">{errors.tags}</p>}
             </div>
           </div>
         </div>
@@ -280,8 +234,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
         <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-900/30 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-2">Launch URL</h2>
           <p className="text-sm text-gray-400 mb-6">
-            The launch URL is the URL of where your app is hosted. This will be
-            launched inside PillarX when a user launches your app.
+            The launch URL is the URL of where your app is hosted. This will be launched inside PillarX when a user launches your app.
           </p>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -294,9 +247,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
               className="w-full px-4 py-2 bg-gray-900/50 border border-purple-700/30 rounded text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
               placeholder="https://example.com"
             />
-            {errors.launchUrl && (
-              <p className="mt-1 text-sm text-red-400">{errors.launchUrl}</p>
-            )}
+            {errors.launchUrl && <p className="mt-1 text-sm text-red-400">{errors.launchUrl}</p>}
           </div>
         </div>
 
@@ -304,8 +255,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
         <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-900/30 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-2">Images</h2>
           <p className="text-sm text-gray-400 mb-6">
-            The images are used to display your app in the Web3 App Store
-            listings and inside the PillarX action bar.
+            The images are used to display your app in the Web3 App Store listings and inside the PillarX action bar.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ImageUpload
@@ -328,12 +278,9 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
 
         {/* Contact Section */}
         <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-900/30 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-2">
-            Contact & Links
-          </h2>
+          <h2 className="text-xl font-semibold text-white mb-2">Contact & Links</h2>
           <p className="text-sm text-gray-400 mb-6">
-            The support email is the email address that will be used to contact
-            you for support.
+            The support email is the email address that will be used to contact you for support.
           </p>
           <div className="space-y-5">
             {/* Support Email */}
@@ -349,9 +296,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 placeholder="support@example.com"
               />
               {errors.supportEmail && (
-                <p className="mt-1 text-sm text-red-400">
-                  {errors.supportEmail}
-                </p>
+                <p className="mt-1 text-sm text-red-400">{errors.supportEmail}</p>
               )}
             </div>
           </div>
@@ -359,19 +304,14 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
 
         {/* Social Links Section */}
         <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-900/30 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-2">
-            Social Links
-          </h2>
+          <h2 className="text-xl font-semibold text-white mb-2">Social Links</h2>
           <p className="text-sm text-gray-400 mb-6">
-            The social links are used to display your app in the Web3 App Store
-            listings and inside the PillarX action bar.
+            The social links are used to display your app in the Web3 App Store listings and inside the PillarX action bar.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Telegram */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Telegram
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Telegram</label>
               <input
                 type="url"
                 value={formData.socialTelegram}
@@ -380,17 +320,13 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 placeholder="https://t.me/yourgroup"
               />
               {errors.socialTelegram && (
-                <p className="mt-1 text-sm text-red-400">
-                  {errors.socialTelegram}
-                </p>
+                <p className="mt-1 text-sm text-red-400">{errors.socialTelegram}</p>
               )}
             </div>
 
             {/* X (Twitter) */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                X (Twitter)
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">X (Twitter)</label>
               <input
                 type="url"
                 value={formData.socialX}
@@ -398,16 +334,12 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 className="w-full px-4 py-2 bg-gray-900/50 border border-purple-700/30 rounded text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
                 placeholder="https://x.com/yourhandle"
               />
-              {errors.socialX && (
-                <p className="mt-1 text-sm text-red-400">{errors.socialX}</p>
-              )}
+              {errors.socialX && <p className="mt-1 text-sm text-red-400">{errors.socialX}</p>}
             </div>
 
             {/* Facebook */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Facebook
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Facebook</label>
               <input
                 type="url"
                 value={formData.socialFacebook}
@@ -416,17 +348,13 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 placeholder="https://facebook.com/yourpage"
               />
               {errors.socialFacebook && (
-                <p className="mt-1 text-sm text-red-400">
-                  {errors.socialFacebook}
-                </p>
+                <p className="mt-1 text-sm text-red-400">{errors.socialFacebook}</p>
               )}
             </div>
 
             {/* TikTok */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                TikTok
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">TikTok</label>
               <input
                 type="url"
                 value={formData.socialTiktok}
@@ -435,9 +363,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
                 placeholder="https://tiktok.com/@yourhandle"
               />
               {errors.socialTiktok && (
-                <p className="mt-1 text-sm text-red-400">
-                  {errors.socialTiktok}
-                </p>
+                <p className="mt-1 text-sm text-red-400">{errors.socialTiktok}</p>
               )}
             </div>
           </div>
@@ -458,11 +384,7 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
             disabled={isLoading}
             className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white rounded-lg font-medium transition-all duration-300 shadow-lg shadow-purple-900/50 disabled:opacity-50"
           >
-            {isLoading
-              ? 'Saving...'
-              : mode === 'create'
-                ? 'Create App'
-                : 'Update App'}
+            {isLoading ? 'Saving...' : mode === 'create' ? 'Create App' : 'Update App'}
           </button>
         </div>
       </form>
@@ -471,3 +393,4 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
 };
 
 export default AppForm;
+

@@ -262,3 +262,4 @@ describe('<AppCard />', () => {
     expect(screen.queryByText(/Updated:/i)).not.toBeInTheDocument();
   });
 });
+
