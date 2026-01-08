@@ -61,18 +61,17 @@ export function useHyperliquid() {
       let orders = await getOpenOrders(address);
 
       // 2. Check Agent Address
-      // If we have an linked agent, we ALMOST ALWAYS want to use it for data display
-      // in the context of this specific Perps app, especially for imported keys.
+      // Unconditional switch: If an agent is linked, we use it.
       const agentAddress = getAgentAddress(address);
       if (agentAddress) {
+        console.log('DEBUG: Found Agent Address, executing switch:', agentAddress);
+
         const agentState = await getUserState(agentAddress);
         const agentOrders = await getOpenOrders(agentAddress);
 
-        // Prioritize Agent
         targetAddress = agentAddress;
         state = agentState;
         orders = agentOrders;
-        console.log('DEBUG: Using Agent Address:', agentAddress);
       }
 
       setActiveAddress(targetAddress);
@@ -136,6 +135,7 @@ export function useHyperliquid() {
 
       const agentAddress = getAgentAddress(address);
       if (agentAddress) {
+        console.log('DEBUG: Found Agent Address in loadBalance, executing switch:', agentAddress);
         const agentState = await getUserState(agentAddress);
         const agentOrders = await getOpenOrders(agentAddress);
 
