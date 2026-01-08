@@ -37,12 +37,6 @@ import { privateKeyToAccount } from 'viem/accounts';
 import type { Hex } from 'viem';
 import { generateAgentWallet } from '../lib/hyperliquid/signing';
 import {
-  storeAgentWallet,
-  getAgentWallet,
-  updateAgentApprovalRemote,
-  clearAgentWallet,
-} from '../lib/hyperliquid/keystore';
-import {
   buildApproveAgentAction,
   getApproveAgentTypedData,
 } from '../lib/hyperliquid/signing';
@@ -52,11 +46,22 @@ import { DepositModal } from './DepositModal';
 import type { UserState } from '../lib/hyperliquid/types';
 import { PinSetupModal } from './PinSetupModal';
 import { UnlockWalletModal } from './UnlockWalletModal';
-import { storeAgentWalletEncrypted, unlockAgentWallet, getAgentWallet, getAgentAddress, isAgentWalletEncrypted } from '../lib/hyperliquid/keystore';
+import {
+  storeAgentWallet,
+  updateAgentApprovalRemote,
+  clearAgentWallet,
+  storeAgentWalletEncrypted,
+  unlockAgentWallet,
+  getAgentWallet,
+  getAgentAddress,
+  isAgentWalletEncrypted
+} from '../lib/hyperliquid/keystore';
 
 type AgentStatus = 'none' | 'created' | 'approved' | 'locked';
 
-userState ?: UserState;
+interface AgentControlsProps {
+  onStatusChange?: () => void;
+  userState?: UserState;
 }
 
 // Add 'unlock' to revealMode type
