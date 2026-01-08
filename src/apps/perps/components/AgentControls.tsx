@@ -915,17 +915,7 @@ export function AgentControls({
             {isRemoving ? 'Removing...' : 'Remove Account'}
           </Button>
 
-          <PinSetupModal
-            isOpen={showPinSetup}
-            onConfirm={handleAgentCreationWithPin}
-            onCancel={() => setShowPinSetup(false)}
-          />
 
-          <UnlockWalletModal
-            isOpen={showUnlockReveal}
-            onUnlock={handleUnlockForReveal}
-            onClose={() => setShowUnlockReveal(false)}
-          />
         </div>
       )
       }
@@ -968,6 +958,19 @@ export function AgentControls({
           </div>
         )
       }
+
+      <PinSetupModal
+        isOpen={showPinSetup}
+        onConfirm={handleAgentCreationWithPin}
+        onCancel={() => setShowPinSetup(false)}
+      />
+
+      <UnlockWalletModal
+        isOpen={showUnlockReveal}
+        onUnlock={handleUnlockForReveal}
+        onClose={() => setShowUnlockReveal(false)}
+      />
+
     </Card >
   );
 }
