@@ -46,6 +46,7 @@ import { DepositModal } from './DepositModal';
 import type { UserState } from '../lib/hyperliquid/types';
 import { PinSetupModal } from './PinSetupModal';
 import { UnlockWalletModal } from './UnlockWalletModal';
+import { PrivateKeyModal } from './PrivateKeyModal';
 import {
   storeAgentWallet,
   updateAgentApprovalRemote,
@@ -106,6 +107,18 @@ export function AgentControls({
     address: string;
     privateKey: Hex;
   } | null>(null);
+
+  const [privateKeyModalState, setPrivateKeyModalState] = useState<{
+    isOpen: boolean;
+    address: string;
+    privateKey: string;
+    mode: 'created' | 'revealed';
+  }>({
+    isOpen: false,
+    address: '',
+    privateKey: '',
+    mode: 'created'
+  });
 
   // Auto-fetch imported account from global storage
   useEffect(() => {
@@ -201,15 +214,14 @@ export function AgentControls({
         setAgentStatus(unlocked.approved ? 'approved' : 'created');
         setShowUnlockReveal(false);
 
-        if (revealMode === 'copy') {
-          navigator.clipboard.writeText(unlocked.privateKey);
-          toast.success('Private key copied to clipboard!');
-        } else if (revealMode === 'download') {
-          downloadKeyFile(unlocked.address, unlocked.privateKey);
-        } else {
-          // Just unlock
-          toast.success('Wallet unlocked!');
-        }
+        // Show Key in Modal
+        setPrivateKeyModalState({
+          isOpen: true,
+          address: unlocked.address,
+          privateKey: unlocked.privateKey,
+          mode: 'revealed'
+        });
+
         return true;
       }
       return false;
@@ -266,11 +278,13 @@ export function AgentControls({
           true // Imported accounts are assumed "approved" or we validated them
         );
 
-        setAgentAddress(importAccountAddress.trim() || pendingImportData.address);
-        setAgentPrivateKey(pendingImportData.privateKey);
-        setAgentStatus('approved');
-        setPendingImportData(null); // Clear pending
-        toast.success('Imported wallet secured with PIN!');
+        // Show Success Modal instead of just toast
+        setPrivateKeyModalState({
+          isOpen: true,
+          address: importAccountAddress.trim() || pendingImportData.address,
+          privateKey: pendingImportData.privateKey,
+          mode: 'created'
+        });
 
       } else {
         // Generate NEW wallet
@@ -284,8 +298,12 @@ export function AgentControls({
         setAgentPrivateKey(wallet.privateKey); // Keep in memory for this session
         setAgentStatus('created');
 
-        toast.success('Agent wallet created & secured with PIN!', {
-          description: `Address: ${wallet.address.slice(0, 10)}...`,
+        // Show Success Modal
+        setPrivateKeyModalState({
+          isOpen: true,
+          address: wallet.address,
+          privateKey: wallet.privateKey,
+          mode: 'created'
         });
       }
     } catch (error: any) {
@@ -1007,6 +1025,14 @@ export function AgentControls({
         isOpen={showUnlockReveal}
         onUnlock={handleUnlockForReveal}
         onClose={() => setShowUnlockReveal(false)}
+      />
+
+      <PrivateKeyModal
+        isOpen={privateKeyModalState.isOpen}
+        address={privateKeyModalState.address}
+        privateKey={privateKeyModalState.privateKey}
+        mode={privateKeyModalState.mode}
+        onClose={() => setPrivateKeyModalState({ ...privateKeyModalState, isOpen: false })}
       />
 
     </Card >
