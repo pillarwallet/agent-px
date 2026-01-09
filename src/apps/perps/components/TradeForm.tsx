@@ -23,7 +23,7 @@ import {
 } from '../lib/hyperliquid/keystore';
 import { getMarkPrice, getUserState } from '../lib/hyperliquid/client';
 import { useWalletClient } from 'wagmi';
-import useTransactionKit from '../../../hooks/useTransactionKit';
+import { useHyperliquid } from '../hooks/useHyperliquid';
 import { computeSizeUSD, roundToSzDecimals } from '../lib/hyperliquid/order';
 import { TokenIcon } from './TokenIcon';
 import {
@@ -89,7 +89,7 @@ export function TradeForm({
   prefilledData,
   userState,
 }: TradeFormProps) {
-  const { walletAddress: masterAddress } = useTransactionKit();
+  const { address: masterAddress } = useHyperliquid();
   const [isMarketOrder, setIsMarketOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);

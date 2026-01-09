@@ -39,6 +39,7 @@ import { toast } from 'sonner';
 import { createWalletClient, custom } from 'viem';
 import { arbitrum } from 'viem/chains';
 import useTransactionKit from '../../../hooks/useTransactionKit';
+import { useHyperliquid } from '../hooks/useHyperliquid';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { Hex } from 'viem';
 import { generateAgentWallet } from '../lib/hyperliquid/signing';
@@ -89,7 +90,8 @@ export function AgentControls({
   onAgentAddressChange,
   userState,
 }: AgentControlsProps) {
-  const { walletAddress: address, walletProvider } = useTransactionKit();
+  const { walletProvider } = useTransactionKit();
+  const { address } = useHyperliquid();
   // Removed useWalletClient from wagmi
 
   // Calculate master balance for conditional logic
@@ -150,7 +152,7 @@ export function AgentControls({
     isOpen: false,
     address: '',
     privateKey: '',
-    mode: 'created'
+    mode: 'created',
   });
 
   // Check status on mount / address change
@@ -184,17 +186,13 @@ export function AgentControls({
 
       // Priority 3: Check for agent wallet (if connected wallet exists)
       if (!address) {
-
         setAgentStatus('none');
         return;
       }
 
-
-
       // 3a. Try to get unlocked agent wallet
       const wallet = await getAgentWallet(address);
       if (wallet) {
-
         setAgentAddress(wallet.address);
         setAgentPrivateKey(wallet.privateKey);
         setAgentStatus(wallet.approved ? 'approved' : 'created');
@@ -203,7 +201,6 @@ export function AgentControls({
 
       // 3b. Check if agent wallet is locked
       if (isAgentWalletEncrypted(address)) {
-
         const addr = getAgentAddress(address);
         if (addr) {
           setAgentAddress(addr);
@@ -214,14 +211,11 @@ export function AgentControls({
         return;
       }
 
-
       setAgentStatus('none');
     };
 
     checkStatus();
   }, [address, validationStatus]); // Re-run if validation finishes (import) or address changes
-
-
 
   // Notify parent of agent address changes
   useEffect(() => {
@@ -242,7 +236,7 @@ export function AgentControls({
     setShowUnlockReveal(true);
     setRevealMode('copy'); // Default mode, but actually we just want to unlock session
     // We need to distinguish between "Unlock Session" and "Reveal Key".
-    // For now, let's just use the same modal. 
+    // For now, let's just use the same modal.
     // If we rename revealMode to 'unlock' | 'copy' | 'download'?
   };
 
@@ -265,7 +259,7 @@ export function AgentControls({
               isOpen: true,
               address: unlocked.accountAddress,
               privateKey: unlocked.privateKey,
-              mode: 'revealed'
+              mode: 'revealed',
             });
           } else {
             toast.success('Wallet unlocked');
@@ -294,7 +288,7 @@ export function AgentControls({
             isOpen: true,
             address: unlocked.address,
             privateKey: unlocked.privateKey,
-            mode: 'revealed'
+            mode: 'revealed',
           });
         } else {
           toast.success('Wallet unlocked'); // Silent unlock
@@ -337,17 +331,16 @@ export function AgentControls({
           pin
         );
 
-
-
         // Update local state immediately
-        setAgentAddress(importAccountAddress.trim() || pendingImportData.address);
+        setAgentAddress(
+          importAccountAddress.trim() || pendingImportData.address
+        );
         setAgentPrivateKey(pendingImportData.privateKey);
         setAgentStatus('approved');
 
         // Restore Validation Success Logic (Deferred from Import)
         // Restore Validation Success Logic (Deferred from Import)
         // Data is already set in handleImportAgent
-
 
         toast.success('✅ Account imported!', {
           description: 'Agent wallet secured successfully.',
@@ -356,22 +349,27 @@ export function AgentControls({
 
         // Clear validation status now that flow is complete
         setValidationStatus('idle');
-
-
       } else {
         // Generate NEW wallet
 
         // Safety check: Verify address still exists before proceeding
         if (!address) {
-          toast.error('Wallet connection lost. Please reconnect and try again.');
+          toast.error(
+            'Wallet connection lost. Please reconnect and try again.'
+          );
           setIsCreating(false);
           return;
         }
 
         const wallet = generateAgentWallet();
 
-
-        await storeAgentWalletEncrypted(address, wallet.address, wallet.privateKey, pin, false);
+        await storeAgentWalletEncrypted(
+          address,
+          wallet.address,
+          wallet.privateKey,
+          pin,
+          false
+        );
 
         setAgentAddress(wallet.address);
         setAgentPrivateKey(wallet.privateKey); // Keep in memory for this session
@@ -382,7 +380,7 @@ export function AgentControls({
           isOpen: true,
           address: wallet.address,
           privateKey: wallet.privateKey,
-          mode: 'created'
+          mode: 'created',
         });
       }
 
@@ -462,7 +460,6 @@ export function AgentControls({
             const targetChainId = '0xa4b1'; // Arbitrum One
 
             if (chainId !== targetChainId) {
-
               try {
                 // @ts-ignore
                 await walletProvider.request({
@@ -472,7 +469,6 @@ export function AgentControls({
               } catch (switchError: any) {
                 // This error code indicates that the chain has not been added to MetaMask.
                 if (switchError.code === 4902) {
-
                   // @ts-ignore
                   await walletProvider.request({
                     method: 'wallet_addEthereumChain',
@@ -520,7 +516,6 @@ export function AgentControls({
         actionConfig.nonce
       );
 
-
       // Note: walletProvider is already a viem WalletClient in this context
       // We cast it to any/WalletClient to access signTypedData
       const signature = await (walletProvider as any).signTypedData({
@@ -530,8 +525,6 @@ export function AgentControls({
         primaryType,
         message,
       });
-
-
 
       // Ensure agent address is lowercase for API
       // And include signatureChainId as it is required by the API
@@ -551,10 +544,7 @@ export function AgentControls({
         vaultAddress: null,
       };
 
-
       const response = await postExchange(payload);
-
-
 
       if (response.status === 'ok') {
         // Store approval status locally WITHOUT overwriting/touching the keys
@@ -587,8 +577,6 @@ export function AgentControls({
     }
   };
 
-
-
   const copyPrivateKey = () => {
     if (agentPrivateKey) {
       navigator.clipboard.writeText(agentPrivateKey);
@@ -614,7 +602,7 @@ export function AgentControls({
         address: addr,
         privateKey: key,
         createdAt: new Date().toISOString(),
-        note: "KEEP THIS SAFE. DO NOT SHARE."
+        note: 'KEEP THIS SAFE. DO NOT SHARE.',
       },
       null,
       2
@@ -724,7 +712,7 @@ export function AgentControls({
         setPendingImportData({
           address: account.address,
           privateKey: formattedKey,
-          accountState: accountState
+          accountState: accountState,
         });
 
         // Show Success status immediately - BEFORE Pin Setup
@@ -735,7 +723,7 @@ export function AgentControls({
 
         setValidationStatus('success');
         setValidationData({
-          agentAddress: (importAccountAddress.trim() || account.address),
+          agentAddress: importAccountAddress.trim() || account.address,
           balance: parseFloat(
             accountState.marginSummary?.totalRawUsd || '0'
           ).toFixed(2),
@@ -851,13 +839,13 @@ export function AgentControls({
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <config.icon className={cn("h-4 w-4", config.color)} />
-            <h3 className={cn("text-base font-semibold", config.color)}>
+            <config.icon className={cn('h-4 w-4', config.color)} />
+            <h3 className={cn('text-base font-semibold', config.color)}>
               Perps Account:
             </h3>
             <Badge
               variant="outline"
-              className={cn("ml-2", config.bgColor, config.color)}
+              className={cn('ml-2', config.bgColor, config.color)}
             >
               {config.label}
             </Badge>
@@ -867,8 +855,8 @@ export function AgentControls({
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 transition-transform",
-                    isOpen ? "rotate-180" : ""
+                    'h-4 w-4 transition-transform',
+                    isOpen ? 'rotate-180' : ''
                   )}
                 />
                 <span className="sr-only">Toggle</span>
@@ -878,7 +866,6 @@ export function AgentControls({
         </div>
 
         <CollapsibleContent>
-
           {/* Validation Status Display */}
           {validationStatus !== 'idle' && (
             <div className="mb-3">
@@ -921,8 +908,8 @@ export function AgentControls({
                     </Button>
                   </div>
                   <div className="text-xs text-muted-foreground bg-muted border border-border rounded p-2">
-                    💡 Create a new Hyperliquid agent wallet or import your existing
-                    one
+                    💡 Create a new Hyperliquid agent wallet or import your
+                    existing one
                   </div>
                 </>
               )}
@@ -943,8 +930,8 @@ export function AgentControls({
               <DialogHeader>
                 <DialogTitle>Import Existing Agent</DialogTitle>
                 <DialogDescription>
-                  Enter the private key of your Hyperliquid agent wallet and specify
-                  which account address to associate it with.
+                  Enter the private key of your Hyperliquid agent wallet and
+                  specify which account address to associate it with.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -958,8 +945,8 @@ export function AgentControls({
                     onChange={(e) => setImportAccountAddress(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    This is the PillarX account that will control the agent. You can
-                    change this to any address.
+                    This is the PillarX account that will control the agent. You
+                    can change this to any address.
                   </p>
                 </div>
                 <div>
@@ -1005,12 +992,12 @@ export function AgentControls({
 
           {agentStatus === 'created' && (
             <div className="space-y-1.5 mt-4">
-              {masterBalance < 10 && userState ? (
+              {masterBalance < 5 && userState ? (
                 <DepositModal
                   userState={userState}
                   trigger={
                     <Button className="w-full" size="sm">
-                      Deposit $10 USDC to Trade
+                      Deposit $5 USDC to Trade
                     </Button>
                   }
                 />
@@ -1034,57 +1021,54 @@ export function AgentControls({
               >
                 {isRemoving ? 'Removing...' : 'Remove Account'}
               </Button>
-
-
             </div>
-          )
-          }
+          )}
 
-          {
-            agentStatus === 'approved' && (
-              <div className="space-y-3 mt-4">
-                <div className="bg-success/10 border border-success/30 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                      <span className="text-sm font-medium text-success">
-                        Imported Account
-                      </span>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => {
+          {agentStatus === 'approved' && (
+            <div className="space-y-3 mt-4">
+              <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                    <span className="text-sm font-medium text-success">
+                      Imported Account
+                    </span>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
                           setRevealMode('reveal');
                           setShowUnlockReveal(true);
-                        }}>
-                          Reveal Private Key
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={handleRemoveAccount}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Remove Account
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">Address:</span>
-                    <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
-                      {agentAddress}
-                    </div>
+                        }}
+                      >
+                        Reveal Private Key
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={handleRemoveAccount}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove Account
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-medium">Address:</span>
+                  <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
+                    {agentAddress}
                   </div>
                 </div>
               </div>
-            )
-          }
+            </div>
+          )}
 
           <PinSetupModal
             isOpen={showPinSetup}
@@ -1103,11 +1087,15 @@ export function AgentControls({
             address={privateKeyModalState.address}
             privateKey={privateKeyModalState.privateKey}
             mode={privateKeyModalState.mode}
-            onClose={() => setPrivateKeyModalState({ ...privateKeyModalState, isOpen: false })}
+            onClose={() =>
+              setPrivateKeyModalState({
+                ...privateKeyModalState,
+                isOpen: false,
+              })
+            }
           />
-
         </CollapsibleContent>
       </Collapsible>
-    </Card >
+    </Card>
   );
 }

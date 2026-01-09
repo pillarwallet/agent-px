@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useWalletClient } from 'wagmi';
 import useTransactionKit from '../../../hooks/useTransactionKit';
 import {
@@ -12,7 +12,12 @@ import {
   buildNoopAction,
   buildOrderAction,
 } from '../lib/hyperliquid/signing';
-import type { UserState, CopyTile, HyperliquidOrder, EnhancedAsset } from '../lib/hyperliquid/types';
+import type {
+  UserState,
+  CopyTile,
+  HyperliquidOrder,
+  EnhancedAsset,
+} from '../lib/hyperliquid/types';
 import {
   calculatePositionSize,
   roundToSzDecimals,
@@ -20,32 +25,48 @@ import {
   validateCopyTrade,
 } from '../lib/hyperliquid/math';
 import { toast } from 'sonner';
-import {
-  getAgentAddress,
-} from '../lib/hyperliquid/keystore';
+import { getAgentAddress } from '../lib/hyperliquid/keystore';
+import { createWalletClient, custom } from 'viem';
+import { arbitrum } from 'viem/chains';
 
 type SetupStatus = 'unknown' | 'not-setup' | 'setup';
 
 export function useHyperliquid() {
-  const { walletAddress: address } = useTransactionKit();
-  const { data: walletClient } = useWalletClient();
+  const { kit } = useTransactionKit();
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('unknown');
   const [userState, setUserState] = useState<UserState | null>(null);
   const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
   const [availableAssets, setAvailableAssets] = useState<EnhancedAsset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeAddress, setActiveAddress] = useState<string | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
+  const [walletClient, setWalletClient] = useState<any>(null);
+
+  const provider = kit.getProvider();
 
   const checkSetupStatus = useCallback(async () => {
+    const walletProvider = kit.getEtherspotProvider();
+    const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
+    setAddress(eoa);
+    console.log('DEBUG: Wallet Provider:', eoa);
+
+    const client = createWalletClient({
+      account: eoa as `0x${string}`,
+      chain: arbitrum,
+      transport: custom(provider as any),
+    });
+    setWalletClient(client);
+    console.log('DEBUG: Created walletClient for Hyperliquid:', client);
+    console.log('address: ', client.account);
     // Always fetch assets on load
     try {
       const assets = await getAllAssets();
       setAvailableAssets(assets);
     } catch (e) {
-      console.error("Failed to fetch assets", e);
+      console.error('Failed to fetch assets', e);
     }
 
-    if (!address) {
+    if (!eoa) {
       setSetupStatus('unknown');
       setActiveAddress(null);
       return;
@@ -53,26 +74,30 @@ export function useHyperliquid() {
 
     setIsLoading(true);
     try {
-      console.log('DEBUG: Checking setup status for:', address);
+      console.log('DEBUG: Checking setup status for:', eoa);
 
       // 1. Fetch Main Address Data
-      let targetAddress = address;
-      let state = await getUserState(address);
-      let orders = await getOpenOrders(address);
+      let targetAddress: string = eoa;
+      let state = await getUserState(eoa);
+      console.log('state: ', state);
+      let orders = await getOpenOrders(eoa);
 
       // 2. Check Agent Address
       // Unconditional switch: If an agent is linked, we use it.
-      const agentAddress = getAgentAddress(address);
-      if (agentAddress) {
-        console.log('DEBUG: Found Agent Address, executing switch:', agentAddress);
+      // const agentAddress = getAgentAddress(eoa);
+      // if (agentAddress) {
+      //   console.log(
+      //     'DEBUG: Found Agent Address, executing switch:',
+      //     agentAddress
+      //   );
 
-        const agentState = await getUserState(agentAddress);
-        const agentOrders = await getOpenOrders(agentAddress);
+      //   const agentState = await getUserState(agentAddress);
+      //   const agentOrders = await getOpenOrders(agentAddress);
 
-        targetAddress = agentAddress;
-        state = agentState;
-        orders = agentOrders;
-      }
+      //   targetAddress = agentAddress as string;
+      //   state = agentState;
+      //   orders = agentOrders;
+      // }
 
       setActiveAddress(targetAddress);
       console.log('DEBUG: User State result for', targetAddress, state);
@@ -80,7 +105,9 @@ export function useHyperliquid() {
       if (state) {
         // Ensure assetPositions exists
         if (!state.assetPositions) {
-          console.warn('WARNING: assetPositions missing in state, defaulting to []');
+          console.warn(
+            'WARNING: assetPositions missing in state, defaulting to []'
+          );
           state.assetPositions = [];
         }
         setSetupStatus('setup');
@@ -97,9 +124,14 @@ export function useHyperliquid() {
     } finally {
       setIsLoading(false);
     }
-  }, [address]);
+  }, []);
 
   const setupHyperliquid = useCallback(async () => {
+    const walletClient = createWalletClient({
+      account: address as `0x${string}`,
+      chain: arbitrum,
+      transport: custom(provider as any),
+    });
     if (!walletClient || !address) {
       toast.error('Please connect your wallet first');
       return;
@@ -126,7 +158,7 @@ export function useHyperliquid() {
     } finally {
       setIsLoading(false);
     }
-  }, [walletClient, address, checkSetupStatus]);
+  }, [address, checkSetupStatus]);
 
   const loadBalance = useCallback(async () => {
     if (!address) return;
@@ -134,29 +166,37 @@ export function useHyperliquid() {
     setIsLoading(true);
     try {
       // Same logic as checkSetupStatus to determine active address
-      let targetAddress = address;
+      let targetAddress: string = address;
       let state = await getUserState(address);
       let orders = await getOpenOrders(address);
 
-      const agentAddress = getAgentAddress(address);
-      if (agentAddress) {
-        console.log('DEBUG: Found Agent Address in loadBalance, executing switch:', agentAddress);
-        const agentState = await getUserState(agentAddress);
-        const agentOrders = await getOpenOrders(agentAddress);
+      // const agentAddress = getAgentAddress(address);
+      // if (agentAddress) {
+      //   console.log(
+      //     'DEBUG: Found Agent Address in loadBalance, executing switch:',
+      //     agentAddress
+      //   );
+      //   const agentState = await getUserState(agentAddress);
+      //   const agentOrders = await getOpenOrders(agentAddress);
 
-        targetAddress = agentAddress;
-        state = agentState;
-        orders = agentOrders;
-      }
+      //   targetAddress = agentAddress as string;
+      //   state = agentState;
+      //   orders = agentOrders;
+      // }
 
       setActiveAddress(targetAddress);
 
-      console.log('DEBUG: Final User State to be set:', JSON.stringify(state, null, 2));
+      console.log(
+        'DEBUG: Final User State to be set:',
+        JSON.stringify(state, null, 2)
+      );
 
       if (state) {
         // Ensure assetPositions exists
         if (!state.assetPositions) {
-          console.warn('WARNING: assetPositions missing in state, defaulting to []');
+          console.warn(
+            'WARNING: assetPositions missing in state, defaulting to []'
+          );
           state.assetPositions = [];
         }
         setUserState(state);
@@ -174,6 +214,11 @@ export function useHyperliquid() {
 
   const executeCopyTrade = useCallback(
     async (tile: CopyTile) => {
+      const walletClient = createWalletClient({
+        account: address as `0x${string}`,
+        chain: arbitrum,
+        transport: custom(provider as any),
+      });
       if (!walletClient || !address) {
         toast.error('Please connect your wallet');
         return;
@@ -202,7 +247,7 @@ export function useHyperliquid() {
           return;
         }
 
-        const notional = 10; // $10
+        const notional = 5; // $5
         const leverage = 5; // 5x
         const entryPrice = getEntryPrice(tile.entry);
         const size = calculatePositionSize(notional, leverage, entryPrice);
@@ -247,8 +292,13 @@ export function useHyperliquid() {
         setIsLoading(false);
       }
     },
-    [walletClient, address, setupStatus, loadBalance]
+    [address, setupStatus, loadBalance]
   );
+
+  // Call checkSetupStatus on mount to initialize the address
+  useEffect(() => {
+    checkSetupStatus();
+  }, []);
 
   return {
     setupStatus,
@@ -261,5 +311,7 @@ export function useHyperliquid() {
     executeCopyTrade,
     availableAssets,
     activeAddress,
+    address,
+    walletClient,
   };
 }

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import useTransactionKit from '../../hooks/useTransactionKit';
 import { StatusBanner } from './components/StatusBanner';
 import { AgentControls } from './components/AgentControls';
 import { BalanceCard } from './components/BalanceCard';
@@ -29,7 +28,6 @@ const Index = () => {
   const { symbol: urlSymbol } = useParams<{ symbol?: string }>();
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
-  const { walletAddress: address } = useTransactionKit();
   const {
     setupStatus,
     userState,
@@ -38,6 +36,7 @@ const Index = () => {
     setupHyperliquid,
     loadBalance,
     openOrders,
+    address,
   } = useHyperliquid();
 
   const [selectedAsset, setSelectedAsset] = useState<EnhancedAsset | null>({
@@ -57,7 +56,9 @@ const Index = () => {
     setAgentAddress(addr);
   };
   const [agentUserState, setAgentUserState] = useState<UserState | null>(null);
-  const [agentOpenOrders, setAgentOpenOrders] = useState<HyperliquidOrder[]>([]);
+  const [agentOpenOrders, setAgentOpenOrders] = useState<HyperliquidOrder[]>(
+    []
+  );
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
   // Centralized asset state
   const [allAssets, setAllAssets] = useState<EnhancedAsset[]>([]);
@@ -121,9 +122,7 @@ const Index = () => {
   // Separate effect to update selected asset price when assets refresh
   useEffect(() => {
     if (selectedAsset && allAssets.length > 0) {
-      const updated = allAssets.find(
-        (a) => a.symbol === selectedAsset.symbol
-      );
+      const updated = allAssets.find((a) => a.symbol === selectedAsset.symbol);
       if (updated) {
         setSelectedAsset(updated);
       }
@@ -239,7 +238,7 @@ const Index = () => {
         {/* Header */}
 
         {/* Agent Controls + Balance - Side by Side */}
-        {address && setupStatus === 'setup' && (
+        {address && setupStatus === 'setup' && userState && (
           <div className="grid grid-cols-2 md:grid-cols-1 gap-6 mb-6">
             {/* Left: Agent Controls */}
             <div>
@@ -252,11 +251,11 @@ const Index = () => {
 
             {/* Right: Balance */}
             <div>
-              {(agentUserState || userState) && (
+              {userState && (
                 <BalanceCard
-                  userState={agentUserState || userState}
+                  userState={userState}
                   isLoading={isLoading}
-                  masterAddress={address || agentAddress || ''}
+                  masterAddress={address || ''}
                   onRefresh={handleRefresh}
                   isImported={!!agentAddress}
                 />
@@ -303,7 +302,9 @@ const Index = () => {
               onPositionClick={handlePositionClick}
               onRefresh={handleRefresh}
               userState={agentUserState || userState}
-              openOrders={agentOpenOrders.length > 0 ? agentOpenOrders : openOrders}
+              openOrders={
+                agentOpenOrders.length > 0 ? agentOpenOrders : openOrders
+              }
             />
           </div>
         )}

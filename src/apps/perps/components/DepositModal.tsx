@@ -12,8 +12,16 @@ import { Label } from '../components/ui/label';
 import { ArrowDownUp, ExternalLink } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { ethers } from 'ethers';
-import { checkUSDCBalance, depositUSDC } from '../lib/hyperliquid/bridge';
+import { checkUSDCBalance } from '../lib/hyperliquid/bridge';
 import useTransactionKit from '../../../hooks/useTransactionKit';
+import { useHyperliquid } from '../hooks/useHyperliquid';
+import { erc20Abi, parseUnits } from 'viem';
+
+// Contract addresses
+const USDC_CONTRACT_ADDRESS =
+  '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as const;
+const BRIDGE_CONTRACT_ADDRESS =
+  '0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7' as const;
 
 interface DepositModalProps {
   userState: any;
@@ -34,9 +42,13 @@ export function DepositModal({
   const [arbitrumBalance, setArbitrumBalance] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const { toast } = useToast();
-  const { walletAddress: address, kit, walletProvider } = useTransactionKit();
+  const { kit, walletProvider } = useTransactionKit();
+  const { address, walletClient } = useHyperliquid();
 
-  const isAddressMatch = !targetAddress || !address || targetAddress.toLowerCase() === address.toLowerCase();
+  const isAddressMatch =
+    !targetAddress ||
+    !address ||
+    targetAddress.toLowerCase() === address.toLowerCase();
 
   // Re-export contract addresses from bridge logic or define them here
   const BRIDGE_CONTRACT_ADDRESS = '0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7';
@@ -91,7 +103,7 @@ export function DepositModal({
       return;
     }
 
-    if (!address || !kit) {
+    if (!address || !walletClient) {
       toast({
         title: 'Wallet Not Connected',
         description: 'Please connect your wallet',
@@ -175,84 +187,33 @@ export function DepositModal({
         console.warn('Failed to check ETH balance:', e);
       }
 
-      const amountInWei = ethers.utils.parseUnits(amount, 6);
-      const batchName = `perps-deposit-${Date.now()}`;
+      const amountInWei = parseUnits(amount, 6);
 
-      console.log(
-        `Preparing deposit of ${amount} USDC (${amountInWei.toString()} wei)`
-      );
-
-      // Clean up any existing batch
-      try {
-        kit.batch({ batchName }).remove();
-      } catch (e) {
-        // ignore
-      }
-
-      // Step 1: Approve USDC
-      // Encode approve function call
-      const erc20Interface = new ethers.utils.Interface([
-        'function approve(address spender, uint256 amount) public returns (bool)',
-      ]);
-      const approveData = erc20Interface.encodeFunctionData('approve', [
-        BRIDGE_CONTRACT_ADDRESS,
-        amountInWei,
-      ]);
-
-      kit
-        .transaction({
-          to: USDC_CONTRACT_ADDRESS,
-          data: approveData,
-          value: '0',
-          chainId: 42161, // Arbitrum One
-        })
-        .name({ transactionName: 'approveUSDC' })
-        .addToBatch({ batchName });
-
-      // Step 2: Deposit to Bridge
-      const bridgeInterface = new ethers.utils.Interface([
-        'function deposit(uint64 usd) external',
-      ]);
-      const depositData = bridgeInterface.encodeFunctionData('deposit', [
-        amountInWei,
-      ]);
-
-      kit
-        .transaction({
-          to: BRIDGE_CONTRACT_ADDRESS,
-          data: depositData,
-          value: '0',
-          chainId: 42161, // Arbitrum One
-        })
-        .name({ transactionName: 'depositUSDC' })
-        .addToBatch({ batchName });
-
+      // Transfer USDC directly to bridge contract using viem walletClient
       toast({
         title: 'Confirming Transaction',
-        description: 'Please sign the transaction in your wallet...',
+        description: 'Please sign the transfer transaction in your wallet...',
       });
 
-      // Send batch
-      const batchSend = await kit.sendBatches({ onlyBatchNames: [batchName] });
+      const txHash = await walletClient.writeContract({
+        account: address as `0x${string}`,
+        address: USDC_CONTRACT_ADDRESS,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [BRIDGE_CONTRACT_ADDRESS as `0x${string}`, amountInWei],
+      });
 
-      const sentBatch = batchSend.batches[batchName];
-      if (batchSend.isSentSuccessfully && !sentBatch?.errorMessage) {
-        // Success
-        // Chain ID for Arbitrum is 42161
-        const userOpHash =
-          sentBatch.chainGroups?.['42161']?.userOpHash ||
-          sentBatch.chainGroups?.['1']?.userOpHash; // Adjust chain ID logic if not hardcoded
+      console.log('Transfer tx hash:', txHash);
 
-        // In this environment, we might get a tx hash or user op hash
-        // Just show success
+      if (txHash) {
         toast({
           title: 'Success!',
           description: `Bridging ${amount} USDC. It will arrive in 5-10 minutes.`,
         });
-        setTxHash(userOpHash || 'submitted');
+        setTxHash(txHash);
         setAmount('');
       } else {
-        throw new Error(sentBatch?.errorMessage || 'Batch send failed');
+        throw new Error('Transaction failed');
       }
     } catch (error: any) {
       console.error('Bridge error:', error);
@@ -262,10 +223,6 @@ export function DepositModal({
         variant: 'destructive',
       });
     } finally {
-      // Cleanup
-      try {
-        // kit.batch({ batchName }).remove(); // variable scope issue, need to define batchName outside or ignore
-      } catch { }
       setIsLoading(false);
     }
   };
@@ -293,9 +250,11 @@ export function DepositModal({
               <div>
                 <strong>Wallet Mismatch</strong>
                 <p className="mt-1">
-                  You are connected with {address?.slice(0, 6)}... but trying to deposit to {targetAddress?.slice(0, 6)}...
+                  You are connected with {address?.slice(0, 6)}... but trying to
+                  deposit to {targetAddress?.slice(0, 6)}...
                   <br />
-                  Please switch your wallet to the correct account to deposit defined funds.
+                  Please switch your wallet to the correct account to deposit
+                  defined funds.
                 </p>
               </div>
             </div>
@@ -343,11 +302,15 @@ export function DepositModal({
               onChange={(e) => setAmount(e.target.value)}
               disabled={isLoading}
               step="0.01"
-              min="0"
+              min="5"
             />
           </div>
 
           <div className="rounded-lg bg-muted p-3 space-y-1">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium">NOTE:</span>
+              <span className="text-muted-foreground">Min deposit is $5</span>
+            </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium">Network:</span>
               <span className="text-muted-foreground">Arbitrum One</span>
@@ -360,7 +323,9 @@ export function DepositModal({
 
           <Button
             onClick={handleDeposit}
-            disabled={isLoading || !amount || parseFloat(amount) <= 0 || !isAddressMatch}
+            disabled={
+              isLoading || !amount || parseFloat(amount) <= 0 || !isAddressMatch
+            }
             className="w-full"
           >
             {isLoading ? 'Processing...' : 'Bridge USDC'}
