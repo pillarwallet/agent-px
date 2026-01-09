@@ -43,11 +43,12 @@ export function TradeHistoryCard({ masterAddress }: TradeHistoryCardProps) {
     const fetchTrades = useCallback(async () => {
         if (!masterAddress) return;
 
-
+        console.log('[TradeHistory] Fetching trades for address:', masterAddress);
         setIsLoading(true);
         try {
             const fills = await getUserFills(masterAddress);
-
+            console.log('[TradeHistory] Raw fills from API:', fills);
+            console.log('[TradeHistory] Number of fills:', fills?.length || 0);
 
             // Process and sort trades by time (most recent first)
             const processedTrades = fills
@@ -64,7 +65,8 @@ export function TradeHistoryCard({ masterAddress }: TradeHistoryCardProps) {
                 }))
                 .sort((a: Trade, b: Trade) => b.time - a.time);
 
-
+            console.log('[TradeHistory] Processed trades:', processedTrades);
+            console.log('[TradeHistory] Number of processed trades:', processedTrades.length);
             setTrades(processedTrades);
         } catch (error) {
             console.error('Error fetching trades:', error);

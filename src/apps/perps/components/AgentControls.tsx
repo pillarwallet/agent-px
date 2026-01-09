@@ -80,7 +80,6 @@ interface AgentControlsProps {
   onStatusChange?: () => void;
   onAgentAddressChange?: (address: string | null) => void;
   userState?: UserState;
-  masterState?: UserState | null | undefined;
 }
 
 // Add 'unlock' to revealMode type
@@ -90,17 +89,14 @@ export function AgentControls({
   onStatusChange,
   onAgentAddressChange,
   userState,
-  masterState,
 }: AgentControlsProps) {
   const { walletProvider } = useTransactionKit();
   const { address } = useHyperliquid();
   // Removed useWalletClient from wagmi
 
   // Calculate master balance for conditional logic
-  // Use masterState if available (EOA balance), otherwise fallback to userState (which might be agent)
-  const balanceState = masterState || userState;
-  const masterBalance = balanceState?.marginSummary?.accountValue
-    ? parseFloat(balanceState.marginSummary.accountValue)
+  const masterBalance = userState?.marginSummary?.accountValue
+    ? parseFloat(userState.marginSummary.accountValue)
     : 0;
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('none');
   const [agentAddress, setAgentAddress] = useState<string>('');
@@ -996,7 +992,7 @@ export function AgentControls({
 
           {agentStatus === 'created' && (
             <div className="space-y-1.5 mt-4">
-              {masterBalance < 5 && userState ? (
+              {masterBalance < 10 && userState ? (
                 <DepositModal
                   userState={userState}
                   trigger={

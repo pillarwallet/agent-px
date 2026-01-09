@@ -35,9 +35,6 @@ export function useHyperliquid() {
   const { kit } = useTransactionKit();
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('unknown');
   const [userState, setUserState] = useState<UserState | null>(null);
-  const [masterUserState, setMasterUserState] = useState<UserState | null>(
-    null
-  );
   const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
   const [availableAssets, setAvailableAssets] = useState<EnhancedAsset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -306,7 +303,6 @@ export function useHyperliquid() {
   return {
     setupStatus,
     userState,
-    masterUserState,
     openOrders,
     isLoading,
     checkSetupStatus,
