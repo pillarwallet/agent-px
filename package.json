@@ -130,7 +130,7 @@
     "vite-plugin-svgr": "4.3.0",
     "wagmi": "2.14.16",
     "webfontloader": "1.6.28",
-    "charting_library": "git@github.com:tradingview/charting_library.git#semver:30.1.0"
+    "charting_library": "https://github.com/tradingview/charting_library.git#semver:30.1.0"
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "7.21.11",
