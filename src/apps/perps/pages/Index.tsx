@@ -102,8 +102,6 @@ const Index = () => {
         {/* Open Positions - Full Width */}
         {address && setupStatus === 'setup' && userState && (
           <div className="mb-6">
-            {/* DEBUG: Log userState passing */}
-            {console.log('DEBUG [Index]: Passing userState to PositionsCard', userState)}
             <PositionsCard
               key={activeAddress || address}
               masterAddress={activeAddress || address}

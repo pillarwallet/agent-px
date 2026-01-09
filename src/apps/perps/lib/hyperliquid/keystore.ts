@@ -1,9 +1,17 @@
 import type { Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { encryptWithPin, decryptWithPin, type EncryptedData } from '../encryption';
+import { initializeSessionManager, resetInactivityTimer, clearSession } from './session-manager';
 
-// Module-level cache for unlocked private key (cleared on page refresh)
+// Module-level cache for unlocked private key (cleared on page refresh or session timeout)
 let cachedPrivateKey: Hex | null = null;
+
+// Initialize session manager to auto-clear cache after inactivity
+initializeSessionManager(() => {
+  console.log('[Keystore] Clearing cached private keys due to session timeout');
+  cachedPrivateKey = null;
+  cachedImportedKey = null; // Also clear imported account cache
+});
 
 export function generateAgentWallet(): { address: string; privateKey: Hex } {
   const privateKey = generatePrivateKey();
@@ -44,6 +52,7 @@ export async function storeAgentWalletEncrypted(
 
     // Hot-load the cache so it's immediately available without unlocking again
     cachedPrivateKey = privateKey;
+    resetInactivityTimer(); // Reset session timeout on wallet storage
   } catch (error) {
     console.error('Failed to encrypt wallet:', error);
     throw new Error('Encryption failed');
@@ -70,6 +79,7 @@ export async function unlockAgentWallet(
     const privateKey = await decryptWithPin(encryptedData, pin);
 
     cachedPrivateKey = privateKey as Hex;
+    resetInactivityTimer(); // Reset session timeout on wallet unlock
 
     return {
       address,
@@ -111,8 +121,8 @@ export function storeAgentWalletLocal(
       String(approved)
     );
   }
-  // Clear cache on new plaintext storage
-  cachedPrivateKey = null;
+  // Clear cache and session on new plaintext storage
+  clearSession();
 }
 
 export function getAgentWalletLocal(
@@ -139,8 +149,8 @@ export function clearAgentWalletLocal(masterAddress: string): void {
   localStorage.removeItem(getStorageKey(masterAddress, 'key'));
   localStorage.removeItem(getStorageKey(masterAddress, 'encrypted_key'));
   localStorage.removeItem(getStorageKey(masterAddress, 'approved'));
-  // Clear cache when wallet is cleared
-  cachedPrivateKey = null;
+  // Clear cache and session when wallet is cleared
+  clearSession();
 }
 
 // Global imported account storage (also plaintext by default in old code, ideally should encrypt too)
@@ -150,6 +160,7 @@ const GLOBAL_IMPORTED_ADDRESS_KEY = 'hl_imported_address';
 const GLOBAL_IMPORTED_ENCRYPTED_KEY = 'hl_imported_encrypted_key';
 const GLOBAL_ACCOUNT_KEY = 'hl_imported_account'; // Legacy plaintext
 
+// Imported account cache (also cleared on session timeout)
 let cachedImportedKey: Hex | null = null;
 
 export async function storeImportedAccountEncrypted(
@@ -171,6 +182,7 @@ export async function storeImportedAccountEncrypted(
 
     // Cache it
     cachedImportedKey = privateKey;
+    resetInactivityTimer(); // Reset session timeout on imported account storage
   } catch (error) {
     console.error('Failed to encrypt imported account:', error);
     throw new Error('Encryption failed');
@@ -192,6 +204,7 @@ export async function unlockImportedAccount(
     const privateKey = await decryptWithPin(encryptedData, pin);
 
     cachedImportedKey = privateKey as Hex;
+    resetInactivityTimer(); // Reset session timeout on imported account unlock
 
     return {
       accountAddress: address,
@@ -219,13 +232,13 @@ export function getImportedAccountAddress(): string | null {
   );
 }
 
-export function storeImportedAccount(
+export async function storeImportedAccount(
   accountAddress: string,
   privateKey: Hex,
   pin: string
-): void {
+): Promise<void> {
   // Enforce encryption by delegating
-  storeImportedAccountEncrypted(accountAddress, privateKey, pin);
+  await storeImportedAccountEncrypted(accountAddress, privateKey, pin);
 }
 
 export function getImportedAccount(): {
@@ -238,6 +251,7 @@ export function getImportedAccount(): {
   if (cachedImportedKey) {
     const address = getImportedAccountAddress();
     if (address) {
+      resetInactivityTimer(); // Reset session timeout on imported account access
       return { accountAddress: address, privateKey: cachedImportedKey };
     }
   }
@@ -269,7 +283,8 @@ export function clearImportedAccount(): void {
   localStorage.removeItem(GLOBAL_ACCOUNT_KEY);
   localStorage.removeItem(GLOBAL_IMPORTED_ADDRESS_KEY);
   localStorage.removeItem(GLOBAL_IMPORTED_ENCRYPTED_KEY);
-  cachedImportedKey = null;
+  // Note: clearSession() already clears cachedImportedKey, but we call it to also clear agent wallet cache
+  clearSession();
 }
 
 // Combined functions facade
@@ -304,6 +319,7 @@ export async function getAgentWallet(
     const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
     if (address) {
       const approved = localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
+      resetInactivityTimer(); // Reset session timeout on wallet access
       return { address, privateKey: cachedPrivateKey, approved };
     }
   }

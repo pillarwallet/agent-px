@@ -258,11 +258,11 @@ export function TradingChart({ selectedAsset }: TradingChartProps) {
   const intervals: Interval[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
   return (
-    <Card>
+    <Card className="pt-0">
       {/* Price Ticker */}
       <PriceTicker selectedAsset={selectedAsset} />
 
-      <CardHeader className="pb-3">
+      <CardHeader className="pt-0 pb-3 px-6">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">
             {selectedAsset ? selectedAsset.symbol : 'Select an asset'}

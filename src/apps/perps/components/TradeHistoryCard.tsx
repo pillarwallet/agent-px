@@ -5,6 +5,7 @@ import {
     CardHeader,
     CardTitle,
 } from '../components/ui/card';
+import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import {
@@ -138,10 +139,10 @@ export function TradeHistoryCard({ masterAddress }: TradeHistoryCardProps) {
             `}</style>
             <Card className="shadow-card border-border/50 overflow-hidden">
                 <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-                    <CardHeader className="pb-3">
+                    <CardHeader className="py-3">
                         <div className="flex items-center justify-between">
-                            <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                                <CardTitle className="text-base font-semibold">Trade History</CardTitle>
+                            <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity focus-visible:outline-none">
+                                <CardTitle className="text-lg font-semibold">Trade History</CardTitle>
                                 <ChevronDown
                                     className={`h-4 w-4 transition-transform ${isOpen ? 'transform rotate-180' : ''
                                         }`}
@@ -163,7 +164,13 @@ export function TradeHistoryCard({ masterAddress }: TradeHistoryCardProps) {
 
                     <CollapsibleContent>
                         <CardContent className="pt-0">
-                            {trades.length === 0 ? (
+                            {isLoading ? (
+                                <div className="space-y-2 p-4">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                                    ))}
+                                </div>
+                            ) : trades.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
                                     No trades found
                                 </div>

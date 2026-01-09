@@ -78,6 +78,13 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 
+  /* Desktop Zoom Factor */
+  @media (min-width: 1051px) {
+    html {
+      zoom: 1.1;
+    }
+  }
+
   /* Remove blue/cyan highlight on touch/click and focus */
   button,
   a,

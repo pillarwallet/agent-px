@@ -236,7 +236,7 @@ export function AgentControls({
       setRevealMode('unlock');
       setShowUnlockReveal(true);
     }
-  }, [agentStatus]);
+  }, [agentStatus, showUnlockReveal]);
 
   const handleUnlockClick = () => {
     setShowUnlockReveal(true);
@@ -361,10 +361,17 @@ export function AgentControls({
       } else {
         // Generate NEW wallet
 
+        // Safety check: Verify address still exists before proceeding
+        if (!address) {
+          toast.error('Wallet connection lost. Please reconnect and try again.');
+          setIsCreating(false);
+          return;
+        }
+
         const wallet = generateAgentWallet();
 
 
-        await storeAgentWalletEncrypted(address as string, wallet.address, wallet.privateKey, pin, false);
+        await storeAgentWalletEncrypted(address, wallet.address, wallet.privateKey, pin, false);
 
         setAgentAddress(wallet.address);
         setAgentPrivateKey(wallet.privateKey); // Keep in memory for this session
@@ -998,9 +1005,9 @@ export function AgentControls({
 
           {agentStatus === 'created' && (
             <div className="space-y-1.5 mt-4">
-              {masterBalance < 10 ? (
+              {masterBalance < 10 && userState ? (
                 <DepositModal
-                  userState={userState!}
+                  userState={userState}
                   trigger={
                     <Button className="w-full" size="sm">
                       Deposit $10 USDC to Trade

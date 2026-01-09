@@ -137,7 +137,7 @@ export function PriceTicker({ selectedAsset }: PriceTickerProps) {
   const isPositive = parseFloat(tickerData.changePercent24h) >= 0;
 
   return (
-    <div className="flex items-center gap-6 px-4 py-2 bg-card/50 border-b border-border text-sm">
+    <div className="flex items-center gap-6 px-4 pb-2 bg-card/50 border-b border-border text-sm">
       {/* Symbol with icon */}
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-xs">

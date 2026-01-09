@@ -91,7 +91,7 @@ export function AssetSelector({
   }
 
   return (
-    <Card className="p-4">
+    <Card className="pt-2 px-4 pb-4">
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -135,8 +135,8 @@ export function AssetSelector({
                   key={asset.symbol}
                   onClick={() => onSelect(asset.symbol, asset)}
                   className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${selectedSymbol === asset.symbol
-                      ? 'bg-secondary'
-                      : 'hover:bg-secondary/50'
+                    ? 'bg-secondary'
+                    : 'hover:bg-secondary/50'
                     }`}
                 >
                   <div className="flex items-center gap-3">

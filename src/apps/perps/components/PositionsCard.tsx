@@ -5,6 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/card';
+import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { RefreshCw, X, ChevronLeft, AlertTriangle } from 'lucide-react';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -53,7 +54,7 @@ import { TokenIcon } from './TokenIcon';
 interface PositionsCardProps {
   masterAddress: string;
   onPositionClick?: (symbol: string) => void;
-  onRefresh: () => void;
+  onRefresh?: () => void;
   userState?: UserState; // Using any for now to avoid strict type issues with passed state, or  userState?: UserState;
   assetPositions?: HyperliquidPosition[]; // Direct pass-through
   openOrders?: HyperliquidOrder[];
@@ -117,6 +118,7 @@ export function PositionsCard({
         setInternalUserState(fetchedUserState);
       }
 
+      let currentUniverse = universe;
       const priceMap: Record<string, number> = {};
       if (
         metaData &&
@@ -126,6 +128,7 @@ export function PositionsCard({
       ) {
         const universeData = metaData[0].universe;
         setUniverse(universeData);
+        currentUniverse = universeData; // Use fresh data for immediate lookup
         const assetCtxs = metaData[1];
 
         universeData.forEach((asset: any, index: number) => {
@@ -167,7 +170,7 @@ export function PositionsCard({
               }
 
               // Robust Universe Lookup
-              let coinInfo = universe.find((u) => u.name === rawPos.coin);
+              let coinInfo = currentUniverse.find((u) => u.name === rawPos.coin);
 
               if (!coinInfo) {
                 // FALLBACK: If coin not found in universe, use default formatting
@@ -524,8 +527,8 @@ export function PositionsCard({
       </Dialog>
 
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
+          <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity focus-visible:outline-none">
             <CardTitle className="text-lg">
               Positions & Orders
             </CardTitle>
@@ -559,15 +562,22 @@ export function PositionsCard({
                 <p className="text-sm text-muted-foreground text-center py-4 bg-muted/20 rounded-lg border border-dashed">
                   No open positions
                 </p>
+              ) : isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                  ))}
+                </div>
               ) : expandedPositionIndex !== null &&
                 positions[expandedPositionIndex] ? (
                 (() => {
                   const position = positions[expandedPositionIndex];
                   const pnl = formatPnl(position.unrealizedPnl);
+                  const marginUsedVal = parseFloat(position.marginUsed);
                   const roe =
-                    (parseFloat(position.unrealizedPnl) /
-                      parseFloat(position.marginUsed)) *
-                    100;
+                    marginUsedVal > 0
+                      ? (parseFloat(position.unrealizedPnl) / marginUsedVal) * 100
+                      : 0;
                   const isLong = parseFloat(position.szi) > 0;
                   const leverage = calculateLeverage(position);
 
@@ -737,10 +747,11 @@ export function PositionsCard({
 
                   {positions.map((position, index) => {
                     const pnl = formatPnl(position.unrealizedPnl);
+                    const marginUsedVal = parseFloat(position.marginUsed);
                     const roe =
-                      (parseFloat(position.unrealizedPnl) /
-                        parseFloat(position.marginUsed)) *
-                      100;
+                      marginUsedVal > 0
+                        ? (parseFloat(position.unrealizedPnl) / marginUsedVal) * 100
+                        : 0;
                     const isLong = parseFloat(position.szi) > 0;
                     const positionValue =
                       Math.abs(parseFloat(position.szi)) *
@@ -774,6 +785,9 @@ export function PositionsCard({
                               <div>
                                 <div className="font-bold text-base flex items-center gap-2">
                                   {position.coin}
+                                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${isLong ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                                    {isLong ? 'LONG' : 'SHORT'}
+                                  </span>
                                 </div>
                                 <div
                                   className={`text-xs font-bold flex items-center gap-1 ${isLong ? 'text-green-500' : 'text-red-500'}`}
@@ -920,6 +934,9 @@ export function PositionsCard({
                           />
                           <div className="flex items-baseline gap-1.5">
                             <span>{position.coin}</span>
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${isLong ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                              {isLong ? 'LONG' : 'SHORT'}
+                            </span>
                             <span className="text-xs font-medium text-emerald-400">
                               {calculateLeverage(position)}
                             </span>
@@ -1024,6 +1041,12 @@ export function PositionsCard({
                 <p className="text-sm text-muted-foreground text-center py-4 bg-muted/20 rounded-lg border border-dashed">
                   No open orders
                 </p>
+              ) : isLoading ? (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                  ))}
+                </div>
               ) : (
                 <div className="space-y-1">
                   {!isMobile && (

@@ -9,7 +9,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Copy, Download, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 
 interface PrivateKeyModalProps {
@@ -28,36 +28,77 @@ export function PrivateKeyModal({
     mode = 'created'
 }: PrivateKeyModalProps) {
     const [copied, setCopied] = useState(false);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(privateKey);
-        setCopied(true);
-        toast.success('Private key copied to clipboard');
-        setTimeout(() => setCopied(false), 2000);
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+        };
+    }, []);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(privateKey);
+            setCopied(true);
+            toast.success('Private key copied to clipboard');
+
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+
+            timerRef.current = setTimeout(() => {
+                setCopied(false);
+                timerRef.current = null;
+            }, 2000);
+        } catch (error) {
+            toast.error('Failed to copy private key');
+        }
     };
 
     const handleDownload = () => {
-        const data = JSON.stringify(
-            {
-                address,
-                privateKey,
-                createdAt: new Date().toISOString(),
-                note: "KEEP THIS SAFE. DO NOT SHARE."
-            },
-            null,
-            2
-        );
+        let url = '';
+        let a: HTMLAnchorElement | null = null;
 
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `agent-wallet-${address.slice(0, 8)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success('Key file downloaded');
+        try {
+            // Validation
+            if (!address || !privateKey) {
+                throw new Error('Missing wallet data');
+            }
+
+            const data = JSON.stringify(
+                {
+                    address,
+                    privateKey,
+                    createdAt: new Date().toISOString(),
+                    note: "KEEP THIS SAFE. DO NOT SHARE."
+                },
+                null,
+                2
+            );
+
+            const blob = new Blob([data], { type: 'application/json' });
+            url = URL.createObjectURL(blob);
+            a = document.createElement('a');
+            a.href = url;
+            a.download = `agent-wallet-${address.slice(0, 8)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            toast.success('Key file downloaded');
+        } catch (error) {
+            console.error('Download failed:', error);
+            toast.error(error instanceof Error ? error.message : 'Failed to download key file');
+        } finally {
+            // Cleanup
+            if (a) {
+                document.body.removeChild(a);
+            }
+            if (url) {
+                URL.revokeObjectURL(url);
+            }
+        }
     };
 
     return (

@@ -44,10 +44,10 @@ export function BalanceCard({
   const isMobile = useIsMobile();
 
   return (
-    <Card className="p-3 pt-4 h-full">
+    <Card className="p-3 pt-2 h-full">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
-          <span className="font-semibold">Perps Balance</span>
+          <span className="font-semibold pl-2">Perps Balance</span>
         </div>
         <div className="flex items-center gap-2">
           <DepositModal
@@ -100,7 +100,7 @@ export function BalanceCard({
         </div>
       </div>
 
-      <div className="space-y-2 pb-1 mt-2">
+      <div className="space-y-2 pb-1 mt-2 pl-2">
         {/* Main Balance */}
         <div>
           <p className="text-3xl font-bold font-mono-numbers">
@@ -115,11 +115,10 @@ export function BalanceCard({
         {/* PnL Display */}
         <div className="flex items-center gap-2">
           <div
-            className={`px-2.5 py-0.5 rounded-md text-sm font-semibold ${
-              isPnlPositive
-                ? 'bg-green-500/10 text-green-500'
-                : 'bg-red-500/10 text-red-500'
-            }`}
+            className={`px-2.5 py-0.5 rounded-md text-sm font-semibold ${isPnlPositive
+              ? 'bg-green-500/10 text-green-500'
+              : 'bg-red-500/10 text-red-500'
+              }`}
           >
             {isPnlPositive ? '+' : ''}$
             {totalPnl.toLocaleString(undefined, {
@@ -128,9 +127,8 @@ export function BalanceCard({
             })}
           </div>
           <div
-            className={`text-sm font-semibold ${
-              isPnlPositive ? 'text-green-500' : 'text-red-500'
-            }`}
+            className={`text-sm font-semibold ${isPnlPositive ? 'text-green-500' : 'text-red-500'
+              }`}
           >
             {isPnlPositive ? '+' : ''}
             {pnlPercent}% {isPnlPositive ? '↑' : '↓'}

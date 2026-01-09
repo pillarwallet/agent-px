@@ -25,7 +25,7 @@ interface PinSetupModalProps {
 export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProps) {
     const [pin, setPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
-    const confirmInputRef = useRef<HTMLInputElement>(null);
+    const confirmInputRef = useRef<React.ElementRef<typeof InputOTP>>(null);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

@@ -35,7 +35,7 @@ async function deriveKey(pin: string, salt: Uint8Array): Promise<CryptoKey> {
         },
         keyMaterial,
         { name: "AES-GCM", length: 256 },
-        false,
+        false, // Non-extractable: prevents key extraction via memory dumps
         ["encrypt", "decrypt"]
     );
 }
