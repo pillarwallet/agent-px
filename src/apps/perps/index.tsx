@@ -247,6 +247,7 @@ const Index = () => {
                 onStatusChange={handleRefresh}
                 onAgentAddressChange={setAgentAddress}
                 userState={userState}
+                masterState={masterUserState}
               />
             </div>
 

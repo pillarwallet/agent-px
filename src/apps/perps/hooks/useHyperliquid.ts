@@ -31,6 +31,7 @@ export function useHyperliquid() {
   const { data: walletClient } = useWalletClient();
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('unknown');
   const [userState, setUserState] = useState<UserState | null>(null);
+  const [masterUserState, setMasterUserState] = useState<UserState | null>(null);
   const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
   const [availableAssets, setAvailableAssets] = useState<EnhancedAsset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,6 +59,8 @@ export function useHyperliquid() {
       // 1. Fetch Main Address Data
       let targetAddress = address;
       let state = await getUserState(address);
+      // Always store master state
+      setMasterUserState(state);
       let orders = await getOpenOrders(address);
 
       // 2. Check Agent Address
@@ -150,6 +153,15 @@ export function useHyperliquid() {
       }
 
       setActiveAddress(targetAddress);
+
+      // Verify master state persistence
+      if (address !== targetAddress) {
+        // If we switched to agent, ensure master state is set from original fetch
+        const masterState = await getUserState(address);
+        setMasterUserState(masterState);
+      } else {
+        setMasterUserState(state);
+      }
 
       console.log('DEBUG: Final User State to be set:', JSON.stringify(state, null, 2));
 
@@ -253,6 +265,7 @@ export function useHyperliquid() {
   return {
     setupStatus,
     userState,
+    masterUserState,
     openOrders,
     isLoading,
     checkSetupStatus,
