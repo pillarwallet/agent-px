@@ -131,8 +131,21 @@ export function PrivateKeyModal({
                 <div className="space-y-4 py-2">
                     <div className="space-y-2">
                         <Label>Main Wallet Address</Label>
-                        <div className="text-sm font-mono bg-muted p-2 rounded break-all">
-                            {mainAddress || address}
+                        <div className="flex gap-2">
+                            <div className="text-sm font-mono bg-muted p-2 rounded break-all flex-1">
+                                {mainAddress || address}
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 shrink-0"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(mainAddress || address);
+                                    toast.success('Address copied');
+                                }}
+                            >
+                                <Copy className="h-4 w-4" />
+                            </Button>
                         </div>
                     </div>
 

@@ -1161,39 +1161,55 @@ export function AgentControls({
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-success" />
                     <span className="text-sm font-medium text-success">
-                      Imported Account
+                      Activated Account
                     </span>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setRevealMode('reveal');
-                          setShowUnlockReveal(true);
-                        }}
-                      >
-                        Reveal Private Key
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={handleRemoveAccount}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove Account
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="flex items-center gap-1">
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setRevealMode('reveal');
+                            setShowUnlockReveal(true);
+                          }}
+                        >
+                          Reveal Private Key
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleRemoveAccount}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove Account
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
                   <span className="font-medium">Address:</span>
-                  <div className="font-mono bg-background/50 rounded px-2 py-1 mt-1 text-[10px]">
-                    {agentAddress}
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="font-mono bg-background/50 rounded px-2 py-1 text-[10px] flex-1">
+                      {agentAddress}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => {
+                        navigator.clipboard.writeText(agentAddress);
+                        toast.success('Address copied');
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               </div>

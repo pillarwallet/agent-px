@@ -85,6 +85,7 @@ export function PinSetupModal({ isOpen, onConfirm, onCancel }: PinSetupModalProp
                         <InputOTP
                             maxLength={4}
                             value={pin}
+                            autoFocus
                             onChange={(value) => setPin(value)}
                         >
                             <InputOTPGroup>
