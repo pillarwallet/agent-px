@@ -34,7 +34,8 @@ export async function storeAgentWalletEncrypted(
   address: string,
   privateKey: Hex,
   pin: string,
-  approved: boolean = false
+  approved: boolean = false,
+  builderApproved: boolean = false
 ): Promise<void> {
   if (typeof window === 'undefined') return;
 
@@ -49,6 +50,7 @@ export async function storeAgentWalletEncrypted(
     localStorage.removeItem(getStorageKey(masterAddress, 'key'));
 
     localStorage.setItem(getStorageKey(masterAddress, 'approved'), String(approved));
+    localStorage.setItem(getStorageKey(masterAddress, 'builder_approved'), String(builderApproved));
 
     // Hot-load the cache so it's immediately available without unlocking again
     cachedPrivateKey = privateKey;
@@ -62,12 +64,13 @@ export async function storeAgentWalletEncrypted(
 export async function unlockAgentWallet(
   masterAddress: string,
   pin: string
-): Promise<{ address: string; privateKey: Hex; approved: boolean } | null> {
+): Promise<{ address: string; privateKey: Hex; approved: boolean; builderApproved: boolean } | null> {
   if (typeof window === 'undefined') return null;
 
   const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
   const encryptedkeyData = localStorage.getItem(getStorageKey(masterAddress, 'encrypted_key'));
   const approved = localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
+  const builderApproved = localStorage.getItem(getStorageKey(masterAddress, 'builder_approved')) === 'true';
 
   if (!address || !encryptedkeyData) {
     // Fallback using deprecated plaintext for migration/legacy support
@@ -84,7 +87,8 @@ export async function unlockAgentWallet(
     return {
       address,
       privateKey: privateKey as Hex,
-      approved
+      approved,
+      builderApproved
     };
   } catch (error) {
     console.error('Failed to unlock wallet:', error);
@@ -127,7 +131,7 @@ export function storeAgentWalletLocal(
 
 export function getAgentWalletLocal(
   masterAddress: string
-): { address: string; privateKey: Hex; approved: boolean } | null {
+): { address: string; privateKey: Hex; approved: boolean; builderApproved: boolean } | null {
   if (typeof window === 'undefined') return null;
 
   const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
@@ -136,10 +140,12 @@ export function getAgentWalletLocal(
   ) as Hex;
   const approved =
     localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
+  const builderApproved =
+    localStorage.getItem(getStorageKey(masterAddress, 'builder_approved')) === 'true';
 
   if (!address || !privateKey) return null;
 
-  return { address, privateKey, approved };
+  return { address, privateKey, approved, builderApproved };
 }
 
 export function clearAgentWalletLocal(masterAddress: string): void {
@@ -149,6 +155,7 @@ export function clearAgentWalletLocal(masterAddress: string): void {
   localStorage.removeItem(getStorageKey(masterAddress, 'key'));
   localStorage.removeItem(getStorageKey(masterAddress, 'encrypted_key'));
   localStorage.removeItem(getStorageKey(masterAddress, 'approved'));
+  localStorage.removeItem(getStorageKey(masterAddress, 'builder_approved'));
   // Clear cache and session when wallet is cleared
   clearSession();
 }
@@ -297,6 +304,14 @@ export function updateAgentApproval(
   localStorage.setItem(getStorageKey(masterAddress, 'approved'), String(approved));
 }
 
+export function updateBuilderApproval(
+  masterAddress: string,
+  approved: boolean
+): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(getStorageKey(masterAddress, 'builder_approved'), String(approved));
+}
+
 /**
  * @deprecated Use storeAgentWalletEncrypted instead. This function stores keys in plaintext.
  */
@@ -305,22 +320,24 @@ export async function storeAgentWallet(
   address: string,
   privateKey: Hex,
   pin: string,
-  approved: boolean = false
+  approved: boolean = false,
+  builderApproved: boolean = false
 ): Promise<void> {
   // Enforce encryption
-  return storeAgentWalletEncrypted(masterAddress, address, privateKey, pin, approved);
+  return storeAgentWalletEncrypted(masterAddress, address, privateKey, pin, approved, builderApproved);
 }
 
 export async function getAgentWallet(
   masterAddress: string
-): Promise<{ address: string; privateKey: Hex; approved: boolean } | null> {
+): Promise<{ address: string; privateKey: Hex; approved: boolean; builderApproved: boolean } | null> {
   // Check memory cache first
   if (cachedPrivateKey) {
     const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
     if (address) {
       const approved = localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
+      const builderApproved = localStorage.getItem(getStorageKey(masterAddress, 'builder_approved')) === 'true';
       resetInactivityTimer(); // Reset session timeout on wallet access
-      return { address, privateKey: cachedPrivateKey, approved };
+      return { address, privateKey: cachedPrivateKey, approved, builderApproved };
     }
   }
 

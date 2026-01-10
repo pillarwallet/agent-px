@@ -27,6 +27,7 @@ import {
   Settings,
   Lock,
   ChevronDown,
+  Loader2,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -59,6 +60,7 @@ import { useIsMobile } from '../hooks/use-mobile';
 import {
   storeAgentWallet,
   updateAgentApproval,
+  updateBuilderApproval,
   clearAgentWallet,
   storeAgentWalletEncrypted,
   unlockAgentWallet,
@@ -74,12 +76,13 @@ import {
 } from '../lib/hyperliquid/keystore';
 import { cn } from '../lib/utils';
 
-type AgentStatus = 'none' | 'created' | 'approved' | 'locked';
+type AgentStatus = 'none' | 'created' | 'approved' | 'locked' | 'builder_approval_pending';
 
 interface AgentControlsProps {
   onStatusChange?: () => void;
   onAgentAddressChange?: (address: string | null) => void;
   userState?: UserState;
+  ethPrice?: number;
 }
 
 // Add 'unlock' to revealMode type
@@ -89,6 +92,7 @@ export function AgentControls({
   onStatusChange,
   onAgentAddressChange,
   userState,
+  ethPrice,
 }: AgentControlsProps) {
   const { walletProvider } = useTransactionKit();
   const { address } = useHyperliquid();
@@ -195,7 +199,15 @@ export function AgentControls({
       if (wallet) {
         setAgentAddress(wallet.address);
         setAgentPrivateKey(wallet.privateKey);
-        setAgentStatus(wallet.approved ? 'approved' : 'created');
+        if (wallet.approved) {
+          if (wallet.builderApproved) {
+            setAgentStatus('approved');
+          } else {
+            setAgentStatus('builder_approval_pending');
+          }
+        } else {
+          setAgentStatus('created');
+        }
         return;
       }
 
@@ -279,7 +291,15 @@ export function AgentControls({
       const unlocked = await unlockAgentWallet(address, pin);
       if (unlocked) {
         setAgentPrivateKey(unlocked.privateKey);
-        setAgentStatus(unlocked.approved ? 'approved' : 'created');
+        if (unlocked.approved) {
+          if (unlocked.builderApproved) {
+            setAgentStatus('approved');
+          } else {
+            setAgentStatus('builder_approval_pending');
+          }
+        } else {
+          setAgentStatus('created');
+        }
         setShowUnlockReveal(false);
 
         // Show Key in Modal ONLY if revealed
@@ -396,6 +416,80 @@ export function AgentControls({
     }
   };
 
+
+  const [isApprovingBuilder, setIsApprovingBuilder] = useState(false);
+
+  const handleApproveBuilder = async () => {
+    if (!address || !walletProvider) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+    setIsApprovingBuilder(true);
+    try {
+      console.log('Approving Builder...');
+      const { BUILDER_ADDRESS, BUILDER_FEE_APPROVAL } = await import(
+        '../lib/hyperliquid/builder'
+      );
+
+      const { buildApproveBuilderFeeAction, signApproveBuilderFeeAction } =
+        await import('../lib/hyperliquid/signing');
+      const { postExchange } = await import('../lib/hyperliquid/client');
+
+      // 1. Get account
+      let accountToUse = address as Hex;
+      if (walletProvider && 'request' in walletProvider) {
+        // Logic to ensure account (omitted for brevity, relying on address/provider match)
+      }
+
+      const action = buildApproveBuilderFeeAction({
+        maxFeeRate: BUILDER_FEE_APPROVAL,
+        builderAddress: BUILDER_ADDRESS,
+        nonce: Date.now(),
+      });
+
+      // 2. Sign
+      const signature = await signApproveBuilderFeeAction(
+        walletProvider as any,
+        action
+      );
+
+      const apiAction = {
+        ...action,
+        builder: action.builder.toLowerCase(),
+      };
+
+      const payload = {
+        action: apiAction,
+        nonce: action.nonce,
+        signature,
+        vaultAddress: null,
+      };
+
+      // 3. Post
+      const response = await postExchange(payload);
+      if (response.status === 'ok') {
+        toast.success('PillarX Approved!');
+
+        // Update local state to fully approved
+        updateBuilderApproval(address, true);
+        setAgentStatus('approved');
+
+        if (onStatusChange) {
+          onStatusChange();
+        }
+
+      } else {
+        throw new Error(response.response?.data?.toString() || 'Failed');
+      }
+
+    } catch (error: any) {
+      console.error('Failed to approve PillarX:', error);
+      toast.error(error.message || 'Failed to approve PillarX');
+    } finally {
+      setIsApprovingBuilder(false);
+    }
+  };
+
   const handleApproveAgent = async () => {
     if (!address || !walletProvider) {
       toast.error('Please connect your wallet');
@@ -409,9 +503,16 @@ export function AgentControls({
     }
 
     if (agent.approved) {
-      toast.success('Agent is already approved');
-      setAgentStatus('approved');
-      return;
+      // Check builder status
+      if (agent.builderApproved) {
+        toast.success('Agent is already approved');
+        setAgentStatus('approved');
+        return;
+      } else {
+        // Transition to builder pending
+        setAgentStatus('builder_approval_pending');
+        return;
+      }
     }
 
     setIsApproving(true);
@@ -549,8 +650,9 @@ export function AgentControls({
       if (response.status === 'ok') {
         // Store approval status locally WITHOUT overwriting/touching the keys
         updateAgentApproval(address, true);
-        setAgentStatus('approved');
-        toast.success('Agent approved successfully!');
+        // Transition to Builder Approval pending instead of full success
+        setAgentStatus('builder_approval_pending');
+        toast.success('Agent approved! Now verify PillarX.');
 
         if (onStatusChange) {
           onStatusChange();
@@ -818,6 +920,12 @@ export function AgentControls({
       color: 'text-warning',
       bgColor: 'bg-warning/10 border-warning/30',
     },
+    'builder_approval_pending': {
+      icon: AlertCircle,
+      label: 'Setup Incomplete',
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/10 border-orange-500/30',
+    },
     approved: {
       icon: CheckCircle2,
       label: 'Active',
@@ -995,9 +1103,10 @@ export function AgentControls({
               {masterBalance < 10 && userState ? (
                 <DepositModal
                   userState={userState}
+                  ethPrice={ethPrice}
                   trigger={
                     <Button className="w-full" size="sm">
-                      Deposit $5 USDC to Trade
+                      Deposit $10 USDC to Trade
                     </Button>
                   }
                 />
@@ -1015,6 +1124,27 @@ export function AgentControls({
               <Button
                 onClick={handleRemoveAgent}
                 disabled={isRemoving || isApproving}
+                variant="outline"
+                className="w-full text-xs"
+                size="sm"
+              >
+                {isRemoving ? 'Removing...' : 'Remove Account'}
+              </Button>
+            </div>
+
+          )}
+
+          {agentStatus === 'builder_approval_pending' && (
+            <div className="space-y-3 mt-4">
+
+
+              <Button onClick={handleApproveBuilder} disabled={isApprovingBuilder} className="w-full" size="sm">
+                {isApprovingBuilder ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Approve PillarX'}
+              </Button>
+
+              <Button
+                onClick={handleRemoveAgent}
+                disabled={isRemoving || isApprovingBuilder}
                 variant="outline"
                 className="w-full text-xs"
                 size="sm"
@@ -1087,6 +1217,7 @@ export function AgentControls({
             address={privateKeyModalState.address}
             privateKey={privateKeyModalState.privateKey}
             mode={privateKeyModalState.mode}
+            mainAddress={address || undefined}
             onClose={() =>
               setPrivateKeyModalState({
                 ...privateKeyModalState,
@@ -1096,6 +1227,6 @@ export function AgentControls({
           />
         </CollapsibleContent>
       </Collapsible>
-    </Card>
+    </Card >
   );
 }

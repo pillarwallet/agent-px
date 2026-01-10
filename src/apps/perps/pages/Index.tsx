@@ -88,7 +88,10 @@ const Index = () => {
         {/* Agent Controls */}
         {address && setupStatus === 'setup' && (
           <div className="mb-6">
-            <AgentControls onStatusChange={loadBalance} />
+            <AgentControls
+              onStatusChange={loadBalance}
+              ethPrice={availableAssets.find((a) => a.symbol === 'ETH')?.price}
+            />
           </div>
         )}
 
@@ -131,6 +134,7 @@ const Index = () => {
                 isLoading={isLoading}
                 masterAddress={address}
                 onRefresh={loadBalance}
+                ethPrice={availableAssets.find((a) => a.symbol === 'ETH')?.price}
               />
             )}
           </div>

@@ -22,6 +22,7 @@ export async function placeMarketOrderAgent(
     size: number;
     currentPrice: number;
     reduceOnly?: boolean;
+    builder?: { b: string; f: number };
   }
 ): Promise<any> {
   const client = getExchangeClientForAgent(privateKey);
@@ -45,6 +46,7 @@ export async function placeMarketOrderAgent(
       },
     ],
     grouping: 'na' as const,
+    builder: params.builder,
   };
 
   console.log('[SDK] Placing market order:', orderRequest);
@@ -65,6 +67,7 @@ export async function placeLimitOrderAgent(
     size: number;
     limitPrice: number;
     reduceOnly?: boolean;
+    builder?: { b: string; f: number };
   }
 ): Promise<any> {
   const client = getExchangeClientForAgent(privateKey);
@@ -78,6 +81,7 @@ export async function placeLimitOrderAgent(
         s: params.size.toString(),
         r: params.reduceOnly ?? false,
         t: { limit: { tif: 'Gtc' as const } },
+        ...(params.builder && { b: params.builder.b, f: params.builder.f }),
       },
     ],
     grouping: 'na' as const,
@@ -104,6 +108,7 @@ export async function placeTriggerOrderAgent(
     limitPrice: number;
     tpsl: 'tp' | 'sl';
     reduceOnly?: boolean;
+    builder?: { b: string; f: number };
   }
 ): Promise<any> {
   const client = getExchangeClientForAgent(privateKey);
@@ -125,6 +130,7 @@ export async function placeTriggerOrderAgent(
             tpsl: params.tpsl,
           },
         },
+        ...(params.builder && { b: params.builder.b, f: params.builder.f }),
       },
     ],
     grouping: 'na' as const,
@@ -179,6 +185,27 @@ export async function approveAgentSDK(
   console.log('[SDK] Approving agent:', agentAddress);
   const response = await client.approveAgent({ agentAddress, agentName });
   console.log('[SDK] Approve response:', response);
+
+  return response;
+}
+
+/**
+ * Approve builder fee using the SDK
+ */
+export async function approveBuilderFeeSDK(
+  masterPrivateKey: Hex,
+  builderAddress: string,
+  maxFeeRate: string // e.g. "0.1%" or "30bps" as string
+): Promise<any> {
+  const transport = new HttpTransport();
+  const client = new ExchangeClient({ wallet: masterPrivateKey, transport });
+
+  console.log('[SDK] Approving builder fee:', { builderAddress, maxFeeRate });
+  const response = await client.approveBuilderFee({
+    builder: builderAddress,
+    maxFeeRate,
+  });
+  console.log('[SDK] Approve builder fee response:', response);
 
   return response;
 }

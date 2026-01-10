@@ -18,6 +18,7 @@ interface PrivateKeyModalProps {
     privateKey: string;
     onClose: () => void;
     mode?: 'created' | 'revealed';
+    mainAddress?: string; // EOA Address
 }
 
 export function PrivateKeyModal({
@@ -25,7 +26,8 @@ export function PrivateKeyModal({
     address,
     privateKey,
     onClose,
-    mode = 'created'
+    mode = 'created',
+    mainAddress,
 }: PrivateKeyModalProps) {
     const [copied, setCopied] = useState(false);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -128,9 +130,9 @@ export function PrivateKeyModal({
 
                 <div className="space-y-4 py-2">
                     <div className="space-y-2">
-                        <Label>Wallet Address</Label>
+                        <Label>Main Wallet Address</Label>
                         <div className="text-sm font-mono bg-muted p-2 rounded break-all">
-                            {address}
+                            {mainAddress || address}
                         </div>
                     </div>
 
@@ -145,7 +147,7 @@ export function PrivateKeyModal({
                             />
                         </div>
                         <p className="text-[10px] text-muted-foreground">
-                            Do not share this key with anyone.
+                            This private key can be used to trade on any device. Simply import it.
                         </p>
                     </div>
 

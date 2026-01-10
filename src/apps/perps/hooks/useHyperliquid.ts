@@ -59,9 +59,39 @@ export function useHyperliquid() {
     console.log('DEBUG: Created walletClient for Hyperliquid:', client);
     console.log('address: ', client.account);
     // Always fetch assets on load
+    // Always fetch assets on load
     try {
-      const assets = await getAllAssets();
-      setAvailableAssets(assets);
+      // Use getMetaAndAssetCtxs to get both metadata and prices
+      const { getMetaAndAssetCtxs } = await import('../lib/hyperliquid/client');
+      const data = await getMetaAndAssetCtxs();
+      console.log('DEBUG: getMetaAndAssetCtxs result:', data);
+
+      if (data && data[0] && data[1]) {
+        const universe = data[0];
+        const assetCtxs = data[1];
+
+        const assets: EnhancedAsset[] = universe.map((u: any, index: number) => {
+          const ctx = assetCtxs[index];
+          return {
+            id: index,
+            symbol: u.name,
+            szDecimals: u.szDecimals,
+            maxLeverage: u.maxLeverage,
+            price: ctx ? parseFloat(ctx.markPx) : 0,
+            volume: ctx ? parseFloat(ctx.dayNtlVlm) : 0,
+            priceChange: 0, // Not provided directly
+            priceChangePercent: 0, // Not provided directly
+          };
+        });
+        console.log('DEBUG: Parsed assets with prices:', assets.slice(0, 3));
+        const ethAsset = assets.find(a => a.symbol === 'ETH');
+        console.log('DEBUG: ETH Asset found:', ethAsset);
+        setAvailableAssets(assets);
+      } else {
+        // Fallback if structure is unexpected
+        const assets = await getAllAssets();
+        setAvailableAssets(assets as EnhancedAsset[]);
+      }
     } catch (e) {
       console.error('Failed to fetch assets', e);
     }

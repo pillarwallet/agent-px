@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -35,6 +35,7 @@ import {
 import { parsePositionForSymbol } from '../lib/hyperliquid/parsers';
 import { PasteStrategyButton } from './PasteStrategyButton';
 import type { AssetInfo, UserState } from '../lib/hyperliquid/types';
+import { BUILDER_ADDRESS, BUILDER_FEE_ORDER } from '../lib/hyperliquid/builder';
 
 const tradeSchema = z
   .object({
@@ -94,6 +95,7 @@ export function TradeForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [minUSD, setMinUSD] = useState<number | null>(null);
+  const isStrategyPasteRef = useRef(false);
 
   const {
     register,
@@ -184,7 +186,8 @@ export function TradeForm({
   // Helper to calculate distance from price (Absolute %)
   const calculateDistance = (targetPrice: number, currentEntry: number) => {
     if (!currentEntry) return 0;
-    return Math.abs((targetPrice - currentEntry) / currentEntry) * 100;
+    const dist = Math.abs((targetPrice - currentEntry) / currentEntry) * 100;
+    return parseFloat(dist.toFixed(2));
   };
 
   // Helper to calculate price from distance
@@ -220,8 +223,13 @@ export function TradeForm({
         if (price) setMarketPrice(price);
       });
     } else if (selectedAsset && !isMarketOrder) {
-      // Pre-fill entry price with current asset price for Limit orders
-      setValue('entryPrice', selectedAsset.price);
+      if (isStrategyPasteRef.current) {
+        // Skip overwriting entry price if it came from a strategy paste
+        isStrategyPasteRef.current = false;
+      } else {
+        // Pre-fill entry price with current asset price for Limit orders
+        setValue('entryPrice', selectedAsset.price);
+      }
     }
   }, [selectedAsset, isMarketOrder, setValue]);
 
@@ -322,6 +330,12 @@ export function TradeForm({
       );
     }
 
+    // If we are currently in market mode, switching to limit mode will trigger the useEffect
+    // that sets entry price. We need to flag this to avoid overwriting the strategy price.
+    if (isMarketOrder || (selectedAsset && selectedAsset.symbol !== strategy.ticker)) {
+      isStrategyPasteRef.current = true;
+    }
+
     setIsMarketOrder(false); // Always use limit order for pasted strategies
   };
 
@@ -377,6 +391,14 @@ export function TradeForm({
     else {
       const agent = await getAgentWallet(masterAddress);
       if (agent?.approved) {
+        if (!agent.builderApproved) {
+          toast.error('PillarX Approval Required', {
+            description: 'Please go to Settings > Perps Account and approve PillarX to start trading.',
+            duration: 5000,
+          });
+          setIsSubmitting(false); // Reset loading state
+          return;
+        }
         privateKey = agent.privateKey;
         signingAddress = masterAddress; // Agent trades on behalf of master
       }
@@ -452,6 +474,7 @@ export function TradeForm({
           isBuy: data.side === 'long',
           size,
           currentPrice: entryPrice,
+          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
         });
       } else {
         await placeLimitOrderAgent(privateKey as `0x${string}`, {
@@ -460,6 +483,7 @@ export function TradeForm({
           size,
           limitPrice: entryPrice,
           reduceOnly: false,
+          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
         });
       }
 
@@ -483,6 +507,7 @@ export function TradeForm({
           limitPrice: slLimitPrice,
           tpsl: 'sl',
           reduceOnly: true,
+          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
         });
       }
 
@@ -526,6 +551,7 @@ export function TradeForm({
             limitPrice: tpLimitPrice,
             tpsl: 'tp',
             reduceOnly: true,
+            builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
           });
         }
       }
@@ -964,7 +990,7 @@ export function TradeForm({
                   <Input
                     type="number"
                     step="any"
-                    className="border-0 bg-transparent px-3 py-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                    className="border-0 bg-transparent px-3 py-1 text-[16px] md:text-sm focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
                     placeholder="Price"
                     {...register(`takeProfits.${index}.price` as const, {
                       valueAsNumber: true,

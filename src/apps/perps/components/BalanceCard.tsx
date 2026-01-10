@@ -13,6 +13,7 @@ interface BalanceCardProps {
   masterAddress: string;
   onRefresh?: () => void;
   isImported?: boolean;
+  ethPrice?: number;
 }
 
 export function BalanceCard({
@@ -21,6 +22,7 @@ export function BalanceCard({
   masterAddress,
   onRefresh,
   isImported,
+  ethPrice,
 }: BalanceCardProps) {
   const accountEquity = parseFloat(
     userState.marginSummary?.accountValue || '0'
@@ -53,6 +55,7 @@ export function BalanceCard({
           <DepositModal
             userState={userState}
             disabled={isImported}
+            ethPrice={ethPrice}
             trigger={
               isMobile ? (
                 <Button

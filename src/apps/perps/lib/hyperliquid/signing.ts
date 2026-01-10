@@ -104,6 +104,7 @@ export function buildOrderAction(params: {
   limitPx: number;
   orderType: { limit?: { tif: string }; trigger?: any };
   reduceOnly: boolean;
+  builder?: { b: string; f: number };
 }): HyperliquidAction {
   return {
     type: 'order',
@@ -115,6 +116,7 @@ export function buildOrderAction(params: {
         s: params.sz.toString(),
         r: params.reduceOnly,
         t: params.orderType,
+        ...(params.builder && { b: params.builder.b, f: params.builder.f }),
       },
     ],
     grouping: 'na',
@@ -131,7 +133,22 @@ export function buildApproveAgentAction(params: {
     hyperliquidChain: 'Mainnet',
     signatureChainId: SIGNATURE_CHAIN_ID,
     agentAddress: params.agentAddress,
-    agentName: params.agentName || 'Trading-Agent',
+    agentName: params.agentName || 'PillarX-Agent',
+    nonce: params.nonce,
+  };
+}
+
+export function buildApproveBuilderFeeAction(params: {
+  maxFeeRate: string; // "0.1%" or "30bps" etc, but passed as percentage string e.g. "0.3%"
+  builderAddress: string;
+  nonce: number;
+}): HyperliquidAction {
+  return {
+    type: 'approveBuilderFee',
+    hyperliquidChain: 'Mainnet',
+    signatureChainId: SIGNATURE_CHAIN_ID,
+    maxFeeRate: params.maxFeeRate,
+    builder: params.builderAddress,
     nonce: params.nonce,
   };
 }
@@ -175,6 +192,45 @@ export function getApproveAgentTypedData(
   };
 }
 
+// Helper to get EIP-712 data for Approve Builder Fee
+export function getApproveBuilderFeeTypedData(
+  hyperliquidChain: string,
+  signatureChainId: string,
+  maxFeeRate: string,
+  builder: string,
+  nonce: number
+) {
+  const types = {
+    'HyperliquidTransaction:ApproveBuilderFee': [
+      { name: 'hyperliquidChain', type: 'string' },
+      { name: 'maxFeeRate', type: 'string' },
+      { name: 'builder', type: 'address' },
+      { name: 'nonce', type: 'uint64' },
+    ],
+  };
+
+  const domain = {
+    name: 'HyperliquidSignTransaction',
+    version: '1',
+    chainId: parseInt(signatureChainId, 16),
+    verifyingContract: '0x0000000000000000000000000000000000000000' as const,
+  };
+
+  const message = {
+    hyperliquidChain,
+    maxFeeRate,
+    builder,
+    nonce,
+  };
+
+  return {
+    domain,
+    types,
+    primaryType: 'HyperliquidTransaction:ApproveBuilderFee',
+    message,
+  };
+}
+
 export async function signApproveAgentAction(
   walletClient: WalletClient,
   action: any
@@ -188,6 +244,38 @@ export async function signApproveAgentAction(
     action.signatureChainId,
     action.agentAddress,
     action.agentName,
+    action.nonce
+  );
+
+  const signature = await walletClient.signTypedData({
+    account: walletClient.account,
+    domain,
+    types,
+    primaryType,
+    message,
+  });
+
+  // Parse signature
+  const r = signature.slice(0, 66);
+  const s = '0x' + signature.slice(66, 130);
+  const v = parseInt(signature.slice(130, 132), 16);
+
+  return { r, s, v };
+}
+
+export async function signApproveBuilderFeeAction(
+  walletClient: WalletClient,
+  action: any
+): Promise<{ r: string; s: string; v: number }> {
+  if (!walletClient.account) {
+    throw new Error('No account connected');
+  }
+
+  const { domain, types, primaryType, message } = getApproveBuilderFeeTypedData(
+    action.hyperliquidChain,
+    action.signatureChainId,
+    action.maxFeeRate,
+    action.builder,
     action.nonce
   );
 

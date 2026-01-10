@@ -37,6 +37,10 @@ import { toast } from 'sonner';
 import {
   getAgentWallet,
   getImportedAccount,
+  isAgentWalletEncrypted,
+  unlockAgentWallet,
+  unlockImportedAccount,
+  isImportedAccountEncrypted,
 } from '../lib/hyperliquid/keystore';
 import {
   placeMarketOrderAgent,
@@ -50,12 +54,13 @@ import {
   getUserFills,
 } from '../lib/hyperliquid/client';
 import { TokenIcon } from './TokenIcon';
+import { UnlockWalletModal } from './UnlockWalletModal';
 
 interface PositionsCardProps {
   masterAddress: string;
   onPositionClick?: (symbol: string) => void;
   onRefresh?: () => void;
-  userState?: UserState; // Using any for now to avoid strict type issues with passed state, or  userState?: UserState;
+  userState?: any; // Using any for now to avoid strict type issues with passed state, or  userState?: UserState;
   assetPositions?: HyperliquidPosition[]; // Direct pass-through
   openOrders?: HyperliquidOrder[];
 }
@@ -82,6 +87,10 @@ export function PositionsCard({
   const [universe, setUniverse] = useState<UniverseAsset[]>([]);
   const [openOrders, setOpenOrders] = useState<HyperliquidOrder[]>([]);
   const [internalUserState, setInternalUserState] = useState<UserState | null>(null);
+
+  // Unlock Modal State
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: 'close' | 'cancel', data?: any } | null>(null);
 
 
   const handlePositionClick = (coin: string) => {
@@ -288,10 +297,19 @@ export function PositionsCard({
         }
       }
 
-      if (!privateKey)
+      if (!privateKey) {
+        // CHECK FOR LOCKED STATE
+        if (isImportedAccountEncrypted() || isAgentWalletEncrypted(masterAddress)) {
+          setPendingAction({ type: 'close' });
+          setShowUnlockModal(true);
+          setIsClosing(false); // Reset loading state
+          return;
+        }
+
         throw new Error(
           'Agent not found. Please import an account or create an agent.'
         );
+      }
 
       // Use cached universe to find coin ID
       const coinIndex = universe.findIndex(
@@ -366,6 +384,14 @@ export function PositionsCard({
       }
 
       if (!privateKey) {
+        // CHECK FOR LOCKED STATE
+        if (isImportedAccountEncrypted() || isAgentWalletEncrypted(masterAddress)) {
+          toast.dismiss(loadingToast);
+          setPendingAction({ type: 'cancel', data: oid });
+          setShowUnlockModal(true);
+          return;
+        }
+
         toast.dismiss(loadingToast);
         toast.error('Agent wallet not found');
         return;
@@ -477,8 +503,53 @@ export function PositionsCard({
     };
   };
 
+
+  const handleUnlock = async (pin: string): Promise<boolean> => {
+    try {
+      // Try unlocking imported account first
+      if (isImportedAccountEncrypted()) {
+        const unlocked = await unlockImportedAccount(pin);
+        if (unlocked) {
+          setShowUnlockModal(false);
+          // Retry pending action
+          if (pendingAction?.type === 'close') {
+            handleExecuteClose();
+          } else if (pendingAction?.type === 'cancel' && pendingAction.data) {
+            handleCancelOrder(pendingAction.data);
+          }
+          setPendingAction(null);
+          return true;
+        }
+      }
+
+      // Try unlocking agent wallet
+      if (isAgentWalletEncrypted(masterAddress)) {
+        const unlocked = await unlockAgentWallet(masterAddress, pin);
+        if (unlocked) {
+          setShowUnlockModal(false);
+          // Retry pending action
+          if (pendingAction?.type === 'close') {
+            handleExecuteClose();
+          } else if (pendingAction?.type === 'cancel' && pendingAction.data) {
+            handleCancelOrder(pendingAction.data);
+          }
+          setPendingAction(null);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.error('Unlock failed', e);
+    }
+    return false;
+  };
+
   return (
     <Card className="w-full">
+      <UnlockWalletModal
+        isOpen={showUnlockModal}
+        onUnlock={handleUnlock}
+        onClose={() => setShowUnlockModal(false)}
+      />
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
         <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground">
           <DialogHeader>
