@@ -34,9 +34,15 @@ export function UnlockWalletModal({ isOpen, onUnlock, onClose }: UnlockWalletMod
             setIsLoading(false);
         } else {
             // Auto-focus the input when modal opens
+            // Attempt 1: Fast (for desktop/fast devices)
             setTimeout(() => {
                 inputRef.current?.focus();
-            }, 100);
+            }, 50);
+
+            // Attempt 2: Slower (for mobile animations to finish)
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 500);
         }
     }, [isOpen]);
 
