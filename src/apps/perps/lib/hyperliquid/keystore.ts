@@ -69,8 +69,19 @@ export async function unlockAgentWallet(
 
   const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
   const encryptedkeyData = localStorage.getItem(getStorageKey(masterAddress, 'encrypted_key'));
-  const approved = localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
-  const builderApproved = localStorage.getItem(getStorageKey(masterAddress, 'builder_approved')) === 'true';
+  const approvedItem = localStorage.getItem(getStorageKey(masterAddress, 'approved'));
+  const approved = approvedItem === 'true';
+  if (approvedItem !== null && approvedItem !== 'true' && approvedItem !== 'false') {
+    console.warn(`[Keystore] Invalid key 'approved' value: ${approvedItem}`);
+    localStorage.removeItem(getStorageKey(masterAddress, 'approved'));
+  }
+
+  const builderApprovedItem = localStorage.getItem(getStorageKey(masterAddress, 'builder_approved'));
+  const builderApproved = builderApprovedItem === 'true';
+  if (builderApprovedItem !== null && builderApprovedItem !== 'true' && builderApprovedItem !== 'false') {
+    console.warn(`[Keystore] Invalid key 'builder_approved' value: ${builderApprovedItem}`);
+    localStorage.removeItem(getStorageKey(masterAddress, 'builder_approved'));
+  }
 
   if (!address || !encryptedkeyData) {
     // Fallback using deprecated plaintext for migration/legacy support
@@ -138,10 +149,20 @@ export function getAgentWalletLocal(
   const privateKey = localStorage.getItem(
     getStorageKey(masterAddress, 'key')
   ) as Hex;
-  const approved =
-    localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
-  const builderApproved =
-    localStorage.getItem(getStorageKey(masterAddress, 'builder_approved')) === 'true';
+  // Defensive check for boolean values to prevent type errors
+  const approvedItem = localStorage.getItem(getStorageKey(masterAddress, 'approved'));
+  const approved = approvedItem === 'true';
+  if (approvedItem !== null && approvedItem !== 'true' && approvedItem !== 'false') {
+    console.warn(`[Keystore] Invalid 'approved' value found: ${approvedItem}. Clearing.`);
+    localStorage.removeItem(getStorageKey(masterAddress, 'approved'));
+  }
+
+  const builderApprovedItem = localStorage.getItem(getStorageKey(masterAddress, 'builder_approved'));
+  const builderApproved = builderApprovedItem === 'true';
+  if (builderApprovedItem !== null && builderApprovedItem !== 'true' && builderApprovedItem !== 'false') {
+    console.warn(`[Keystore] Invalid 'builder_approved' value found: ${builderApprovedItem}. Clearing.`);
+    localStorage.removeItem(getStorageKey(masterAddress, 'builder_approved'));
+  }
 
   if (!address || !privateKey) return null;
 
@@ -309,6 +330,10 @@ export function updateBuilderApproval(
   approved: boolean
 ): void {
   if (typeof window === 'undefined') return;
+  if (typeof approved !== 'boolean') {
+    console.warn('[Keystore] updateBuilderApproval called with non-boolean:', approved);
+    approved = !!approved;
+  }
   localStorage.setItem(getStorageKey(masterAddress, 'builder_approved'), String(approved));
 }
 
@@ -334,8 +359,10 @@ export async function getAgentWallet(
   if (cachedPrivateKey) {
     const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
     if (address) {
-      const approved = localStorage.getItem(getStorageKey(masterAddress, 'approved')) === 'true';
-      const builderApproved = localStorage.getItem(getStorageKey(masterAddress, 'builder_approved')) === 'true';
+      const approvedItem = localStorage.getItem(getStorageKey(masterAddress, 'approved'));
+      const approved = approvedItem === 'true';
+      const builderApprovedItem = localStorage.getItem(getStorageKey(masterAddress, 'builder_approved'));
+      const builderApproved = builderApprovedItem === 'true';
       resetInactivityTimer(); // Reset session timeout on wallet access
       return { address, privateKey: cachedPrivateKey, approved, builderApproved };
     }
