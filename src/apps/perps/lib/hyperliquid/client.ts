@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { isTestnet } from '../../../utils/blockchain';
+import { isTestnet } from '../../../../utils/blockchain';
 import type { SignedAction, UserState, AssetInfo, HyperliquidOrder, UniverseAsset, AssetContext } from './types';
 
 const BASE_URL = isTestnet
