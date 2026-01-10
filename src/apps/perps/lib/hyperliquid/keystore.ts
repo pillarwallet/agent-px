@@ -234,6 +234,7 @@ export async function unlockImportedAccount(
 
     cachedImportedKey = privateKey as Hex;
     resetInactivityTimer(); // Reset session timeout on imported account unlock
+    window.dispatchEvent(new Event('imported-account-changed'));
 
     return {
       accountAddress: address,

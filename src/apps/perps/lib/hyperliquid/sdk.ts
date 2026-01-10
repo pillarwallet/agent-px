@@ -197,8 +197,9 @@ export async function approveBuilderFeeSDK(
   builderAddress: string,
   maxFeeRate: string // e.g. "0.1%" or "30bps" as string
 ): Promise<any> {
+  const account = privateKeyToAccount(masterPrivateKey);
   const transport = new HttpTransport();
-  const client = new ExchangeClient({ wallet: masterPrivateKey, transport });
+  const client = new ExchangeClient({ wallet: account, transport });
 
   console.log('[SDK] Approving builder fee:', { builderAddress, maxFeeRate });
   const response = await client.approveBuilderFee({

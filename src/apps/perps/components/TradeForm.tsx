@@ -20,9 +20,11 @@ import { toast } from 'sonner';
 import {
   getAgentWallet,
   getImportedAccount,
+  getImportedAccountAddress,
+  isImportedAccountEncrypted,
 } from '../lib/hyperliquid/keystore';
 import { getMarkPrice, getUserState } from '../lib/hyperliquid/client';
-import { useWalletClient } from 'wagmi';
+import { useWalletClient, useAccount } from 'wagmi';
 import { useHyperliquid } from '../hooks/useHyperliquid';
 import { computeSizeUSD, roundToSzDecimals } from '../lib/hyperliquid/order';
 import { TokenIcon } from './TokenIcon';
@@ -35,7 +37,8 @@ import {
 import { parsePositionForSymbol } from '../lib/hyperliquid/parsers';
 import { PasteStrategyButton } from './PasteStrategyButton';
 import type { AssetInfo, UserState } from '../lib/hyperliquid/types';
-import { BUILDER_ADDRESS, BUILDER_FEE_ORDER } from '../lib/hyperliquid/builder';
+import { BUILDER_ADDRESS, BUILDER_FEE_ORDER, BUILDER_FEE_APPROVAL } from '../lib/hyperliquid/builder';
+import { approveBuilderFeeSDK } from '../lib/hyperliquid/sdk';
 
 const tradeSchema = z
   .object({
@@ -91,6 +94,7 @@ export function TradeForm({
   userState,
 }: TradeFormProps) {
   const { address: masterAddress } = useHyperliquid();
+  const { address: connectedAddress } = useAccount();
   const [isMarketOrder, setIsMarketOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
@@ -381,14 +385,38 @@ export function TradeForm({
     let signingAddress: string | undefined = masterAddress;
 
     // 1. Check for Imported Account (Priority)
+    // We use getImportedAccountAddress() to check if an account EXISTs, regardless of lock state.
+    const importedAddress = getImportedAccountAddress();
     const imported = getImportedAccount();
-    if (imported) {
-      privateKey = imported.privateKey;
-      signingAddress = imported.accountAddress;
-      console.log('DEBUG: Using imported account', { signingAddress });
+
+    console.log('[TradeForm] Wallet Selection Debug:', {
+      importedAddress,
+      hasImportedKey: !!imported,
+      masterAddress,
+      connectedAddress
+    });
+
+    if (importedAddress) {
+      if (imported) {
+        // Unlocked and ready
+        privateKey = imported.privateKey;
+        signingAddress = imported.accountAddress;
+        console.log('DEBUG: Using imported account', { signingAddress });
+      } else {
+        // Exists but locked (or corrupted, but assume locked)
+        console.log('DEBUG: Imported account is locked');
+        toast.error('Imported account is locked', {
+          id: toastId,
+          description: 'Please unlock your imported account in Settings > Accounts to trade.',
+          duration: 5000,
+        });
+        setIsSubmitting(false);
+        return;
+      }
     }
     // 2. Fallback to Agent Wallet linked to connected wallet
     else {
+      console.log('DEBUG: Fallback to agent wallet');
       const agent = await getAgentWallet(masterAddress);
       if (agent?.approved) {
         if (!agent.builderApproved) {
@@ -405,16 +433,18 @@ export function TradeForm({
     }
 
     if (!privateKey) {
+      console.log('DEBUG: No private key found');
       toast.error(
         'No active signing wallet found. Please create an agent or import an account.',
         { id: toastId }
       );
-      console.log('DEBUG: Failed to find privateKey', {
-        masterAddress,
-        privateKey,
-      });
       return;
     }
+
+    // Only apply builder fee if the signing address matches the connected wallet (Master)
+    // If using an imported account that is different from the connected wallet, we cannot approve the builder fee
+    // because the connected wallet (Master) cannot sign for the imported account.
+    const useBuilderFee = signingAddress === masterAddress;
 
     setIsSubmitting(true);
     try {
@@ -478,13 +508,28 @@ export function TradeForm({
       // Place entry order via SDK
       // toast.info('Placing entry order...');
 
+      // Determine builder fee parameters
+      // 1. We are NOT using an imported account (i.e. we are using the Agent)
+      // 2. The signing address matches the master address (Agent Flow)
+      // If we are using an imported account, we NEVER apply builder fees for now to avoid the "approve" loop issue.
+      // Even if imported address match master, we treat it as "User Trading" not "Agent Trading".
+      const useBuilderFee = !imported && (signingAddress === masterAddress);
+
+      console.log('[TradeForm] Builder Fee Debug:', {
+        masterAddress,
+        signingAddress,
+        useBuilderFee,
+        isImported: !!imported
+      });
+
+
       if (isMarketOrder) {
         await placeMarketOrderAgent(privateKey as `0x${string}`, {
           coinId: selectedAsset.id,
           isBuy: data.side === 'long',
           size,
           currentPrice: entryPrice,
-          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
+          builder: useBuilderFee ? { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER } : undefined,
         });
       } else {
         await placeLimitOrderAgent(privateKey as `0x${string}`, {
@@ -493,7 +538,7 @@ export function TradeForm({
           size,
           limitPrice: entryPrice,
           reduceOnly: false,
-          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
+          builder: useBuilderFee ? { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER } : undefined,
         });
       }
 
@@ -517,7 +562,7 @@ export function TradeForm({
           limitPrice: slLimitPrice,
           tpsl: 'sl',
           reduceOnly: true,
-          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
+          builder: useBuilderFee ? { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER } : undefined,
         });
       }
 
@@ -561,7 +606,7 @@ export function TradeForm({
             limitPrice: tpLimitPrice,
             tpsl: 'tp',
             reduceOnly: true,
-            builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER },
+            builder: useBuilderFee ? { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER } : undefined,
           });
         }
       }
@@ -599,6 +644,58 @@ export function TradeForm({
       }
     } catch (error: any) {
       console.error('Trade error:', error);
+
+      // Handle "Builder fee has not been approved"
+      // We only attempt to auto-approve if we are using an Imported Account AND it matches the signing address.
+      // If we are using Agent (fallback), we cannot auto-approve because we don't have the Master key.
+      if (
+        useBuilderFee &&
+        (error?.message?.includes('Builder fee has not been approved') ||
+          error?.response?.data?.includes('Builder fee has not been approved'))
+      ) {
+        // If useBuilderFee is true, it means signingAddress === masterAddress
+
+        // Check if we are using an imported account that effectively IS the master
+        const imported = getImportedAccount();
+        if (imported && imported.accountAddress.toLowerCase() === masterAddress?.toLowerCase()) {
+          try {
+            toast.info('Approving Builder Fee...', {
+              id: toastId,
+              description: 'One-time approval required for trading.',
+            });
+
+            await approveBuilderFeeSDK(
+              imported.privateKey,
+              BUILDER_ADDRESS,
+              BUILDER_FEE_APPROVAL
+            );
+
+            toast.success('Builder Fee Approved!', {
+              id: toastId,
+              description: 'Please try placing your order again.',
+              duration: 5000,
+            });
+            return; // Exit without showing generic error
+          } catch (approvalError: any) {
+            console.error('Failed to auto-approve builder fee:', approvalError);
+            toast.error('Failed to approve builder fee', {
+              id: toastId,
+              description: approvalError.message,
+            });
+            return;
+          }
+        } else {
+          // We are using Agent (or Master Wallet via some other means) but don't have the private key to approve.
+          toast.error('Builder Fee Not Approved', {
+            id: toastId,
+            description: 'Please go to Settings > Perps Account and approve PillarX.',
+            duration: 5000
+          });
+          return;
+        }
+      }
+
+
       toast.error(error.message || 'Failed to place trade', { id: toastId });
     } finally {
       setIsSubmitting(false);
