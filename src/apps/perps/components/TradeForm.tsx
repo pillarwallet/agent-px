@@ -458,10 +458,20 @@ export function TradeForm({
         );
       } catch (leverageError: any) {
         console.error('[TradeForm] Failed to update leverage:', leverageError);
-        toast.error('Failed to set leverage/margin mode', {
-          id: toastId,
-          description: leverageError.message || 'Please try again',
-        });
+
+        const errorMessage = leverageError.message || '';
+        if (errorMessage.includes('does not exist')) {
+          toast.error('Account not initialized', {
+            id: toastId,
+            description: 'Please deposit funds into your Hyperliquid account first to enable trading features.',
+            duration: 5000,
+          });
+        } else {
+          toast.error('Failed to set leverage/margin mode', {
+            id: toastId,
+            description: errorMessage || 'Please try again',
+          });
+        }
         return;
       }
 

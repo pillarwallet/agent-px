@@ -1,8 +1,13 @@
 import axios from 'axios';
+import { isTestnet } from '../../../utils/blockchain';
 import type { SignedAction, UserState, AssetInfo, HyperliquidOrder, UniverseAsset, AssetContext } from './types';
 
-const EXCHANGE_URL = 'https://api.hyperliquid.xyz/exchange';
-const INFO_URL = 'https://api.hyperliquid.xyz/info';
+const BASE_URL = isTestnet
+  ? 'https://api.hyperliquid-testnet.xyz'
+  : 'https://api.hyperliquid.xyz';
+
+const EXCHANGE_URL = `${BASE_URL}/exchange`;
+const INFO_URL = `${BASE_URL}/info`;
 
 export async function postExchange(signedAction: SignedAction): Promise<any> {
   try {

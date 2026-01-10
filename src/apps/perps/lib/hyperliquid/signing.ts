@@ -116,10 +116,10 @@ export function buildOrderAction(params: {
         s: params.sz.toString(),
         r: params.reduceOnly,
         t: params.orderType,
-        ...(params.builder && { b: params.builder.b, f: params.builder.f }),
       },
     ],
     grouping: 'na',
+    ...(params.builder && { builder: params.builder }),
   };
 }
 

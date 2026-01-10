@@ -81,10 +81,10 @@ export async function placeLimitOrderAgent(
         s: params.size.toString(),
         r: params.reduceOnly ?? false,
         t: { limit: { tif: 'Gtc' as const } },
-        ...(params.builder && { b: params.builder.b, f: params.builder.f }),
       },
     ],
     grouping: 'na' as const,
+    builder: params.builder,
   };
 
   console.log('[SDK] Placing limit order:', orderRequest);
@@ -130,10 +130,10 @@ export async function placeTriggerOrderAgent(
             tpsl: params.tpsl,
           },
         },
-        ...(params.builder && { b: params.builder.b, f: params.builder.f }),
       },
     ],
     grouping: 'na' as const,
+    builder: params.builder,
   };
 
   console.log('[SDK] Placing trigger order:', orderRequest);
