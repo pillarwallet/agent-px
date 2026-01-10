@@ -45,19 +45,47 @@ export function useHyperliquid() {
   const provider = kit.getProvider();
 
   const checkSetupStatus = useCallback(async () => {
-    const walletProvider = kit.getEtherspotProvider();
-    const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
-    setAddress(eoa);
-    console.log('DEBUG: Wallet Provider:', eoa);
+    // 1. Check for Imported Account (Priority)
+    const { getImportedAccount } = await import('../lib/hyperliquid/keystore');
+    const importedAccount = getImportedAccount();
 
-    const client = createWalletClient({
-      account: eoa as `0x${string}`,
-      chain: arbitrum,
-      transport: custom(provider as any),
-    });
+    let targetAddress: string | null = null;
+    let client: any = null;
+    let isImported = false;
+
+    if (importedAccount) {
+      console.log('DEBUG: Using Imported Account:', importedAccount.accountAddress);
+      targetAddress = importedAccount.accountAddress;
+
+      // Create WalletClient from Private Key
+      const { privateKeyToAccount } = await import('viem/accounts');
+      const account = privateKeyToAccount(importedAccount.privateKey as `0x${string}`);
+
+      client = createWalletClient({
+        account,
+        chain: arbitrum,
+        transport: custom(provider as any),
+      });
+      isImported = true;
+    } else {
+      // 2. Fallback to Connected Wallet
+      const walletProvider = kit.getEtherspotProvider();
+      const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
+      console.log('DEBUG: Wallet Provider EOA:', eoa);
+
+      if (eoa) {
+        targetAddress = eoa;
+        client = createWalletClient({
+          account: eoa as `0x${string}`,
+          chain: arbitrum,
+          transport: custom(provider as any),
+        });
+      }
+    }
+
+    setAddress(targetAddress);
     setWalletClient(client);
-    console.log('DEBUG: Created walletClient for Hyperliquid:', client);
-    console.log('address: ', client.account);
+    console.log('DEBUG: Active Client Account:', client?.account?.address);
     // Always fetch assets on load
     // Always fetch assets on load
     try {
@@ -96,7 +124,7 @@ export function useHyperliquid() {
       console.error('Failed to fetch assets', e);
     }
 
-    if (!eoa) {
+    if (!targetAddress) {
       setSetupStatus('unknown');
       setActiveAddress(null);
       return;
@@ -104,13 +132,13 @@ export function useHyperliquid() {
 
     setIsLoading(true);
     try {
-      console.log('DEBUG: Checking setup status for:', eoa);
+      console.log('DEBUG: Checking setup status for:', targetAddress);
 
       // 1. Fetch Main Address Data
-      let targetAddress: string = eoa;
-      let state = await getUserState(eoa);
+      // Note: targetAddress is already set to either imported or eoa
+      let state = await getUserState(targetAddress);
       console.log('state: ', state);
-      let orders = await getOpenOrders(eoa);
+      let orders = await getOpenOrders(targetAddress);
 
       // 2. Check Agent Address
       // Unconditional switch: If an agent is linked, we use it.
@@ -157,11 +185,28 @@ export function useHyperliquid() {
   }, []);
 
   const setupHyperliquid = useCallback(async () => {
-    const walletClient = createWalletClient({
-      account: address as `0x${string}`,
-      chain: arbitrum,
-      transport: custom(provider as any),
-    });
+    // Check for Imported Account logic again to ensure valid signer
+    const { getImportedAccount } = await import('../lib/hyperliquid/keystore');
+    const importedAccount = getImportedAccount();
+
+    let client;
+    if (importedAccount && importedAccount.accountAddress === address) {
+      const { privateKeyToAccount } = await import('viem/accounts');
+      const account = privateKeyToAccount(importedAccount.privateKey as `0x${string}`);
+      client = createWalletClient({
+        account,
+        chain: arbitrum,
+        transport: custom(provider as any),
+      });
+    } else {
+      client = createWalletClient({
+        account: address as `0x${string}`,
+        chain: arbitrum,
+        transport: custom(provider as any),
+      });
+    }
+
+    const walletClient = client;
     if (!walletClient || !address) {
       toast.error('Please connect your wallet first');
       return;
@@ -244,11 +289,27 @@ export function useHyperliquid() {
 
   const executeCopyTrade = useCallback(
     async (tile: CopyTile) => {
-      const walletClient = createWalletClient({
-        account: address as `0x${string}`,
-        chain: arbitrum,
-        transport: custom(provider as any),
-      });
+      // Check for Imported Account logic again to ensure valid signer
+      const { getImportedAccount } = await import('../lib/hyperliquid/keystore');
+      const importedAccount = getImportedAccount();
+
+      let client;
+      if (importedAccount && importedAccount.accountAddress === address) {
+        const { privateKeyToAccount } = await import('viem/accounts');
+        const account = privateKeyToAccount(importedAccount.privateKey as `0x${string}`);
+        client = createWalletClient({
+          account,
+          chain: arbitrum,
+          transport: custom(provider as any),
+        });
+      } else {
+        client = createWalletClient({
+          account: address as `0x${string}`,
+          chain: arbitrum,
+          transport: custom(provider as any),
+        });
+      }
+      const walletClient = client;
       if (!walletClient || !address) {
         toast.error('Please connect your wallet');
         return;
@@ -328,7 +389,17 @@ export function useHyperliquid() {
   // Call checkSetupStatus on mount to initialize the address
   useEffect(() => {
     checkSetupStatus();
-  }, []);
+
+    const handleImportChange = () => {
+      console.log('DEBUG: Imported account changed, refreshing setup status...');
+      checkSetupStatus();
+    };
+
+    window.addEventListener('imported-account-changed', handleImportChange);
+    return () => {
+      window.removeEventListener('imported-account-changed', handleImportChange);
+    };
+  }, [checkSetupStatus]);
 
   return {
     setupStatus,

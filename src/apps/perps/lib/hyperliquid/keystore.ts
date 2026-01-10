@@ -211,6 +211,7 @@ export async function storeImportedAccountEncrypted(
     // Cache it
     cachedImportedKey = privateKey;
     resetInactivityTimer(); // Reset session timeout on imported account storage
+    window.dispatchEvent(new Event('imported-account-changed'));
   } catch (error) {
     console.error('Failed to encrypt imported account:', error);
     throw new Error('Encryption failed');
@@ -313,6 +314,7 @@ export function clearImportedAccount(): void {
   localStorage.removeItem(GLOBAL_IMPORTED_ENCRYPTED_KEY);
   // Note: clearSession() already clears cachedImportedKey, but we call it to also clear agent wallet cache
   clearSession();
+  window.dispatchEvent(new Event('imported-account-changed'));
 }
 
 // Combined functions facade
