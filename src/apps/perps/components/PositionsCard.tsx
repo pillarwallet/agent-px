@@ -804,7 +804,7 @@ export function PositionsCard({
               ) : (
                 <div className="space-y-1">
                   {!isMobile && (
-                    <div className="grid grid-cols-[0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 px-2 pb-2 text-xs text-muted-foreground font-semibold uppercase tracking-wider text-right">
+                    <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 px-2 pb-2 text-xs text-muted-foreground font-semibold uppercase tracking-wider text-right">
                       <div className="text-left">Coin</div>
                       <div>Size</div>
                       <div>Entry</div>
@@ -995,9 +995,9 @@ export function PositionsCard({
                           handlePositionClick(position.coin);
                           setExpandedPositionIndex(index);
                         }}
-                        className="grid grid-cols-[0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 p-3 bg-card/50 hover:bg-muted/50 active:bg-muted transition-colors rounded-lg items-center text-sm cursor-pointer border border-transparent hover:border-border/50 text-right"
+                        className="grid grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 p-3 bg-card/50 hover:bg-muted/50 active:bg-muted transition-colors rounded-lg items-center text-sm cursor-pointer border border-transparent hover:border-border/50 text-right"
                       >
-                        <div className="flex items-center gap-2 text-left font-bold text-sm text-foreground overflow-hidden">
+                        <div className="flex items-center gap-2 text-left font-bold text-sm text-foreground">
                           <TokenIcon
                             symbol={position.coin}
                             size={20}
