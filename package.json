@@ -12,7 +12,6 @@
     "test:update": "vitest -u",
     "test:ci": "vitest run --coverage",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org pillar-project --project x ./build && sentry-cli sourcemaps upload --org pillar-project --project x ./build",
-    "postinstall": "if [ -z \"$CF_PAGES\" ]; then patch-package; fi",
     "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{js,jsx,ts,tsx}' --fix",
     "format": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'"
