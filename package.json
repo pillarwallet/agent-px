@@ -11,6 +11,7 @@
     "test:watch": "eslint . && vitest",
     "test:update": "vitest -u",
     "test:ci": "vitest run --coverage",
+    "build:ci": "bash scripts/build-ci.sh",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org pillar-project --project x ./build && sentry-cli sourcemaps upload --org pillar-project --project x ./build",
     "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{js,jsx,ts,tsx}' --fix",
