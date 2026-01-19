@@ -33,6 +33,18 @@ const InputOTPSlot = React.forwardRef<
   React.ComponentPropsWithoutRef<'div'> & { index: number; masked?: boolean }
 >(({ index, className, masked, ...props }, ref) => {
   const inputOTPContext = React.useContext(OTPInputContext);
+
+  // Defensive checks for context and index bounds
+  if (!inputOTPContext || !inputOTPContext.slots || !Array.isArray(inputOTPContext.slots)) {
+    console.warn('[InputOTPSlot] Component used outside OTPInput provider');
+    return null;
+  }
+
+  if (!Number.isFinite(index) || index < 0 || index >= inputOTPContext.slots.length) {
+    console.warn(`[InputOTPSlot] Invalid index: ${index}`);
+    return null;
+  }
+
   const { char, hasFakeCaret, isActive } = inputOTPContext.slots[index];
 
   return (

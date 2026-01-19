@@ -99,7 +99,7 @@ export async function depositUSDC(
   const deadline = Math.floor(Date.now() / 1000) + 3600; // +1 hour
 
   const domain = {
-    name: 'USD Coin',
+    name: 'USDC',
     version: '2',
     chainId: 42161,
     verifyingContract: USDC_CONTRACT_ADDRESS,

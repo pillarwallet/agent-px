@@ -20,8 +20,6 @@ import { toast } from 'sonner';
 import {
   getAgentWallet,
   getImportedAccount,
-  getImportedAccountAddress,
-  isImportedAccountEncrypted,
 } from '../lib/hyperliquid/keystore';
 import { getMarkPrice, getUserState } from '../lib/hyperliquid/client';
 import { useWalletClient, useAccount } from 'wagmi';
@@ -385,34 +383,20 @@ export function TradeForm({
     let signingAddress: string | undefined = masterAddress;
 
     // 1. Check for Imported Account (Priority)
-    // We use getImportedAccountAddress() to check if an account EXISTs, regardless of lock state.
-    const importedAddress = getImportedAccountAddress();
+    // Only use imported account if it's unlocked and available
     const imported = getImportedAccount();
 
     console.log('[TradeForm] Wallet Selection Debug:', {
-      importedAddress,
       hasImportedKey: !!imported,
       masterAddress,
       connectedAddress
     });
 
-    if (importedAddress) {
-      if (imported) {
-        // Unlocked and ready
-        privateKey = imported.privateKey;
-        signingAddress = imported.accountAddress;
-        console.log('DEBUG: Using imported account', { signingAddress });
-      } else {
-        // Exists but locked (or corrupted, but assume locked)
-        console.log('DEBUG: Imported account is locked');
-        toast.error('Imported account is locked', {
-          id: toastId,
-          description: 'Please unlock your imported account in Settings > Accounts to trade.',
-          duration: 5000,
-        });
-        setIsSubmitting(false);
-        return;
-      }
+    if (imported) {
+      // Unlocked and ready
+      privateKey = imported.privateKey;
+      signingAddress = imported.accountAddress;
+      console.log('DEBUG: Using imported account', { signingAddress });
     }
     // 2. Fallback to Agent Wallet linked to connected wallet
     else {

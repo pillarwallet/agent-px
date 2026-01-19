@@ -1,7 +1,6 @@
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Settings, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,

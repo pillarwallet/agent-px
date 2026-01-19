@@ -119,6 +119,20 @@ export function hasAgentWallet(masterAddress: string): boolean {
 
 
 // ----- LEGACY PLAINTEXT STORAGE (Deprecated) -----
+// WARNING: These functions store private keys in plaintext localStorage
+// Only use in development. Production usage is blocked by environment check.
+
+function checkInsecureStorageAllowed(): void {
+  const isAllowed = import.meta.env.VITE_ALLOW_INSECURE_STORAGE === 'true' ||
+    import.meta.env.DEV === true;
+
+  if (!isAllowed) {
+    console.error('[Keystore] CRITICAL: Attempted to use insecure localStorage for private keys in production!');
+    throw new Error('Insecure storage not allowed in production. Use encrypted storage instead.');
+  }
+
+  console.warn('[Keystore] WARNING: Using insecure localStorage for private keys. This should only be used in development.');
+}
 
 export function storeAgentWalletLocal(
   masterAddress: string,
@@ -127,6 +141,7 @@ export function storeAgentWalletLocal(
   approved?: boolean
 ): void {
   if (typeof window === 'undefined') return;
+  checkInsecureStorageAllowed();
 
   localStorage.setItem(getStorageKey(masterAddress, 'address'), address);
   localStorage.setItem(getStorageKey(masterAddress, 'key'), privateKey);
@@ -144,6 +159,7 @@ export function getAgentWalletLocal(
   masterAddress: string
 ): { address: string; privateKey: Hex; approved: boolean; builderApproved: boolean } | null {
   if (typeof window === 'undefined') return null;
+  checkInsecureStorageAllowed();
 
   const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
   const privateKey = localStorage.getItem(
@@ -171,6 +187,7 @@ export function getAgentWalletLocal(
 
 export function clearAgentWalletLocal(masterAddress: string): void {
   if (typeof window === 'undefined') return;
+  checkInsecureStorageAllowed();
 
   localStorage.removeItem(getStorageKey(masterAddress, 'address'));
   localStorage.removeItem(getStorageKey(masterAddress, 'key'));

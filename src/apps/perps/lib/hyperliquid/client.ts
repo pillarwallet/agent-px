@@ -52,6 +52,9 @@ export async function postExchange(signedAction: SignedAction): Promise<any> {
 
 export async function getUserState(address: string): Promise<UserState | null> {
   try {
+    console.log('[getUserState] Fetching state for address:', address);
+    console.log('[getUserState] Using API URL:', INFO_URL);
+
     const response = await axios.post(
       INFO_URL,
       {
@@ -64,9 +67,16 @@ export async function getUserState(address: string): Promise<UserState | null> {
         },
       }
     );
+
+    console.log('[getUserState] Response received:', {
+      hasData: !!response.data,
+      hasMarginSummary: !!response.data?.marginSummary,
+      accountValue: response.data?.marginSummary?.accountValue
+    });
+
     return response.data;
   } catch (error: any) {
-    console.error('Info API error:', error.response?.data || error.message);
+    console.error('[getUserState] API error:', error.response?.data || error.message);
     return null;
   }
 }
