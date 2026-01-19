@@ -254,12 +254,23 @@ export function isImportedAccountEncrypted(): boolean {
 export function getImportedAccountAddress(): string | null {
   if (typeof window === 'undefined') return null;
   // Check new key first, then legacy
-  return (
-    localStorage.getItem(GLOBAL_IMPORTED_ADDRESS_KEY) ||
-    (localStorage.getItem(GLOBAL_ACCOUNT_KEY)
-      ? JSON.parse(localStorage.getItem(GLOBAL_ACCOUNT_KEY)!).accountAddress
-      : null)
-  );
+  const newAddress = localStorage.getItem(GLOBAL_IMPORTED_ADDRESS_KEY);
+  if (newAddress) return newAddress;
+
+  // Try legacy GLOBAL_ACCOUNT_KEY with safe JSON parsing
+  const legacyData = localStorage.getItem(GLOBAL_ACCOUNT_KEY);
+  if (legacyData) {
+    try {
+      const parsed = JSON.parse(legacyData);
+      return parsed.accountAddress || null;
+    } catch (error) {
+      console.warn('[Keystore] Failed to parse legacy GLOBAL_ACCOUNT_KEY, clearing corrupt data:', error);
+      localStorage.removeItem(GLOBAL_ACCOUNT_KEY);
+      return null;
+    }
+  }
+
+  return null;
 }
 
 export async function storeImportedAccount(
@@ -330,13 +341,13 @@ export function updateAgentApproval(
 
 export function updateBuilderApproval(
   masterAddress: string,
-  approved: boolean
+  builderApproved: unknown
 ): void {
   if (typeof window === 'undefined') return;
-  if (typeof approved !== 'boolean') {
-    console.warn('[Keystore] updateBuilderApproval called with non-boolean:', approved);
-    approved = !!approved;
+  if (typeof builderApproved !== 'boolean') {
+    console.warn('[Keystore] updateBuilderApproval called with non-boolean:', builderApproved);
   }
+  const approved = Boolean(builderApproved);
   localStorage.setItem(getStorageKey(masterAddress, 'builder_approved'), String(approved));
 }
 
@@ -358,6 +369,9 @@ export async function storeAgentWallet(
 export async function getAgentWallet(
   masterAddress: string
 ): Promise<{ address: string; privateKey: Hex; approved: boolean; builderApproved: boolean } | null> {
+  // Browser guard for SSR/test environments
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+
   // Check memory cache first
   if (cachedPrivateKey) {
     const address = localStorage.getItem(getStorageKey(masterAddress, 'address'));
@@ -388,6 +402,9 @@ export async function clearAgentWallet(masterAddress: string): Promise<void> {
 }
 
 export function clearAllAgentWalletsLocal(): void {
+  // Browser guard for SSR safety
+  if (typeof window === 'undefined' || !window.localStorage) return;
+
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -396,6 +413,9 @@ export function clearAllAgentWalletsLocal(): void {
     }
   }
   keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+  // Clear in-memory cache
+  cachedPrivateKey = null;
 }
 
 export function getAgentAddress(masterAddress: string): string | null {

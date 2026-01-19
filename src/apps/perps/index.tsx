@@ -37,6 +37,7 @@ const Index = () => {
     loadBalance,
     openOrders,
     address,
+    walletClient,
   } = useHyperliquid();
 
   const [selectedAsset, setSelectedAsset] = useState<EnhancedAsset | null>({
@@ -256,6 +257,7 @@ const Index = () => {
                   userState={userState}
                   isLoading={isLoading}
                   masterAddress={address || ''}
+                  walletClient={walletClient}
                   onRefresh={handleRefresh}
                   isImported={!!agentAddress}
                 />

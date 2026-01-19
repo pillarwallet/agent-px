@@ -295,6 +295,109 @@ export async function signApproveBuilderFeeAction(
   return { r, s, v };
 }
 
+// Helper to get EIP-712 data for Withdraw3
+export function getWithdraw3TypedData(
+  hyperliquidChain: string,
+  signatureChainId: string,
+  destination: string,
+  amount: string,
+  time: number
+) {
+  const types = {
+    'HyperliquidTransaction:Withdraw': [
+      { name: 'hyperliquidChain', type: 'string' },
+      { name: 'destination', type: 'string' },
+      { name: 'amount', type: 'string' },
+      { name: 'time', type: 'uint64' },
+    ],
+  };
+
+  const domain = {
+    name: 'HyperliquidSignTransaction',
+    version: '1',
+    chainId: parseInt(signatureChainId, 16),
+    verifyingContract: '0x0000000000000000000000000000000000000000' as const,
+  };
+
+  const message = {
+    hyperliquidChain,
+    destination,
+    amount,
+    time,
+  };
+
+  return {
+    domain,
+    types,
+    primaryType: 'HyperliquidTransaction:Withdraw',
+    message,
+  };
+}
+
+// Sign withdraw3 action with wallet client (for master wallet)
+export async function signWithdraw3Action(
+  walletClient: WalletClient,
+  action: any
+): Promise<{ r: string; s: string; v: number }> {
+  if (!walletClient.account) {
+    throw new Error('No account connected');
+  }
+
+  const { domain, types, primaryType, message } = getWithdraw3TypedData(
+    action.hyperliquidChain,
+    action.signatureChainId,
+    action.destination,
+    action.amount,
+    action.time
+  );
+
+  const signature = await walletClient.signTypedData({
+    account: walletClient.account,
+    domain,
+    types,
+    primaryType,
+    message,
+  });
+
+  // Parse signature
+  const r = signature.slice(0, 66);
+  const s = '0x' + signature.slice(66, 130);
+  const v = parseInt(signature.slice(130, 132), 16);
+
+  return { r, s, v };
+}
+
+// Sign withdraw3 action with agent private key
+export async function signWithdraw3AgentAction(
+  agentPrivateKey: Hex,
+  action: any
+): Promise<{ r: string; s: string; v: number }> {
+  const account = privateKeyToAccount(agentPrivateKey);
+
+  const { domain, types, primaryType, message } = getWithdraw3TypedData(
+    action.hyperliquidChain,
+    action.signatureChainId,
+    action.destination,
+    action.amount,
+    action.time
+  );
+
+  const signature = await account.signTypedData({
+    domain,
+    types,
+    primaryType,
+    message,
+  });
+
+  // Parse signature
+  const r = signature.slice(0, 66);
+  const s = '0x' + signature.slice(66, 130);
+  const v = parseInt(signature.slice(130, 132), 16);
+
+  return { r, s, v };
+}
+
+
 export async function signAgentAction(
   agentPrivateKey: Hex,
   action: HyperliquidAction,

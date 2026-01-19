@@ -12,14 +12,14 @@ import { Label } from '../components/ui/label';
 import { ArrowUpDown } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { postExchange } from '../lib/hyperliquid/client';
-import { getAgentWallet } from '../lib/hyperliquid/keystore';
-import { signAgentAction } from '../lib/hyperliquid/signing';
-import type { Hex } from 'viem';
+import { signWithdraw3Action } from '../lib/hyperliquid/signing';
+import type { WalletClient } from 'viem';
 import type { UserState } from '../lib/hyperliquid/types';
 
 interface WithdrawModalProps {
   userState: UserState;
   masterAddress: string;
+  walletClient: WalletClient | null;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
   disabled?: boolean;
@@ -28,6 +28,7 @@ interface WithdrawModalProps {
 export function WithdrawModal({
   userState,
   masterAddress,
+  walletClient,
   onSuccess,
   trigger,
   disabled,
@@ -39,7 +40,7 @@ export function WithdrawModal({
 
   const availableBalance = userState?.marginSummary?.accountValue
     ? parseFloat(userState.marginSummary.accountValue) -
-      parseFloat(userState.marginSummary.totalMarginUsed)
+    parseFloat(userState.marginSummary.totalMarginUsed)
     : 0;
 
   const handleMaxClick = () => {
@@ -76,11 +77,10 @@ export function WithdrawModal({
       return;
     }
 
-    const agentWallet = getAgentWallet();
-    if (!agentWallet) {
+    if (!walletClient) {
       toast({
-        title: 'No Agent Wallet',
-        description: 'Please create an agent wallet first',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to withdraw',
         variant: 'destructive',
       });
       return;
@@ -90,21 +90,23 @@ export function WithdrawModal({
     try {
       const nonce = Date.now();
 
-      // Build the usdSend action
+      // Build the withdraw3 action for L1 withdrawal
+      // Note: isTestnet needs to be imported or determined. For now assuming Mainnet/Testnet toggle logic.
+      const isTestnet = window.location.hostname.includes('localhost') || window.location.hostname.includes('testnet');
+
       const action = {
-        type: 'usdSend',
-        hyperliquidChain: 'Mainnet',
-        signatureChainId: '0xa4b1', // Arbitrum
+        type: 'withdraw3',
+        hyperliquidChain: isTestnet ? 'Testnet' : 'Mainnet',
+        signatureChainId: isTestnet ? '0x66eee' : '0xa4b1',
         destination: masterAddress,
         amount: amount,
         time: nonce,
       };
 
-      // Sign the action with the agent's private key
-      const signature = await signAgentAction(
-        agentWallet.privateKey as Hex,
-        action,
-        nonce
+      // Sign the action with the master wallet (connected wallet)
+      const signature = await signWithdraw3Action(
+        walletClient,
+        action
       );
 
       // Send the signed action to Hyperliquid
@@ -196,11 +198,15 @@ export function WithdrawModal({
           <div className="rounded-lg bg-muted p-3 space-y-1">
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium">Network:</span>
-              <span className="text-muted-foreground">Hyperliquid L1</span>
+              <span className="text-muted-foreground">Arbitrum One</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium">Transfer Time:</span>
-              <span className="text-muted-foreground">Instant</span>
+              <span className="text-muted-foreground">~5 mins</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium">Fee:</span>
+              <span className="text-muted-foreground">1.00 USDC</span>
             </div>
           </div>
 

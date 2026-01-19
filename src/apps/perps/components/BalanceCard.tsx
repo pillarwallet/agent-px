@@ -11,6 +11,7 @@ interface BalanceCardProps {
   userState: UserState;
   isLoading: boolean;
   masterAddress: string;
+  walletClient: any;
   onRefresh?: () => void;
   isImported?: boolean;
   ethPrice?: number;
@@ -20,6 +21,7 @@ export function BalanceCard({
   userState,
   isLoading,
   masterAddress,
+  walletClient,
   onRefresh,
   isImported,
   ethPrice,
@@ -72,6 +74,7 @@ export function BalanceCard({
           <WithdrawModal
             userState={userState}
             masterAddress={masterAddress}
+            walletClient={walletClient}
             onSuccess={onRefresh}
             disabled={isImported}
             trigger={
