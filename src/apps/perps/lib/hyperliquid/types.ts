@@ -99,7 +99,11 @@ export interface HyperliquidPosition {
   returnOnEquity: string;
   marginUsed: string;
   liquidationPx?: string;
+}
+
+export interface EnrichedPosition extends HyperliquidPosition {
   markPx?: string;
+  coinInfo?: UniverseAsset;
 }
 
 // Open Order from Hyperliquid API

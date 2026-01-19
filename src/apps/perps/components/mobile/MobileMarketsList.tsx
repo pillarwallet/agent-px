@@ -1,6 +1,7 @@
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { TokenIcon } from '../TokenIcon';
 
 interface Market {
   coin: string;
@@ -59,13 +60,8 @@ export function MobileMarketsList({
             {/* Left: Icon and Info */}
             <div className="flex items-center gap-3">
               {/* Coin Icon */}
-              <div
-                className={`h-12 w-12 rounded-full flex items-center justify-center ${getCoinColor(market.coin)}`}
-              >
-                <span className="text-white font-bold">
-                  {getCoinInitial(market.coin)}
-                </span>
-              </div>
+              {/* Coin Icon */}
+              <TokenIcon symbol={market.coin} size={48} />
 
               {/* Coin Info */}
               <div className="text-left">
@@ -83,8 +79,8 @@ export function MobileMarketsList({
               <p className="font-semibold text-base">${market.price}</p>
               <p
                 className={`text-sm font-medium ${market.change.startsWith('-')
-                    ? 'text-red-500'
-                    : 'text-green-500'
+                  ? 'text-red-500'
+                  : 'text-green-500'
                   }`}
               >
                 {market.changePercent}
@@ -97,19 +93,4 @@ export function MobileMarketsList({
   );
 }
 
-function getCoinColor(coin: string): string {
-  const colors: Record<string, string> = {
-    BTC: 'bg-orange-500',
-    ETH: 'bg-gray-800',
-    XYZ100: 'bg-gray-600',
-    PAXG: 'bg-yellow-500',
-    GOLD: 'bg-blue-600',
-    ZEC: 'bg-yellow-600',
-  };
-  return colors[coin] || 'bg-gray-500';
-}
 
-function getCoinInitial(coin: string): string {
-  if (coin === 'XYZ100') return '100';
-  return coin.charAt(0);
-}
