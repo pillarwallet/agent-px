@@ -53,6 +53,14 @@ module.exports = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        warning: {
+          DEFAULT: '#F59E0B',
+          foreground: '#FFFFFF',
+        },
+        success: {
+          DEFAULT: '#10B981',
+          foreground: '#FFFFFF',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -66,6 +74,20 @@ module.exports = {
       opacity: { 0.5: 0.5, 0.1: 0.1, 0.2: 0.2, 0.6: 0.6, 0.7: 0.7 },
       backgroundImage: {
         gradient: 'linear-gradient(270deg, #ffffff87,#ffffff87,#ffffff87)',
+      },
+      keyframes: {
+        'accordion-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
+        },
+        'accordion-up': {
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
+        },
+      },
+      animation: {
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
       },
     },
   },
