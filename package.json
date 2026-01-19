@@ -2,6 +2,7 @@
   "name": "pillarx",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:functions": "wrangler pages dev build --port 5173 --live-reload",
