@@ -1,4 +1,4 @@
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 
@@ -50,9 +50,9 @@ export function MobileMarketsList({
 
       {/* Markets List */}
       <div className="space-y-3">
-        {markets.map((market, index) => (
+        {markets.map((market) => (
           <button
-            key={index}
+            key={market.coin}
             onClick={() => onMarketSelect?.(market.coin)}
             className="w-full flex items-center justify-between py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
           >
@@ -82,11 +82,10 @@ export function MobileMarketsList({
             <div className="text-right">
               <p className="font-semibold text-base">${market.price}</p>
               <p
-                className={`text-sm font-medium ${
-                  market.change.startsWith('-')
+                className={`text-sm font-medium ${market.change.startsWith('-')
                     ? 'text-red-500'
                     : 'text-green-500'
-                }`}
+                  }`}
               >
                 {market.changePercent}
               </p>
@@ -113,22 +112,4 @@ function getCoinColor(coin: string): string {
 function getCoinInitial(coin: string): string {
   if (coin === 'XYZ100') return '100';
   return coin.charAt(0);
-}
-
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M9 5l7 7-7 7"
-      />
-    </svg>
-  );
 }
