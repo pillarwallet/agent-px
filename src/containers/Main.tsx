@@ -304,15 +304,15 @@ const AuthLayout = () => {
             const authorizationParams: AuthorizationRequest =
               parameters.contractAddress
                 ? {
-                  contractAddress: address,
-                  chainId: parameters.chainId,
-                  nonce: parameters.nonce,
-                }
+                    contractAddress: address,
+                    chainId: parameters.chainId,
+                    nonce: parameters.nonce,
+                  }
                 : {
-                  address,
-                  chainId: parameters.chainId,
-                  nonce: parameters.nonce,
-                };
+                    address,
+                    chainId: parameters.chainId,
+                    nonce: parameters.nonce,
+                  };
 
             // Delegate signing to React Native app via webview
             // The RN app will handle hashing and signing using the private key account
@@ -1014,7 +1014,9 @@ const Main = () => {
   const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
 
   if (!privyAppId) {
-    console.error('VITE_PRIVY_APP_ID is not defined. Please check your environment variables.');
+    console.error(
+      'VITE_PRIVY_APP_ID is not defined. Please check your environment variables.'
+    );
     return (
       <div style={{ padding: '20px', color: 'red', fontFamily: 'monospace' }}>
         <h1>Configuration Error</h1>
