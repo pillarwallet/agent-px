@@ -1,6 +1,5 @@
 import { ChevronRight } from 'lucide-react';
 import { Badge } from '../ui/badge';
-import { TokenIcon } from '../TokenIcon';
 
 interface Position {
   coin: string;
@@ -114,8 +113,11 @@ export function MobilePositionsCard({
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 {/* Coin Icon */}
-                {/* Coin Icon */}
-                <TokenIcon symbol={position.coin} size={40} />
+                <div className="h-10 w-10 rounded-full bg-yellow-500 flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">
+                    {position.coin.charAt(0)}
+                  </span>
+                </div>
 
                 {/* Coin Name and Badges */}
                 <div className="flex items-center gap-2">

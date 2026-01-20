@@ -105,8 +105,7 @@ export async function placeTriggerOrderAgent(
     isBuy: boolean;
     size: number;
     triggerPrice: number;
-    limitPrice?: number; // Optional if isMarket is true
-    isMarket?: boolean;
+    limitPrice: number;
     tpsl: 'tp' | 'sl';
     reduceOnly?: boolean;
     builder?: { b: string; f: number };
@@ -114,41 +113,17 @@ export async function placeTriggerOrderAgent(
 ): Promise<any> {
   const client = getExchangeClientForAgent(privateKey);
 
-  // If Limit Trigger, use limitPrice.
-  // If Market Trigger, use aggressive price for immediate fill upon trigger (like normal market order)
-  let priceStr = '0';
-  if (!params.isMarket) {
-    if (!params.limitPrice) throw new Error('limitPrice required for Limit Trigger orders');
-    priceStr = parseFloat(params.limitPrice.toPrecision(5)).toString();
-  } else {
-    // For Market Trigger, we mimic market order pricing (aggressive limit)
-    // But strictly speaking, for trigger orders, the 'p' might need to be the limit price cap.
-    // Hyperliquid docs: "For market triggers, limit_px is ignored" -> actually, let's verify.
-    // Usually for "Market" order, the API expects a price cap.
-    // Let's assume params.limitPrice IS the cap provided by caller even for market.
-    if (params.limitPrice) {
-      priceStr = parseFloat(params.limitPrice.toPrecision(5)).toString();
-    } else {
-      // If no limit provided for market trigger, calculate one based on trigger price?
-      // Safer to require limitPrice even for market to define slippage.
-      // Or default to "market" logic. Use triggerPrice as base?
-      // Let's use the provided limitPrice if available, otherwise strict requirement.
-      if (!params.limitPrice) throw new Error('limitPrice (slippage cap) required even for Market Trigger orders');
-      priceStr = parseFloat(params.limitPrice.toPrecision(5)).toString();
-    }
-  }
-
   const orderRequest = {
     orders: [
       {
         a: params.coinId,
         b: params.isBuy,
-        p: priceStr,
+        p: parseFloat(params.limitPrice.toPrecision(5)).toString(),
         s: params.size.toString(),
         r: params.reduceOnly ?? true, // TP/SL should always be reduce-only
         t: {
           trigger: {
-            isMarket: params.isMarket ?? false,
+            isMarket: false,
             triggerPx: parseFloat(
               params.triggerPrice.toPrecision(5)
             ).toString(),
@@ -205,8 +180,7 @@ export async function approveAgentSDK(
   agentName?: string
 ): Promise<any> {
   const transport = new HttpTransport();
-  const account = privateKeyToAccount(masterPrivateKey);
-  const client = new ExchangeClient({ wallet: account, transport });
+  const client = new ExchangeClient({ wallet: masterPrivateKey, transport });
 
   console.log('[SDK] Approving agent:', agentAddress);
   const response = await client.approveAgent({ agentAddress, agentName });

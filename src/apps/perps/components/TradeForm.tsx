@@ -530,12 +530,13 @@ export function TradeForm({
       if (data.stopLoss && data.stopLoss.price) {
         // toast.info('Placing stop loss...');
 
-        // Verify we are using Market Trigger (Stop Market) to ensure execution
-        // We still provide a limit price as a "worst case" cap (10% slippage allowance)
+        // Calculate limit price with slippage buffer
+        // For Long: SL triggers below entry, so limit should be even lower (0.99x)
+        // For Short: SL triggers above entry, so limit should be even higher (1.01x)
         const slLimitPrice =
           data.side === 'long'
-            ? data.stopLoss.price * 0.9
-            : data.stopLoss.price * 1.1;
+            ? data.stopLoss.price * 0.99
+            : data.stopLoss.price * 1.01;
 
         await placeTriggerOrderAgent(privateKey as `0x${string}`, {
           coinId: selectedAsset.id,
@@ -543,7 +544,6 @@ export function TradeForm({
           size,
           triggerPrice: data.stopLoss.price,
           limitPrice: slLimitPrice,
-          isMarket: true, // Use Stop Market
           tpsl: 'sl',
           reduceOnly: true,
           builder: useBuilderFee ? { b: BUILDER_ADDRESS, f: BUILDER_FEE_ORDER } : undefined,

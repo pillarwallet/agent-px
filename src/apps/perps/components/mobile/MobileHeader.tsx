@@ -1,12 +1,7 @@
 import { User, Clock } from 'lucide-react';
 import { Button } from '../ui/button';
 
-interface MobileHeaderProps {
-  onProfileClick?: () => void;
-  onHistoryClick?: () => void;
-}
-
-export function MobileHeader({ onProfileClick, onHistoryClick }: MobileHeaderProps) {
+export function MobileHeader() {
   return (
     <header className="fixed top-0 left-0 right-0 bg-white z-50 px-4 py-3 flex items-center justify-between border-b border-gray-100">
       {/* Profile Button */}
@@ -14,7 +9,6 @@ export function MobileHeader({ onProfileClick, onHistoryClick }: MobileHeaderPro
         variant="ghost"
         size="icon"
         className="h-10 w-10 rounded-full bg-purple-100 hover:bg-purple-200"
-        onClick={onProfileClick}
       >
         <User className="h-5 w-5 text-purple-600" />
       </Button>
@@ -32,7 +26,6 @@ export function MobileHeader({ onProfileClick, onHistoryClick }: MobileHeaderPro
         variant="ghost"
         size="icon"
         className="h-10 w-10 rounded-full bg-gray-100 hover:bg-gray-200"
-        onClick={onHistoryClick}
       >
         <Clock className="h-5 w-5 text-gray-700" />
       </Button>

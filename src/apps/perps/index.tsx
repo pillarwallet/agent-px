@@ -10,7 +10,7 @@ import { PositionsCard } from './components/PositionsCard';
 import { TradeHistoryCard } from './components/TradeHistoryCard';
 import { useHyperliquid } from './hooks/useHyperliquid';
 import { getAgentWallet, getImportedAccount } from './lib/hyperliquid/keystore';
-import { getUserState, getMetaAndAssetCtxs, getFrontendOpenOrders } from './lib/hyperliquid/client';
+import { getUserState, getMetaAndAssetCtxs } from './lib/hyperliquid/client';
 import type {
   AssetInfo,
   UserState,
@@ -133,7 +133,10 @@ const Index = () => {
   // Load imported account from global storage
   const fetchImportedAccount = async () => {
     try {
-      // Dynamic imports removed as they are now static
+      const { getImportedAccount } = await import('./lib/hyperliquid/keystore');
+      const { getFrontendOpenOrders } = await import(
+        './lib/hyperliquid/client'
+      );
       const imported = getImportedAccount();
 
       if (imported) {
@@ -297,7 +300,7 @@ const Index = () => {
         {(agentAddress || (address && setupStatus === 'setup')) && (
           <div className="mb-6">
             <PositionsCard
-              masterAddress={agentAddress || address || ''}
+              masterAddress={agentAddress || address}
               onPositionClick={handlePositionClick}
               onRefresh={handleRefresh}
               userState={agentUserState || userState}
@@ -311,7 +314,7 @@ const Index = () => {
         {/* Trade History - Full Width */}
         {(agentAddress || (address && setupStatus === 'setup')) && (
           <div className="mb-6">
-            <TradeHistoryCard masterAddress={agentAddress || address || ''} />
+            <TradeHistoryCard masterAddress={agentAddress || address} />
           </div>
         )}
 

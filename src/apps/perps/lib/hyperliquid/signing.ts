@@ -251,7 +251,7 @@ export async function signApproveAgentAction(
     account: walletClient.account,
     domain,
     types,
-    primaryType: primaryType as any,
+    primaryType,
     message,
   });
 
@@ -283,7 +283,7 @@ export async function signApproveBuilderFeeAction(
     account: walletClient.account,
     domain,
     types,
-    primaryType: primaryType as any,
+    primaryType,
     message,
   });
 
@@ -355,7 +355,7 @@ export async function signWithdraw3Action(
     account: walletClient.account,
     domain,
     types,
-    primaryType: primaryType as any,
+    primaryType,
     message,
   });
 
@@ -385,7 +385,7 @@ export async function signWithdraw3AgentAction(
   const signature = await account.signTypedData({
     domain,
     types,
-    primaryType: primaryType as any,
+    primaryType,
     message,
   });
 

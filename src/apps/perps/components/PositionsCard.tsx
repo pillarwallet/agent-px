@@ -14,7 +14,6 @@ import type {
   HyperliquidPosition,
   HyperliquidOrder,
   UniverseAsset,
-  EnrichedPosition,
 } from '../lib/hyperliquid/types';
 import {
   Collapsible,
@@ -75,13 +74,13 @@ export function PositionsCard({
   onRefresh,
 }: PositionsCardProps) {
   const isMobile = useIsMobile();
-  const [positions, setPositions] = useState<EnrichedPosition[]>([]);
+  const [positions, setPositions] = useState<HyperliquidPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
   const [expandedPositionIndex, setExpandedPositionIndex] = useState<
     number | null
   >(null);
-  const [positionToClose, setPositionToClose] = useState<EnrichedPosition | null>(null);
+  const [positionToClose, setPositionToClose] = useState<HyperliquidPosition | null>(null);
   const [closePercentage, setClosePercentage] = useState<number>(100);
   const [isClosing, setIsClosing] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -171,8 +170,7 @@ export function PositionsCard({
               uniqueKeys.add(rawPos.coin);
 
               // Enrich with mark price if missing or zero
-              // Cast to any to check if property exists on potentially raw object
-              let markPx = (rawPos as any).markPx;
+              let markPx = rawPos.markPx;
               if (
                 (!markPx || parseFloat(markPx) === 0) &&
                 priceMap[rawPos.coin]

@@ -56,13 +56,6 @@ import { PinSetupModal } from './PinSetupModal';
 import { UnlockWalletModal } from './UnlockWalletModal';
 import { PrivateKeyModal } from './PrivateKeyModal';
 import { useIsMobile } from '../hooks/use-mobile';
-import type { EIP1193Provider } from 'viem';
-import { BUILDER_ADDRESS, BUILDER_FEE_APPROVAL } from '../lib/hyperliquid/builder';
-import {
-  buildApproveBuilderFeeAction,
-  signApproveBuilderFeeAction
-} from '../lib/hyperliquid/signing';
-import { getUserState } from '../lib/hyperliquid/client';
 
 import {
   storeAgentWallet,
@@ -434,7 +427,13 @@ export function AgentControls({
     setIsApprovingBuilder(true);
     try {
       console.log('Approving Builder...');
-      console.log('Approving Builder...');
+      const { BUILDER_ADDRESS, BUILDER_FEE_APPROVAL } = await import(
+        '../lib/hyperliquid/builder'
+      );
+
+      const { buildApproveBuilderFeeAction, signApproveBuilderFeeAction } =
+        await import('../lib/hyperliquid/signing');
+      const { postExchange } = await import('../lib/hyperliquid/client');
 
       // 1. Get account
       let accountToUse = address as Hex;
@@ -525,8 +524,8 @@ export function AgentControls({
         // Check if we need to request accounts
         if ('request' in walletProvider) {
           try {
-            const provider = walletProvider as unknown as EIP1193Provider;
-            const accounts = await provider.request({
+            // @ts-ignore
+            const accounts = await walletProvider.request({
               method: 'eth_accounts',
             });
             if (accounts && Array.isArray(accounts) && accounts.length > 0) {
@@ -536,7 +535,8 @@ export function AgentControls({
               console.warn(
                 'No accounts found from provider. Requesting access...'
               );
-              const requested = await provider.request({
+              // @ts-ignore
+              const requested = await walletProvider.request({
                 method: 'eth_requestAccounts',
               });
               if (
@@ -553,7 +553,8 @@ export function AgentControls({
 
           // Check chain ID and switch if necessary
           try {
-            const chainId = await provider.request({
+            // @ts-ignore
+            const chainId = await walletProvider.request({
               method: 'eth_chainId',
             });
 
@@ -561,14 +562,16 @@ export function AgentControls({
 
             if (chainId !== targetChainId) {
               try {
-                await provider.request({
+                // @ts-ignore
+                await walletProvider.request({
                   method: 'wallet_switchEthereumChain',
                   params: [{ chainId: targetChainId }],
                 });
               } catch (switchError: any) {
                 // This error code indicates that the chain has not been added to MetaMask.
                 if (switchError.code === 4902) {
-                  await provider.request({
+                  // @ts-ignore
+                  await walletProvider.request({
                     method: 'wallet_addEthereumChain',
                     params: [
                       {
@@ -788,6 +791,7 @@ export function AgentControls({
 
       // Validate that the ACCOUNT ADDRESS exists on Hyperliquid (not the agent)
       try {
+        const { getUserState } = await import('../lib/hyperliquid/client');
         const accountState = await getUserState(importAccountAddress.trim());
 
         if (!accountState) {
