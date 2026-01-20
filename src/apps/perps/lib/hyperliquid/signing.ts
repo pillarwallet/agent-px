@@ -355,7 +355,7 @@ export async function signWithdraw3Action(
     account: walletClient.account,
     domain,
     types,
-    primaryType,
+    primaryType: primaryType as any,
     message,
   });
 
@@ -385,7 +385,7 @@ export async function signWithdraw3AgentAction(
   const signature = await account.signTypedData({
     domain,
     types,
-    primaryType,
+    primaryType: primaryType as any,
     message,
   });
 
