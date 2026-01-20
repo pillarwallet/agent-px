@@ -1011,7 +1011,8 @@ export const config = createConfig({
 const queryClient = new QueryClient();
 
 const Main = () => {
-  const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
+  // Use environment variable or fallback to the default from .env.example
+  const privyAppId = import.meta.env.VITE_PRIVY_APP_ID || 'clx07qnbf07qdwlja56mg55er';
 
   if (!privyAppId) {
     console.error('VITE_PRIVY_APP_ID is not defined. Please check your environment variables.');
