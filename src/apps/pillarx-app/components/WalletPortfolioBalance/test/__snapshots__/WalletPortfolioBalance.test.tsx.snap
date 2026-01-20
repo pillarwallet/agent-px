@@ -12,9 +12,13 @@ exports[`WalletPortfolioBalance > renders correctly and matches snapshot 1`] = `
           class="flex flex-col gap-4"
         >
           <div
-            data-testid="account-selector"
+            class="flex items-center gap-2"
           >
-            Account Selector
+            <div
+              data-testid="account-selector"
+            >
+              Account Selector
+            </div>
           </div>
           <div
             data-testid="skeleton-loader"
@@ -42,9 +46,13 @@ exports[`WalletPortfolioBalance > renders correctly and matches snapshot 1`] = `
         class="flex flex-col gap-4"
       >
         <div
-          data-testid="account-selector"
+          class="flex items-center gap-2"
         >
-          Account Selector
+          <div
+            data-testid="account-selector"
+          >
+            Account Selector
+          </div>
         </div>
         <div
           data-testid="skeleton-loader"

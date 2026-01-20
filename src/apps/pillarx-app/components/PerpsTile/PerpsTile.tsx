@@ -11,11 +11,7 @@ const PerpsTile = () => {
 
   return (
     <TileContainer id="perps-tile">
-      <button
-        type="button"
-        onClick={handleNavigateToPerps}
-        className="w-full"
-      >
+      <button type="button" onClick={handleNavigateToPerps} className="w-full">
         <div className="flex flex-col rounded-2xl bg-container_grey desktop:min-h-[320px] tablet:min-h-[280px] mobile:min-h-[240px] p-10 mobile:p-4 cursor-pointer relative overflow-hidden">
           {/* Content */}
           <div className="relative z-10 flex flex-col h-full">
@@ -44,12 +40,7 @@ const PerpsTile = () => {
               <div className="flex-shrink-0 mobile:hidden">
                 <span className="inline-flex items-center justify-center gap-2 font-medium bg-purple_medium hover:bg-purple_medium/90 rounded-lg py-2 px-6 text-white desktop:text-base tablet:text-base transition-colors">
                   Start Trading
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                  >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path
                       d="M6 12L10 8L6 4"
                       stroke="currentColor"
