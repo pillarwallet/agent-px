@@ -147,7 +147,7 @@ export const SignalCard = forwardRef<HTMLDivElement, SignalCardProps>(
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    Copy Strategy
+                    <span className="hidden md:inline">Copy Strategy</span>
                   </>
                 )}
               </button>
