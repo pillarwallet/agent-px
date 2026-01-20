@@ -14,9 +14,9 @@ import { setIsRefreshAll } from '../../reducer/WalletPortfolioSlice';
 
 // images
 import RefreshIcon from '../../images/refresh-button.png';
-import WalletPortfolioIcon from '../../images/wallet-portfolio-icon.png';
 
 // components
+import AccountSelector from '../AccountSelector/AccountSelector';
 import SkeletonLoader from '../../../../components/SkeletonLoader';
 import Body from '../Typography/Body';
 import BodySmall from '../Typography/BodySmall';
@@ -82,13 +82,8 @@ const WalletPortfolioBalance = () => {
   return (
     <div className="flex w-full justify-between">
       <div className="flex flex-col gap-4">
-        <div className="flex gap-1.5">
-          <img
-            src={WalletPortfolioIcon}
-            alt="wallet-portfolio-icon"
-            className="w-7 h-5"
-          />
-          <Body>My portfolio</Body>
+        <div className="flex items-center gap-2">
+          <AccountSelector />
           {user?.wallet?.connectorType === 'embedded' && (
             <div className="flex items-center ml-2">
               {user?.linkedAccounts?.find((a) => a.type === 'passkey') ? (
