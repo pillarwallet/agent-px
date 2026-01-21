@@ -32,8 +32,11 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       // Explicitly expose VITE_PRIVY_APP_ID to the app
-      // This ensures it's available even if not in .env files
-      'import.meta.env.VITE_PRIVY_APP_ID': JSON.stringify(env.VITE_PRIVY_APP_ID),
+      // Use process.env directly to ensure Cloudflare Pages env vars are picked up
+      // Fallback to loadEnv value if not in process.env
+      'import.meta.env.VITE_PRIVY_APP_ID': JSON.stringify(
+        process.env.VITE_PRIVY_APP_ID || env.VITE_PRIVY_APP_ID
+      ),
     },
     test: {
       globals: true,
