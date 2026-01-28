@@ -1,5 +1,6 @@
 import { buildOrderAction } from './signing';
 export { roundToSzDecimals } from './math';
+import { roundToSzDecimals } from './math';
 
 export function computeSizeUSD(
   notionalUSD: number,
