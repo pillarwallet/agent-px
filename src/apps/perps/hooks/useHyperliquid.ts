@@ -77,7 +77,7 @@ export function useHyperliquid() {
       });
       isImported = true;
     } else {
-    } else {
+
       // 2. Fallback to Connected Wallet
       try {
         const walletProvider = kit.getEtherspotProvider();
