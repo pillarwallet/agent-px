@@ -191,7 +191,7 @@ export function useHyperliquid() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [clientTransport]);
 
   const setupHyperliquid = useCallback(async () => {
     // Check for Imported Account logic again to ensure valid signer
@@ -242,7 +242,7 @@ export function useHyperliquid() {
     } finally {
       setIsLoading(false);
     }
-  }, [address, checkSetupStatus]);
+  }, [address, checkSetupStatus, clientTransport]);
 
   const loadBalance = useCallback(async () => {
     if (!address) return;
@@ -392,7 +392,7 @@ export function useHyperliquid() {
         setIsLoading(false);
       }
     },
-    [address, setupStatus, loadBalance]
+    [address, setupStatus, loadBalance, clientTransport]
   );
 
   // Call checkSetupStatus on mount to initialize the address
