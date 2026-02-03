@@ -77,18 +77,23 @@ export function useHyperliquid() {
       });
       isImported = true;
     } else {
-      // 2. Fallback to Connected Wallet
-      const walletProvider = kit.getEtherspotProvider();
-      const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
-      console.log('DEBUG: Wallet Provider EOA:', eoa);
 
-      if (eoa && clientTransport) {
-        targetAddress = eoa;
-        client = createWalletClient({
-          account: eoa as `0x${string}`,
-          chain: arbitrum,
-          transport: clientTransport,
-        });
+      // 2. Fallback to Connected Wallet
+      try {
+        const walletProvider = kit.getEtherspotProvider();
+        const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
+        console.log('DEBUG: Wallet Provider EOA:', eoa);
+
+        if (eoa && clientTransport) {
+          targetAddress = eoa;
+          client = createWalletClient({
+            account: eoa as `0x${string}`,
+            chain: arbitrum,
+            transport: clientTransport,
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to get Etherspot provider or EOA (expected in delegatedEoa mode without imported account):', err);
       }
     }
 
