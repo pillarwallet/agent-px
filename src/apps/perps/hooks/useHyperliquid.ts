@@ -48,8 +48,8 @@ export function useHyperliquid() {
       return custom(kit.getProvider());
     } catch (e) {
       // In delegatedEoa mode, getProvider() might throw.
-      // We fallback to standard http transport for Arbitrum.
-      return http();
+      console.debug('Provider not available (likely delegatedEoa mode).');
+      return null;
     }
   }, [kit]);
 
@@ -73,7 +73,7 @@ export function useHyperliquid() {
       client = createWalletClient({
         account,
         chain: arbitrum,
-        transport: clientTransport,
+        transport: clientTransport ?? http(),
       });
       isImported = true;
     } else {
@@ -82,7 +82,7 @@ export function useHyperliquid() {
       const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
       console.log('DEBUG: Wallet Provider EOA:', eoa);
 
-      if (eoa) {
+      if (eoa && clientTransport) {
         targetAddress = eoa;
         client = createWalletClient({
           account: eoa as `0x${string}`,
@@ -205,9 +205,9 @@ export function useHyperliquid() {
       client = createWalletClient({
         account,
         chain: arbitrum,
-        transport: clientTransport,
+        transport: clientTransport ?? http(),
       });
-    } else {
+    } else if (clientTransport) {
       client = createWalletClient({
         account: address as `0x${string}`,
         chain: arbitrum,
@@ -309,9 +309,9 @@ export function useHyperliquid() {
         client = createWalletClient({
           account,
           chain: arbitrum,
-          transport: clientTransport,
+          transport: clientTransport ?? http(),
         });
-      } else {
+      } else if (clientTransport) {
         client = createWalletClient({
           account: address as `0x${string}`,
           chain: arbitrum,
