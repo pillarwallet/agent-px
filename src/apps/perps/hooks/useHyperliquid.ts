@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useWalletClient } from 'wagmi';
 import useTransactionKit from '../../../hooks/useTransactionKit';
 import {
@@ -26,7 +26,7 @@ import {
 } from '../lib/hyperliquid/math';
 import { toast } from 'sonner';
 import { getAgentAddress } from '../lib/hyperliquid/keystore';
-import { createWalletClient, custom } from 'viem';
+import { createWalletClient, custom, http } from 'viem';
 import { arbitrum } from 'viem/chains';
 
 type SetupStatus = 'unknown' | 'not-setup' | 'setup';
@@ -42,7 +42,16 @@ export function useHyperliquid() {
   const [address, setAddress] = useState<string | null>(null);
   const [walletClient, setWalletClient] = useState<any>(null);
 
-  const provider = kit.getProvider();
+  // Safe provider access for delegatedEoa mode
+  const clientTransport = useMemo(() => {
+    try {
+      return custom(kit.getProvider());
+    } catch (e) {
+      // In delegatedEoa mode, getProvider() might throw.
+      console.debug('Provider not available (likely delegatedEoa mode).');
+      return null;
+    }
+  }, [kit]);
 
   const checkSetupStatus = useCallback(async () => {
     // 1. Check for Imported Account (Priority)
@@ -64,7 +73,7 @@ export function useHyperliquid() {
       client = createWalletClient({
         account,
         chain: arbitrum,
-        transport: custom(provider as any),
+        transport: clientTransport ?? http(),
       });
       isImported = true;
     } else {
@@ -73,12 +82,12 @@ export function useHyperliquid() {
       const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
       console.log('DEBUG: Wallet Provider EOA:', eoa);
 
-      if (eoa) {
+      if (eoa && clientTransport) {
         targetAddress = eoa;
         client = createWalletClient({
           account: eoa as `0x${string}`,
           chain: arbitrum,
-          transport: custom(provider as any),
+          transport: clientTransport,
         });
       }
     }
@@ -182,7 +191,7 @@ export function useHyperliquid() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [clientTransport]);
 
   const setupHyperliquid = useCallback(async () => {
     // Check for Imported Account logic again to ensure valid signer
@@ -196,13 +205,13 @@ export function useHyperliquid() {
       client = createWalletClient({
         account,
         chain: arbitrum,
-        transport: custom(provider as any),
+        transport: clientTransport ?? http(),
       });
-    } else {
+    } else if (clientTransport) {
       client = createWalletClient({
         account: address as `0x${string}`,
         chain: arbitrum,
-        transport: custom(provider as any),
+        transport: clientTransport,
       });
     }
 
@@ -233,7 +242,7 @@ export function useHyperliquid() {
     } finally {
       setIsLoading(false);
     }
-  }, [address, checkSetupStatus]);
+  }, [address, checkSetupStatus, clientTransport]);
 
   const loadBalance = useCallback(async () => {
     if (!address) return;
@@ -300,13 +309,13 @@ export function useHyperliquid() {
         client = createWalletClient({
           account,
           chain: arbitrum,
-          transport: custom(provider as any),
+          transport: clientTransport ?? http(),
         });
-      } else {
+      } else if (clientTransport) {
         client = createWalletClient({
           account: address as `0x${string}`,
           chain: arbitrum,
-          transport: custom(provider as any),
+          transport: clientTransport,
         });
       }
       const walletClient = client;
@@ -383,7 +392,7 @@ export function useHyperliquid() {
         setIsLoading(false);
       }
     },
-    [address, setupStatus, loadBalance]
+    [address, setupStatus, loadBalance, clientTransport]
   );
 
   // Call checkSetupStatus on mount to initialize the address
