@@ -54,146 +54,157 @@ export function useHyperliquid() {
   }, [kit]);
 
   const checkSetupStatus = useCallback(async () => {
-    // 1. Check for Imported Account (Priority)
-    const { getImportedAccount } = await import('../lib/hyperliquid/keystore');
-    const importedAccount = getImportedAccount();
-
-    let targetAddress: string | null = null;
-    let client: any = null;
-    let isImported = false;
-
-    if (importedAccount) {
-      console.log('DEBUG: Using Imported Account:', importedAccount.accountAddress);
-      targetAddress = importedAccount.accountAddress;
-
-      // Create WalletClient from Private Key
-      const { privateKeyToAccount } = await import('viem/accounts');
-      const account = privateKeyToAccount(importedAccount.privateKey as `0x${string}`);
-
-      client = createWalletClient({
-        account,
-        chain: arbitrum,
-        transport: clientTransport ?? http(),
-      });
-      isImported = true;
-    } else {
-
-      // 2. Fallback to Connected Wallet
-      try {
-        const walletProvider = kit.getEtherspotProvider();
-        const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
-        console.log('DEBUG: Wallet Provider EOA:', eoa);
-
-        if (eoa && clientTransport) {
-          targetAddress = eoa;
-          client = createWalletClient({
-            account: eoa as `0x${string}`,
-            chain: arbitrum,
-            transport: clientTransport,
-          });
-        }
-      } catch (err) {
-        console.warn('Failed to get Etherspot provider or EOA (expected in delegatedEoa mode without imported account):', err);
-      }
-    }
-
-    setAddress(targetAddress);
-    setWalletClient(client);
-    console.log('DEBUG: Active Client Account:', client?.account?.address);
-    // Always fetch assets on load
-    // Always fetch assets on load
     try {
-      // Use getMetaAndAssetCtxs to get both metadata and prices
-      const { getMetaAndAssetCtxs } = await import('../lib/hyperliquid/client');
-      const data = await getMetaAndAssetCtxs();
-      console.log('DEBUG: getMetaAndAssetCtxs result:', data);
+      // 1. Check for Imported Account (Priority)
+      const { getImportedAccount } = await import('../lib/hyperliquid/keystore');
+      const importedAccount = getImportedAccount();
 
-      if (data && data[0] && data[1]) {
-        const universe = data[0];
-        const assetCtxs = data[1];
+      let targetAddress: string | null = null;
+      let client: any = null;
+      let isImported = false;
 
-        const assets: EnhancedAsset[] = universe.map((u: any, index: number) => {
-          const ctx = assetCtxs[index];
-          return {
-            id: index,
-            symbol: u.name,
-            szDecimals: u.szDecimals,
-            maxLeverage: u.maxLeverage,
-            price: ctx ? parseFloat(ctx.markPx) : 0,
-            volume: ctx ? parseFloat(ctx.dayNtlVlm) : 0,
-            priceChange: 0, // Not provided directly
-            priceChangePercent: 0, // Not provided directly
-          };
+      if (importedAccount) {
+        console.log('DEBUG: Using Imported Account:', importedAccount.accountAddress);
+        targetAddress = importedAccount.accountAddress;
+
+        if (!importedAccount.privateKey || !importedAccount.privateKey.startsWith('0x')) {
+          console.error('Invalid private key format in imported account');
+          throw new Error('Invalid private key');
+        }
+
+        // Create WalletClient from Private Key
+        const { privateKeyToAccount } = await import('viem/accounts');
+        const account = privateKeyToAccount(importedAccount.privateKey as `0x${string}`);
+
+        client = createWalletClient({
+          account,
+          chain: arbitrum,
+          transport: clientTransport ?? http(),
         });
-        console.log('DEBUG: Parsed assets with prices:', assets.slice(0, 3));
-        const ethAsset = assets.find(a => a.symbol === 'ETH');
-        console.log('DEBUG: ETH Asset found:', ethAsset);
-        setAvailableAssets(assets);
+        isImported = true;
       } else {
-        // Fallback if structure is unexpected
-        const assets = await getAllAssets();
-        setAvailableAssets(assets as EnhancedAsset[]);
-      }
-    } catch (e) {
-      console.error('Failed to fetch assets', e);
-    }
 
-    if (!targetAddress) {
-      setSetupStatus('unknown');
-      setActiveAddress(null);
-      return;
-    }
+        // 2. Fallback to Connected Wallet
+        try {
+          const walletProvider = kit.getEtherspotProvider();
+          const eoa = (await walletProvider.getSdk()).getEOAAddress() || null;
+          console.log('DEBUG: Wallet Provider EOA:', eoa);
 
-    setIsLoading(true);
-    try {
-      console.log('DEBUG: Checking setup status for:', targetAddress);
-
-      // 1. Fetch Main Address Data
-      // Note: targetAddress is already set to either imported or eoa
-      let state = await getUserState(targetAddress);
-      console.log('state: ', state);
-      let orders = await getOpenOrders(targetAddress);
-
-      // 2. Check Agent Address
-      // Unconditional switch: If an agent is linked, we use it.
-      // const agentAddress = getAgentAddress(eoa);
-      // if (agentAddress) {
-      //   console.log(
-      //     'DEBUG: Found Agent Address, executing switch:',
-      //     agentAddress
-      //   );
-
-      //   const agentState = await getUserState(agentAddress);
-      //   const agentOrders = await getOpenOrders(agentAddress);
-
-      //   targetAddress = agentAddress as string;
-      //   state = agentState;
-      //   orders = agentOrders;
-      // }
-
-      setActiveAddress(targetAddress);
-      console.log('DEBUG: User State result for', targetAddress, state);
-
-      if (state) {
-        // Ensure assetPositions exists
-        if (!state.assetPositions) {
-          console.warn(
-            'WARNING: assetPositions missing in state, defaulting to []'
-          );
-          state.assetPositions = [];
+          if (eoa && clientTransport) {
+            targetAddress = eoa;
+            client = createWalletClient({
+              account: eoa as `0x${string}`,
+              chain: arbitrum,
+              transport: clientTransport,
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to get Etherspot provider or EOA (expected in delegatedEoa mode without imported account):', err);
         }
-        setSetupStatus('setup');
-        setUserState(state);
-      } else {
+      }
+
+      setAddress(targetAddress);
+      setWalletClient(client);
+      console.log('DEBUG: Active Client Account:', client?.account?.address);
+
+      // Always fetch assets on load
+      try {
+        // Use getMetaAndAssetCtxs to get both metadata and prices
+        const { getMetaAndAssetCtxs } = await import('../lib/hyperliquid/client');
+        const data = await getMetaAndAssetCtxs();
+        console.log('DEBUG: getMetaAndAssetCtxs result:', data);
+
+        if (data && data[0] && data[1]) {
+          const universe = data[0];
+          const assetCtxs = data[1];
+
+          const assets: EnhancedAsset[] = universe.map((u: any, index: number) => {
+            const ctx = assetCtxs[index];
+            return {
+              id: index,
+              symbol: u.name,
+              szDecimals: u.szDecimals,
+              maxLeverage: u.maxLeverage,
+              price: ctx ? parseFloat(ctx.markPx) : 0,
+              volume: ctx ? parseFloat(ctx.dayNtlVlm) : 0,
+              priceChange: 0, // Not provided directly
+              priceChangePercent: 0, // Not provided directly
+            };
+          });
+          console.log('DEBUG: Parsed assets with prices:', assets.slice(0, 3));
+          const ethAsset = assets.find(a => a.symbol === 'ETH');
+          console.log('DEBUG: ETH Asset found:', ethAsset);
+          setAvailableAssets(assets);
+        } else {
+          // Fallback if structure is unexpected
+          const assets = await getAllAssets();
+          setAvailableAssets(assets as EnhancedAsset[]);
+        }
+      } catch (e) {
+        console.error('Failed to fetch assets', e);
+      }
+
+      if (!targetAddress) {
+        setSetupStatus('unknown');
+        setActiveAddress(null);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        console.log('DEBUG: Checking setup status for:', targetAddress);
+
+        // 1. Fetch Main Address Data
+        // Note: targetAddress is already set to either imported or eoa
+        let state = await getUserState(targetAddress);
+        console.log('state: ', state);
+        let orders = await getOpenOrders(targetAddress);
+
+        // 2. Check Agent Address
+        // Unconditional switch: If an agent is linked, we use it.
+        // const agentAddress = getAgentAddress(eoa);
+        // if (agentAddress) {
+        //   console.log(
+        //     'DEBUG: Found Agent Address, executing switch:',
+        //     agentAddress
+        //   );
+
+        //   const agentState = await getUserState(agentAddress);
+        //   const agentOrders = await getOpenOrders(agentAddress);
+
+        //   targetAddress = agentAddress as string;
+        //   state = agentState;
+        //   orders = agentOrders;
+        // }
+
+        setActiveAddress(targetAddress);
+        console.log('DEBUG: User State result for', targetAddress, state);
+
+        if (state) {
+          // Ensure assetPositions exists
+          if (!state.assetPositions) {
+            console.warn(
+              'WARNING: assetPositions missing in state, defaulting to []'
+            );
+            state.assetPositions = [];
+          }
+          setSetupStatus('setup');
+          setUserState(state);
+        } else {
+          setSetupStatus('not-setup');
+        }
+        if (orders) {
+          setOpenOrders(orders);
+        }
+      } catch (error) {
+        console.error('Error checking setup status:', error);
         setSetupStatus('not-setup');
+      } finally {
+        setIsLoading(false);
       }
-      if (orders) {
-        setOpenOrders(orders);
-      }
-    } catch (error) {
-      console.error('Error checking setup status:', error);
-      setSetupStatus('not-setup');
-    } finally {
+    } catch (criticalError) {
+      console.error('CRITICAL: checkSetupStatus crashed:', criticalError);
+      setSetupStatus('unknown');
       setIsLoading(false);
     }
   }, [clientTransport]);
