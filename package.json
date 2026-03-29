@@ -7,6 +7,8 @@
     "dev": "vite",
     "dev:functions": "wrangler pages dev build --port 5173 --live-reload",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' VITE_COMMIT_SHA=$CF_PAGES_COMMIT_SHA VITE_VERSION=$npm_package_version vite build",
+    "build:extension": "NODE_OPTIONS='--max-old-space-size=8192' VITE_COMMIT_SHA=$CF_PAGES_COMMIT_SHA VITE_VERSION=$npm_package_version vite build --config vite.extension.config.ts",
+    "dev:extension": "vite --config vite.extension.config.ts",
     "preview": "vite preview",
     "test": "vitest",
     "test:watch": "eslint . && vitest",
