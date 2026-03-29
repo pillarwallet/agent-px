@@ -333,20 +333,21 @@ export const unlockPhoneOtpPrivateKey = async (
   }
 };
 
-export const hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession = async () => {
-  if (unlockedPhoneOtpPrivateKey) return unlockedPhoneOtpPrivateKey;
+export const hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession =
+  async () => {
+    if (unlockedPhoneOtpPrivateKey) return unlockedPhoneOtpPrivateKey;
 
-  const storedValue = await extensionSessionStorageGet(
-    PHONE_OTP_UNLOCKED_SESSION_KEY
-  );
+    const storedValue = await extensionSessionStorageGet(
+      PHONE_OTP_UNLOCKED_SESSION_KEY
+    );
 
-  if (!storedValue || typeof storedValue !== 'string') return undefined;
-  if (!isValidPrivateKey(storedValue)) return undefined;
+    if (!storedValue || typeof storedValue !== 'string') return undefined;
+    if (!isValidPrivateKey(storedValue)) return undefined;
 
-  unlockedPhoneOtpPrivateKey = storedValue;
-  notifyPhoneOtpAuthStateChanged();
-  return unlockedPhoneOtpPrivateKey;
-};
+    unlockedPhoneOtpPrivateKey = storedValue;
+    notifyPhoneOtpAuthStateChanged();
+    return unlockedPhoneOtpPrivateKey;
+  };
 
 export const setUnlockedPhoneOtpPrivateKey = (
   privateKey: `0x${string}`

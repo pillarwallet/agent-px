@@ -7,6 +7,8 @@ import styled from 'styled-components';
 
 import PillarXLogo from '../assets/images/pillarX_full_white.png';
 import Button from '../components/Button';
+import { useSendVerificationOtpMutation } from '../services/pillarXApiVerification';
+import { useVerifyOtpCodeMutation } from '../services/pillarXApiVerificationCheck';
 import {
   PHONE_OTP_PHONE_NUMBER_KEY,
   PHONE_OTP_VERIFICATION_SID_KEY,
@@ -19,7 +21,6 @@ import {
   unlockPhoneOtpPrivateKey,
 } from '../utils/phoneOtpAuth';
 
-const OTP_API_BASE_URL = 'http://127.0.0.1:5001/pillarx-staging/us-central1';
 const OTP_LENGTH = 6;
 
 type JsonObject = Record<string, unknown>;
@@ -297,16 +298,6 @@ const createEmptyOtpDigits = () => Array.from({ length: OTP_LENGTH }, () => '');
 
 const isValidPhoneNumber = (value: string) => /^\+[1-9]\d{7,14}$/.test(value);
 
-const parseJsonResponse = async (
-  response: Response
-): Promise<JsonObject | undefined> => {
-  try {
-    return (await response.json()) as JsonObject;
-  } catch {
-    return undefined;
-  }
-};
-
 const getErrorMessage = (
   payload: JsonObject | undefined,
   fallback: string
@@ -326,6 +317,46 @@ const getErrorMessage = (
   );
 
   return matchedMessage ?? fallback;
+};
+
+const getMutationErrorPayload = (error: unknown): JsonObject | undefined => {
+  if (typeof error !== 'object' || error === null || !('data' in error)) {
+    return undefined;
+  }
+
+  const mutationErrorData = (error as { data?: unknown }).data;
+  if (typeof mutationErrorData === 'object' && mutationErrorData !== null) {
+    return mutationErrorData as JsonObject;
+  }
+
+  return undefined;
+};
+
+const getMutationErrorMessage = (error: unknown, fallback: string): string => {
+  const errorPayload = getMutationErrorPayload(error);
+  if (errorPayload) {
+    return getErrorMessage(errorPayload, fallback);
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const errorAsObject = error as { error?: unknown; message?: unknown };
+
+    if (
+      typeof errorAsObject.error === 'string' &&
+      errorAsObject.error.trim().length > 0
+    ) {
+      return errorAsObject.error;
+    }
+
+    if (
+      typeof errorAsObject.message === 'string' &&
+      errorAsObject.message.trim().length > 0
+    ) {
+      return errorAsObject.message;
+    }
+  }
+
+  return fallback;
 };
 
 const extractVerificationSid = (
@@ -392,14 +423,16 @@ const Login = () => {
   const [isProcessingPasscode, setIsProcessingPasscode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState<
-    string | null
-  >(null);
+  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState<string | null>(
+    null
+  );
   const [passcode, setPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
 
   const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const lastSubmittedOtp = useRef<string | null>(null);
+  const [sendVerificationOtp] = useSendVerificationOtpMutation();
+  const [verifyOtpCode] = useVerifyOtpCodeMutation();
 
   const normalizedMobileNumber = useMemo(
     () => mobileNumber.replace(/\D/g, ''),
@@ -412,7 +445,8 @@ const Login = () => {
   );
 
   const selectedMobileLengthRule = useMemo(
-    () => COUNTRY_MOBILE_LENGTH_RULES[countryCode] ?? DEFAULT_MOBILE_LENGTH_RULE,
+    () =>
+      COUNTRY_MOBILE_LENGTH_RULES[countryCode] ?? DEFAULT_MOBILE_LENGTH_RULE,
     [countryCode]
   );
 
@@ -473,15 +507,9 @@ const Login = () => {
     };
   }, [step]);
 
-  const sendOtp = async ({
-    moveToOtpScreen,
-  }: {
-    moveToOtpScreen: boolean;
-  }) => {
+  const sendOtp = async ({ moveToOtpScreen }: { moveToOtpScreen: boolean }) => {
     if (!hasValidPhoneNumber) {
-      setErrorMessage(
-        `Enter a valid mobile number for ${countryCode}.`
-      );
+      setErrorMessage(`Enter a valid mobile number for ${countryCode}.`);
       setInfoMessage(null);
       return;
     }
@@ -491,24 +519,10 @@ const Login = () => {
     setIsSendingOtp(true);
 
     try {
-      const response = await fetch(`${OTP_API_BASE_URL}/verification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: fullPhoneNumber,
-          channel: 'sms',
-        }),
-      });
-
-      const payload = await parseJsonResponse(response);
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, 'Failed to send OTP. Please try again.')
-        );
-      }
+      const payload = (await sendVerificationOtp({
+        to: fullPhoneNumber,
+        channel: 'sms',
+      }).unwrap()) as JsonObject;
 
       const receivedVerificationSid = extractVerificationSid(payload);
       if (!receivedVerificationSid) {
@@ -532,7 +546,7 @@ const Login = () => {
       }
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : 'Failed to send OTP.'
+        getMutationErrorMessage(error, 'Failed to send OTP. Please try again.')
       );
     } finally {
       setIsSendingOtp(false);
@@ -566,25 +580,11 @@ const Login = () => {
     setIsVerifyingOtp(true);
 
     try {
-      const response = await fetch(`${OTP_API_BASE_URL}/verificationCheck`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: fullPhoneNumber,
-          code: codeToVerify,
-          verificationSid,
-        }),
-      });
-
-      const payload = await parseJsonResponse(response);
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, 'OTP verification failed. Please try again.')
-        );
-      }
+      const payload = (await verifyOtpCode({
+        to: fullPhoneNumber,
+        code: codeToVerify,
+        verificationSid,
+      }).unwrap()) as JsonObject;
 
       if (!isVerificationApproved(payload)) {
         throw new Error(
@@ -608,7 +608,10 @@ const Login = () => {
       );
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : 'OTP verification failed.'
+        getMutationErrorMessage(
+          error,
+          'OTP verification failed. Please try again.'
+        )
       );
       setInfoMessage('Enter the OTP again.');
       setOtpDigits(createEmptyOtpDigits());
@@ -708,7 +711,6 @@ const Login = () => {
   }, [step, verificationSid, isOtpComplete, isVerifyingOtp, otpCode]);
 
   const handleMobileNumberChange = (value: string) => {
-
     setMobileNumber(
       value.replace(/\D/g, '').slice(0, selectedMobileLengthRule.max)
     );
@@ -803,7 +805,10 @@ const Login = () => {
       return nextDigits;
     });
 
-    const nextFocusIndex = Math.min(index + pastedDigits.length, OTP_LENGTH - 1);
+    const nextFocusIndex = Math.min(
+      index + pastedDigits.length,
+      OTP_LENGTH - 1
+    );
     otpInputRefs.current[nextFocusIndex]?.focus();
   };
 
@@ -869,7 +874,6 @@ const Login = () => {
       <FormCard>
         {step === 'phone' && (
           <>
-
             <PhoneInputRow>
               <CountryCodeField>
                 <CountryCodeDisplay>
@@ -878,11 +882,16 @@ const Login = () => {
                 </CountryCodeDisplay>
                 <CountryCodeSelect
                   value={countryCode}
-                  onChange={(event) => handleCountryCodeChange(event.target.value)}
+                  onChange={(event) =>
+                    handleCountryCodeChange(event.target.value)
+                  }
                   disabled={isSendingOtp || isVerifyingOtp}
                 >
                   {COUNTRY_CODE_OPTIONS.map((option) => (
-                    <option key={`${option.label}-${option.code}`} value={option.code}>
+                    <option
+                      key={`${option.label}-${option.code}`}
+                      value={option.code}
+                    >
                       {option.label}
                     </option>
                   ))}
@@ -892,7 +901,9 @@ const Login = () => {
               <MobileNumberInput
                 type="tel"
                 value={mobileNumber}
-                onChange={(event) => handleMobileNumberChange(event.target.value)}
+                onChange={(event) =>
+                  handleMobileNumberChange(event.target.value)
+                }
                 placeholder="Mobile number"
                 autoComplete="tel-national"
                 inputMode="numeric"
