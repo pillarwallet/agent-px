@@ -52,6 +52,9 @@ let unlockedPhoneOtpPrivateKey: `0x${string}` | undefined;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
+const PBKDF2_KEY_USAGES: KeyUsage[] = ['deriveKey'];
+const AES_GCM_KEY_USAGES: KeyUsage[] = ['encrypt', 'decrypt'];
+
 const isValidPrivateKey = (value: string): value is `0x${string}` =>
   /^0x[a-fA-F0-9]{64}$/.test(value);
 
@@ -92,29 +95,33 @@ const deriveEncryptionKey = async (
   passphrase: string,
   salt: Uint8Array,
   iterations: number
-) => {
+): Promise<CryptoKey> => {
   const keyMaterial = await window.crypto.subtle.importKey(
     'raw',
     textEncoder.encode(passphrase),
     { name: 'PBKDF2' },
     false,
-    ['deriveKey']
+    PBKDF2_KEY_USAGES
   );
 
+  const pbkdf2Params: Pbkdf2Params = {
+    name: 'PBKDF2',
+    hash: 'SHA-256',
+    salt: salt as BufferSource,
+    iterations,
+  };
+
+  const aesGcmParams: AesDerivedKeyParams = {
+    name: 'AES-GCM',
+    length: 256,
+  };
+
   return window.crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      hash: 'SHA-256',
-      salt,
-      iterations,
-    },
+    pbkdf2Params,
     keyMaterial,
-    {
-      name: 'AES-GCM',
-      length: 256,
-    },
+    aesGcmParams,
     false,
-    ['encrypt', 'decrypt']
+    AES_GCM_KEY_USAGES
   );
 };
 
@@ -357,7 +364,7 @@ export const setUnlockedPhoneOtpPrivateKey = (
   }
 
   unlockedPhoneOtpPrivateKey = privateKey;
-  void extensionSessionStorageSet(PHONE_OTP_UNLOCKED_SESSION_KEY, privateKey);
+  extensionSessionStorageSet(PHONE_OTP_UNLOCKED_SESSION_KEY, privateKey);
   notifyPhoneOtpAuthStateChanged();
 };
 
@@ -365,7 +372,7 @@ export const getUnlockedPhoneOtpPrivateKey = () => unlockedPhoneOtpPrivateKey;
 
 export const clearUnlockedPhoneOtpPrivateKey = () => {
   unlockedPhoneOtpPrivateKey = undefined;
-  void extensionSessionStorageRemove(PHONE_OTP_UNLOCKED_SESSION_KEY);
+  extensionSessionStorageRemove(PHONE_OTP_UNLOCKED_SESSION_KEY);
   notifyPhoneOtpAuthStateChanged();
 };
 

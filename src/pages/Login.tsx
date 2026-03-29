@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { animated, useTransition } from '@react-spring/web';
 import type { ClipboardEvent, KeyboardEvent } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -496,14 +496,18 @@ const Login = () => {
   }, []);
 
   useEffect(() => {
-    if (step !== 'otp') return;
+    let focusTimeout: number | undefined;
 
-    const focusTimeout = window.setTimeout(() => {
-      otpInputRefs.current[0]?.focus();
-    }, 40);
+    if (step === 'otp') {
+      focusTimeout = window.setTimeout(() => {
+        otpInputRefs.current[0]?.focus();
+      }, 40);
+    }
 
     return () => {
-      window.clearTimeout(focusTimeout);
+      if (focusTimeout !== undefined) {
+        window.clearTimeout(focusTimeout);
+      }
     };
   }, [step]);
 
@@ -568,62 +572,65 @@ const Login = () => {
     navigate('/', { replace: true });
   };
 
-  const verifyOtp = async (codeToVerify: string) => {
-    if (!verificationSid) {
-      setErrorMessage('OTP session expired. Please request a new OTP.');
-      setInfoMessage(null);
-      return;
-    }
-
-    setErrorMessage(null);
-    setInfoMessage('Verifying OTP...');
-    setIsVerifyingOtp(true);
-
-    try {
-      const payload = (await verifyOtpCode({
-        to: fullPhoneNumber,
-        code: codeToVerify,
-        verificationSid,
-      }).unwrap()) as JsonObject;
-
-      if (!isVerificationApproved(payload)) {
-        throw new Error(
-          getErrorMessage(payload, 'OTP is invalid or expired. Please retry.')
-        );
+  const verifyOtp = useCallback(
+    async (codeToVerify: string) => {
+      if (!verificationSid) {
+        setErrorMessage('OTP session expired. Please request a new OTP.');
+        setInfoMessage(null);
+        return;
       }
 
-      setVerifiedPhoneNumber(fullPhoneNumber);
-      setVerificationSid(undefined);
-      localStorage.removeItem(PHONE_OTP_VERIFICATION_SID_KEY);
+      setErrorMessage(null);
+      setInfoMessage('Verifying OTP...');
+      setIsVerifyingOtp(true);
 
-      const hasVault = hasPhoneOtpEncryptedVault();
+      try {
+        const payload = (await verifyOtpCode({
+          to: fullPhoneNumber,
+          code: codeToVerify,
+          verificationSid,
+        }).unwrap()) as JsonObject;
 
-      setPasscode('');
-      setConfirmPasscode('');
-      setStep(hasVault ? 'unlockPasscode' : 'createPasscode');
-      setInfoMessage(
-        hasVault
-          ? 'OTP verified. Enter your passcode to unlock wallet.'
-          : `OTP verified. Create a wallet passcode (${minimumPasscodeLength}+ characters).`
-      );
-    } catch (error) {
-      setErrorMessage(
-        getMutationErrorMessage(
-          error,
-          'OTP verification failed. Please try again.'
-        )
-      );
-      setInfoMessage('Enter the OTP again.');
-      setOtpDigits(createEmptyOtpDigits());
-      lastSubmittedOtp.current = null;
+        if (!isVerificationApproved(payload)) {
+          throw new Error(
+            getErrorMessage(payload, 'OTP is invalid or expired. Please retry.')
+          );
+        }
 
-      window.setTimeout(() => {
-        otpInputRefs.current[0]?.focus();
-      }, 40);
-    } finally {
-      setIsVerifyingOtp(false);
-    }
-  };
+        setVerifiedPhoneNumber(fullPhoneNumber);
+        setVerificationSid(undefined);
+        localStorage.removeItem(PHONE_OTP_VERIFICATION_SID_KEY);
+
+        const hasVault = hasPhoneOtpEncryptedVault();
+
+        setPasscode('');
+        setConfirmPasscode('');
+        setStep(hasVault ? 'unlockPasscode' : 'createPasscode');
+        setInfoMessage(
+          hasVault
+            ? 'OTP verified. Enter your passcode to unlock wallet.'
+            : `OTP verified. Create a wallet passcode (${minimumPasscodeLength}+ characters).`
+        );
+      } catch (error) {
+        setErrorMessage(
+          getMutationErrorMessage(
+            error,
+            'OTP verification failed. Please try again.'
+          )
+        );
+        setInfoMessage('Enter the OTP again.');
+        setOtpDigits(createEmptyOtpDigits());
+        lastSubmittedOtp.current = null;
+
+        window.setTimeout(() => {
+          otpInputRefs.current[0]?.focus();
+        }, 40);
+      } finally {
+        setIsVerifyingOtp(false);
+      }
+    },
+    [fullPhoneNumber, minimumPasscodeLength, verificationSid, verifyOtpCode]
+  );
 
   const handleCreatePasscode = async () => {
     if (!verifiedPhoneNumber) {
@@ -707,8 +714,15 @@ const Login = () => {
     if (lastSubmittedOtp.current === otpCode) return;
 
     lastSubmittedOtp.current = otpCode;
-    void verifyOtp(otpCode);
-  }, [step, verificationSid, isOtpComplete, isVerifyingOtp, otpCode]);
+    verifyOtp(otpCode);
+  }, [
+    step,
+    verificationSid,
+    isOtpComplete,
+    isVerifyingOtp,
+    otpCode,
+    verifyOtp,
+  ]);
 
   const handleMobileNumberChange = (value: string) => {
     setMobileNumber(
@@ -911,7 +925,7 @@ const Login = () => {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault();
-                    void sendOtp({ moveToOtpScreen: true });
+                    sendOtp({ moveToOtpScreen: true });
                   }
                 }}
               />
@@ -919,7 +933,7 @@ const Login = () => {
 
             <Button
               onClick={() => {
-                void sendOtp({ moveToOtpScreen: true });
+                sendOtp({ moveToOtpScreen: true });
               }}
               $fullWidth
               $last
@@ -943,7 +957,7 @@ const Login = () => {
               <TextActionButton
                 type="button"
                 onClick={() => {
-                  void sendOtp({ moveToOtpScreen: false });
+                  sendOtp({ moveToOtpScreen: false });
                 }}
                 disabled={isSendingOtp || isVerifyingOtp}
               >
@@ -1012,7 +1026,7 @@ const Login = () => {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  void handleCreatePasscode();
+                  handleCreatePasscode();
                 }
               }}
             />
@@ -1031,14 +1045,14 @@ const Login = () => {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  void handleCreatePasscode();
+                  handleCreatePasscode();
                 }
               }}
             />
 
             <Button
               onClick={() => {
-                void handleCreatePasscode();
+                handleCreatePasscode();
               }}
               $fullWidth
               $last
@@ -1086,14 +1100,14 @@ const Login = () => {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  void handleUnlockPasscode();
+                  handleUnlockPasscode();
                 }
               }}
             />
 
             <Button
               onClick={() => {
-                void handleUnlockPasscode();
+                handleUnlockPasscode();
               }}
               $fullWidth
               $last
