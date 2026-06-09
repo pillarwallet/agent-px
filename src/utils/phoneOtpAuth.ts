@@ -4,6 +4,8 @@ import { isExtensionRuntime } from './extensionRuntime';
 
 export const PHONE_OTP_AUTH_KEY = 'PILLARX_PHONE_OTP_AUTHENTICATED';
 export const PHONE_OTP_PHONE_NUMBER_KEY = 'PILLARX_PHONE_OTP_NUMBER';
+export const PHONE_OTP_COUNTRY_OPTION_LABEL_KEY =
+  'PILLARX_PHONE_OTP_COUNTRY_OPTION_LABEL';
 export const PHONE_OTP_VERIFICATION_SID_KEY =
   'PILLARX_PHONE_OTP_VERIFICATION_SID';
 
@@ -380,15 +382,44 @@ export const getPhoneOtpAddressFromPrivateKey = (
   privateKey: `0x${string}`
 ): `0x${string}` => privateKeyToAccount(privateKey).address;
 
-export const markPhoneOtpAuthenticated = (phoneNumber: string) => {
+export const markPhoneOtpAuthenticated = (
+  phoneNumber: string,
+  countryOptionLabel?: string
+) => {
   localStorage.setItem(PHONE_OTP_AUTH_KEY, 'true');
   localStorage.setItem(PHONE_OTP_PHONE_NUMBER_KEY, phoneNumber);
+  if (countryOptionLabel) {
+    localStorage.setItem(
+      PHONE_OTP_COUNTRY_OPTION_LABEL_KEY,
+      countryOptionLabel
+    );
+  }
   notifyPhoneOtpAuthStateChanged();
 };
 
-export const clearPhoneOtpSession = () => {
+export const markPhoneOtpSessionAuthenticated = (
+  countryOptionLabel?: string
+) => {
+  localStorage.setItem(PHONE_OTP_AUTH_KEY, 'true');
+  if (countryOptionLabel) {
+    localStorage.setItem(
+      PHONE_OTP_COUNTRY_OPTION_LABEL_KEY,
+      countryOptionLabel
+    );
+  }
+  notifyPhoneOtpAuthStateChanged();
+};
+
+export const clearPhoneOtpSession = ({
+  preserveLinkedPhoneData = false,
+}: {
+  preserveLinkedPhoneData?: boolean;
+} = {}) => {
   localStorage.removeItem(PHONE_OTP_AUTH_KEY);
-  localStorage.removeItem(PHONE_OTP_PHONE_NUMBER_KEY);
+  if (!preserveLinkedPhoneData) {
+    localStorage.removeItem(PHONE_OTP_PHONE_NUMBER_KEY);
+    localStorage.removeItem(PHONE_OTP_COUNTRY_OPTION_LABEL_KEY);
+  }
   localStorage.removeItem(PHONE_OTP_VERIFICATION_SID_KEY);
   localStorage.removeItem('EOA_ADDRESS');
   clearUnlockedPhoneOtpPrivateKey();

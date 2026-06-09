@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { animated, useTransition } from '@react-spring/web';
-import type { ClipboardEvent, KeyboardEvent } from 'react';
+import type { ClipboardEvent, FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -9,14 +9,17 @@ import PillarXLogo from '../assets/images/pillarX_full_white.png';
 import Button from '../components/Button';
 import { useSendVerificationOtpMutation } from '../services/pillarXApiVerification';
 import { useVerifyOtpCodeMutation } from '../services/pillarXApiVerificationCheck';
+import { isExtensionRuntime } from '../utils/extensionRuntime';
 import {
   PHONE_OTP_PHONE_NUMBER_KEY,
+  PHONE_OTP_COUNTRY_OPTION_LABEL_KEY,
   PHONE_OTP_VERIFICATION_SID_KEY,
   createPhoneOtpPrivateKeyVault,
   getPhoneOtpAddressFromPrivateKey,
   getPhoneOtpMinimumPasscodeLength,
   hasPhoneOtpEncryptedVault,
   markPhoneOtpAuthenticated,
+  markPhoneOtpSessionAuthenticated,
   setUnlockedPhoneOtpPrivateKey,
   unlockPhoneOtpPrivateKey,
 } from '../utils/phoneOtpAuth';
@@ -35,6 +38,11 @@ type MobileLengthRule = {
   min: number;
   max: number;
 };
+
+const DEFAULT_COUNTRY_OPTION_LABEL = 'United States (+1)';
+const DEFAULT_COUNTRY_CODE = '+1';
+const COUNTRY_LOOKUP_ENDPOINT = '/api/geo/country';
+const COUNTRY_LOOKUP_URL = import.meta.env.VITE_COUNTRY_LOOKUP_URL?.trim();
 
 const COUNTRY_CODE_OPTIONS: CountryCodeOption[] = [
   { code: '+1', label: 'United States (+1)' },
@@ -120,6 +128,224 @@ const COUNTRY_CODE_OPTIONS: CountryCodeOption[] = [
   { code: '+996', label: 'Kyrgyzstan (+996)' },
   { code: '+998', label: 'Uzbekistan (+998)' },
 ];
+
+const COUNTRY_FLAG_BY_LABEL: Record<string, string> = {
+  'United States (+1)': '🇺🇸',
+  'Canada (+1)': '🇨🇦',
+};
+
+const COUNTRY_OPTION_LABEL_BY_REGION: Record<string, string> = {
+  US: 'United States (+1)',
+  CA: 'Canada (+1)',
+};
+
+const AVAILABLE_COUNTRY_CODES = new Set(
+  COUNTRY_CODE_OPTIONS.map((option) => option.code)
+);
+
+const SORTED_COUNTRY_CODES = Array.from(AVAILABLE_COUNTRY_CODES).sort(
+  (left, right) => right.length - left.length
+);
+
+const COUNTRY_CODE_BY_REGION: Record<string, string> = {
+  AF: '+93',
+  AR: '+54',
+  AT: '+43',
+  AU: '+61',
+  AZ: '+994',
+  BE: '+32',
+  BH: '+973',
+  BG: '+359',
+  BR: '+55',
+  BT: '+975',
+  BY: '+375',
+  CA: '+1',
+  CH: '+41',
+  CL: '+56',
+  CN: '+86',
+  CO: '+57',
+  CZ: '+420',
+  DE: '+49',
+  DK: '+45',
+  EG: '+20',
+  ES: '+34',
+  ET: '+251',
+  FI: '+358',
+  FR: '+33',
+  GB: '+44',
+  GE: '+995',
+  GH: '+233',
+  GM: '+220',
+  GR: '+30',
+  HK: '+852',
+  HR: '+385',
+  HU: '+36',
+  ID: '+62',
+  IE: '+353',
+  IL: '+972',
+  IN: '+91',
+  IR: '+98',
+  IS: '+354',
+  IT: '+39',
+  JP: '+81',
+  KE: '+254',
+  KG: '+996',
+  KR: '+82',
+  KZ: '+7',
+  LK: '+94',
+  LU: '+352',
+  LY: '+218',
+  MA: '+212',
+  MX: '+52',
+  MY: '+60',
+  MM: '+95',
+  MN: '+976',
+  NL: '+31',
+  NG: '+234',
+  NO: '+47',
+  NP: '+977',
+  NZ: '+64',
+  PE: '+51',
+  PH: '+63',
+  PK: '+92',
+  PL: '+48',
+  PT: '+351',
+  QA: '+974',
+  RO: '+40',
+  RU: '+7',
+  SA: '+966',
+  SE: '+46',
+  SG: '+65',
+  SK: '+421',
+  TH: '+66',
+  TJ: '+992',
+  TM: '+993',
+  TR: '+90',
+  TW: '+886',
+  TZ: '+255',
+  TN: '+216',
+  UA: '+380',
+  UG: '+256',
+  US: '+1',
+  UZ: '+998',
+  VN: '+84',
+  ZA: '+27',
+  ZM: '+260',
+  ZW: '+263',
+};
+
+type CountryLookupResponse = {
+  country?: string | null;
+  dialingCode?: string | null;
+};
+
+const normalizeCountryCodeSearch = (value: string): string | undefined => {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) return undefined;
+  if (!/^\+?\d+$/.test(trimmedValue)) return undefined;
+
+  return trimmedValue.startsWith('+') ? trimmedValue : `+${trimmedValue}`;
+};
+
+const getCountryCodeFromPhoneNumber = (
+  phoneNumber: string | null | undefined
+): string | undefined => {
+  if (!phoneNumber) return undefined;
+
+  return SORTED_COUNTRY_CODES.find((countryCode) =>
+    phoneNumber.startsWith(countryCode)
+  );
+};
+
+const getCountryOptionByLabel = (
+  label: string | null | undefined
+): CountryCodeOption | undefined => {
+  if (!label) return undefined;
+
+  return COUNTRY_CODE_OPTIONS.find((option) => option.label === label);
+};
+
+const getCountryOptionByCode = (
+  code: string | null | undefined
+): CountryCodeOption | undefined => {
+  if (!code) return undefined;
+
+  return COUNTRY_CODE_OPTIONS.find((option) => option.code === code);
+};
+
+const getCountryFlag = (option: CountryCodeOption): string =>
+  COUNTRY_FLAG_BY_LABEL[option.label] ??
+  COUNTRY_FLAG_BY_CODE[option.code] ??
+  '🌐';
+
+const getCountryLookupUrl = (): string | undefined => {
+  if (COUNTRY_LOOKUP_URL) return COUNTRY_LOOKUP_URL;
+  if (isExtensionRuntime()) return undefined;
+  return COUNTRY_LOOKUP_ENDPOINT;
+};
+
+const getInitialCountryOption = (): CountryCodeOption => {
+  if (typeof window === 'undefined') {
+    return (
+      getCountryOptionByLabel(DEFAULT_COUNTRY_OPTION_LABEL) ??
+      COUNTRY_CODE_OPTIONS[0]
+    );
+  }
+
+  return (
+    getCountryOptionByLabel(
+      localStorage.getItem(PHONE_OTP_COUNTRY_OPTION_LABEL_KEY)
+    ) ??
+    getCountryOptionByCode(
+      getCountryCodeFromPhoneNumber(
+        localStorage.getItem(PHONE_OTP_PHONE_NUMBER_KEY)
+      )
+    ) ??
+    getCountryOptionByLabel(DEFAULT_COUNTRY_OPTION_LABEL) ??
+    COUNTRY_CODE_OPTIONS[0]
+  );
+};
+
+const detectCountryOptionFromLookup = async (): Promise<
+  CountryCodeOption | undefined
+> => {
+  const lookupUrl = getCountryLookupUrl();
+  if (!lookupUrl) return undefined;
+
+  try {
+    const response = await fetch(lookupUrl, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) return undefined;
+
+    const payload = (await response.json()) as CountryLookupResponse;
+    const normalizedRegion =
+      typeof payload.country === 'string' ? payload.country.toUpperCase() : '';
+    const preferredCountryOption = getCountryOptionByLabel(
+      COUNTRY_OPTION_LABEL_BY_REGION[normalizedRegion]
+    );
+
+    if (preferredCountryOption) {
+      return preferredCountryOption;
+    }
+
+    const countryCodeCandidate =
+      (typeof payload.dialingCode === 'string' ? payload.dialingCode : '') ||
+      COUNTRY_CODE_BY_REGION[normalizedRegion];
+
+    if (!countryCodeCandidate) return undefined;
+
+    return getCountryOptionByCode(countryCodeCandidate);
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+};
 
 const COUNTRY_FLAG_BY_CODE: Record<string, string> = {
   '+1': '🇺🇸',
@@ -411,8 +637,10 @@ const isVerificationApproved = (payload: JsonObject | undefined) => {
 
 const Login = () => {
   const navigate = useNavigate();
+  const initialCountryOption = getInitialCountryOption();
   const [step, setStep] = useState<LoginStep>('phone');
-  const [countryCode, setCountryCode] = useState('+91');
+  const [selectedCountryOption, setSelectedCountryOption] =
+    useState<CountryCodeOption>(initialCountryOption);
   const [mobileNumber, setMobileNumber] = useState('');
   const [verificationSid, setVerificationSid] = useState<string | undefined>(
     undefined
@@ -428,11 +656,19 @@ const Login = () => {
   );
   const [passcode, setPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
+  const [isCreatePasscodeVisible, setIsCreatePasscodeVisible] = useState(false);
+  const [isCountryPickerOpen, setIsCountryPickerOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState(initialCountryOption.code);
 
+  const countryPickerRef = useRef<HTMLDivElement | null>(null);
+  const countrySearchInputRef = useRef<HTMLInputElement | null>(null);
   const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const lastSubmittedOtp = useRef<string | null>(null);
+  const hasPhoneInputInteraction = useRef(false);
   const [sendVerificationOtp] = useSendVerificationOtpMutation();
   const [verifyOtpCode] = useVerifyOtpCodeMutation();
+
+  const countryCode = selectedCountryOption.code;
 
   const normalizedMobileNumber = useMemo(
     () => mobileNumber.replace(/\D/g, ''),
@@ -460,9 +696,38 @@ const Login = () => {
   }, [fullPhoneNumber, normalizedMobileNumber, selectedMobileLengthRule]);
 
   const selectedCountryFlag = useMemo(
-    () => COUNTRY_FLAG_BY_CODE[countryCode] ?? '🌐',
-    [countryCode]
+    () => getCountryFlag(selectedCountryOption),
+    [selectedCountryOption]
   );
+
+  const filteredCountryOptions = useMemo(() => {
+    const trimmedQuery = countrySearch.trim();
+
+    if (
+      !trimmedQuery ||
+      trimmedQuery === selectedCountryOption.code ||
+      trimmedQuery === selectedCountryOption.label
+    ) {
+      return COUNTRY_CODE_OPTIONS;
+    }
+
+    const normalizedCodeQuery = normalizeCountryCodeSearch(trimmedQuery);
+    const digitOnlyQuery = trimmedQuery.replace(/\D/g, '');
+    const loweredQuery = trimmedQuery.toLowerCase();
+
+    return COUNTRY_CODE_OPTIONS.filter((option) => {
+      const optionLabel = option.label.toLowerCase();
+      const optionDigits = option.code.replace(/\D/g, '');
+
+      return (
+        optionLabel.includes(loweredQuery) ||
+        (normalizedCodeQuery
+          ? option.code.startsWith(normalizedCodeQuery)
+          : false) ||
+        (digitOnlyQuery ? optionDigits.startsWith(digitOnlyQuery) : false)
+      );
+    });
+  }, [countrySearch, selectedCountryOption]);
 
   const otpCode = useMemo(() => otpDigits.join(''), [otpDigits]);
   const isOtpComplete = useMemo(
@@ -473,6 +738,11 @@ const Login = () => {
   const minimumPasscodeLength = getPhoneOtpMinimumPasscodeLength();
   const isAnyAuthActionInProgress =
     isSendingOtp || isVerifyingOtp || isProcessingPasscode;
+  const isCreateWalletDisabled =
+    isAnyAuthActionInProgress ||
+    passcode.length === 0 ||
+    confirmPasscode.length === 0 ||
+    passcode !== confirmPasscode;
 
   const logoTransitions = useTransition(true, {
     from: { opacity: 0 },
@@ -496,6 +766,24 @@ const Login = () => {
   }, []);
 
   useEffect(() => {
+    const storedPhoneNumber = localStorage.getItem(PHONE_OTP_PHONE_NUMBER_KEY);
+    if (getCountryCodeFromPhoneNumber(storedPhoneNumber)) return;
+
+    let isCancelled = false;
+
+    detectCountryOptionFromLookup().then((detectedCountryOption) => {
+      if (!detectedCountryOption) return;
+      if (isCancelled || hasPhoneInputInteraction.current) return;
+
+      setSelectedCountryOption(detectedCountryOption);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     let focusTimeout: number | undefined;
 
     if (step === 'otp') {
@@ -510,6 +798,11 @@ const Login = () => {
       }
     };
   }, [step]);
+
+  useEffect(() => {
+    if (isCountryPickerOpen) return;
+    setCountrySearch(selectedCountryOption.code);
+  }, [isCountryPickerOpen, selectedCountryOption]);
 
   const sendOtp = async ({ moveToOtpScreen }: { moveToOtpScreen: boolean }) => {
     if (!hasValidPhoneNumber) {
@@ -559,12 +852,19 @@ const Login = () => {
 
   const completeAuthenticatedLogin = (
     privateKey: `0x${string}`,
-    authenticatedPhoneNumber: string
+    authenticatedPhoneNumber?: string | null
   ) => {
     const accountAddress = getPhoneOtpAddressFromPrivateKey(privateKey);
 
     setUnlockedPhoneOtpPrivateKey(privateKey);
-    markPhoneOtpAuthenticated(authenticatedPhoneNumber);
+    if (authenticatedPhoneNumber) {
+      markPhoneOtpAuthenticated(
+        authenticatedPhoneNumber,
+        selectedCountryOption.label
+      );
+    } else {
+      markPhoneOtpSessionAuthenticated(selectedCountryOption.label);
+    }
     localStorage.setItem('EOA_ADDRESS', accountAddress);
     localStorage.removeItem(PHONE_OTP_VERIFICATION_SID_KEY);
     sessionStorage.setItem('loginPageReloaded', 'false');
@@ -672,15 +972,6 @@ const Login = () => {
     const storedPhoneNumber = localStorage.getItem(PHONE_OTP_PHONE_NUMBER_KEY);
     const authenticatedPhoneNumber = verifiedPhoneNumber ?? storedPhoneNumber;
 
-    if (!authenticatedPhoneNumber) {
-      setErrorMessage(
-        'Could not find a linked phone number. Please verify OTP once to continue.'
-      );
-      setInfoMessage(null);
-      setStep('phone');
-      return;
-    }
-
     if (passcode.trim().length < minimumPasscodeLength) {
       setErrorMessage(
         `Passcode must be at least ${minimumPasscodeLength} characters.`
@@ -725,6 +1016,7 @@ const Login = () => {
   ]);
 
   const handleMobileNumberChange = (value: string) => {
+    hasPhoneInputInteraction.current = true;
     setMobileNumber(
       value.replace(/\D/g, '').slice(0, selectedMobileLengthRule.max)
     );
@@ -732,14 +1024,117 @@ const Login = () => {
     setInfoMessage(null);
   };
 
-  const handleCountryCodeChange = (value: string) => {
+  const handleCountryOptionChange = (option: CountryCodeOption) => {
     const nextRule =
-      COUNTRY_MOBILE_LENGTH_RULES[value] ?? DEFAULT_MOBILE_LENGTH_RULE;
+      COUNTRY_MOBILE_LENGTH_RULES[option.code] ?? DEFAULT_MOBILE_LENGTH_RULE;
 
-    setCountryCode(value);
+    hasPhoneInputInteraction.current = true;
+    setSelectedCountryOption(option);
     setMobileNumber((previousNumber) => previousNumber.slice(0, nextRule.max));
     setErrorMessage(null);
     setInfoMessage(null);
+  };
+
+  const focusCountrySearchInput = () => {
+    window.setTimeout(() => {
+      countrySearchInputRef.current?.focus();
+      countrySearchInputRef.current?.select();
+    }, 0);
+  };
+
+  const openCountryPicker = () => {
+    setIsCountryPickerOpen(true);
+    focusCountrySearchInput();
+  };
+
+  const closeCountryPicker = () => {
+    setIsCountryPickerOpen(false);
+    setCountrySearch(selectedCountryOption.code);
+  };
+
+  const selectCountryOption = (option: CountryCodeOption) => {
+    handleCountryOptionChange(option);
+    setCountrySearch(option.code);
+    setIsCountryPickerOpen(false);
+  };
+
+  const commitCountrySearch = (allowFallbackMatch: boolean) => {
+    const trimmedQuery = countrySearch.trim();
+
+    if (
+      !trimmedQuery ||
+      trimmedQuery === selectedCountryOption.code ||
+      trimmedQuery === selectedCountryOption.label
+    ) {
+      closeCountryPicker();
+      return;
+    }
+
+    const normalizedCodeQuery = normalizeCountryCodeSearch(trimmedQuery);
+
+    const exactMatch =
+      COUNTRY_CODE_OPTIONS.find(
+        (option) => option.code === normalizedCodeQuery
+      ) ??
+      COUNTRY_CODE_OPTIONS.find(
+        (option) => option.label.toLowerCase() === trimmedQuery.toLowerCase()
+      );
+
+    const nextOption =
+      exactMatch ||
+      (allowFallbackMatch
+        ? filteredCountryOptions[0]
+        : filteredCountryOptions.length === 1
+          ? filteredCountryOptions[0]
+          : undefined);
+
+    if (nextOption) {
+      selectCountryOption(nextOption);
+      return;
+    }
+
+    closeCountryPicker();
+  };
+
+  const handleCountrySearchChange = (value: string) => {
+    hasPhoneInputInteraction.current = true;
+    setIsCountryPickerOpen(true);
+    setCountrySearch(value);
+    setErrorMessage(null);
+    setInfoMessage(null);
+  };
+
+  const handleCountrySearchBlur = (event: FocusEvent<HTMLInputElement>) => {
+    const nextFocusedElement = event.relatedTarget as Node | null;
+
+    if (
+      nextFocusedElement &&
+      countryPickerRef.current?.contains(nextFocusedElement)
+    ) {
+      return;
+    }
+
+    commitCountrySearch(false);
+  };
+
+  const handleCountrySearchKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitCountrySearch(true);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeCountryPicker();
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      setIsCountryPickerOpen(true);
+    }
   };
 
   const handleEditPhoneNumber = () => {
@@ -888,48 +1283,171 @@ const Login = () => {
       <FormCard>
         {step === 'phone' && (
           <>
-            <PhoneInputRow>
-              <CountryCodeField>
-                <CountryCodeDisplay>
-                  <CountryFlag>{selectedCountryFlag}</CountryFlag>
-                  <CountryCodeText>{countryCode}</CountryCodeText>
-                </CountryCodeDisplay>
-                <CountryCodeSelect
-                  value={countryCode}
-                  onChange={(event) =>
-                    handleCountryCodeChange(event.target.value)
-                  }
-                  disabled={isSendingOtp || isVerifyingOtp}
+            <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,3fr)] gap-2">
+              <div ref={countryPickerRef} className="relative">
+                <div
+                  className={`flex h-[58px] items-center gap-1.5 rounded-2xl border px-2 transition ${
+                    isCountryPickerOpen
+                      ? 'border-[#997cfa]/70 bg-white/[0.08] shadow-[0_0_0_1px_rgba(153,124,250,0.18)]'
+                      : 'border-white/10 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                  } ${
+                    isSendingOtp || isVerifyingOtp
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'hover:border-white/20'
+                  }`}
+                  onClick={() => {
+                    if (isSendingOtp || isVerifyingOtp) return;
+                    openCountryPicker();
+                  }}
                 >
-                  {COUNTRY_CODE_OPTIONS.map((option) => (
-                    <option
-                      key={`${option.label}-${option.code}`}
-                      value={option.code}
-                    >
-                      {option.label}
-                    </option>
-                  ))}
-                </CountryCodeSelect>
-              </CountryCodeField>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm">
+                    {selectedCountryFlag}
+                  </div>
 
-              <MobileNumberInput
-                type="tel"
-                value={mobileNumber}
-                onChange={(event) =>
-                  handleMobileNumberChange(event.target.value)
-                }
-                placeholder="Mobile number"
-                autoComplete="tel-national"
-                inputMode="numeric"
-                disabled={isSendingOtp || isVerifyingOtp}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    sendOtp({ moveToOtpScreen: true });
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    {/* <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                      Country code
+                    </p> */}
+                    <input
+                      ref={countrySearchInputRef}
+                      type="text"
+                      value={countrySearch}
+                      onChange={(event) =>
+                        handleCountrySearchChange(event.target.value)
+                      }
+                      onFocus={() => {
+                        if (isSendingOtp || isVerifyingOtp) return;
+                        setIsCountryPickerOpen(true);
+                      }}
+                      onBlur={handleCountrySearchBlur}
+                      onKeyDown={handleCountrySearchKeyDown}
+                      placeholder="+1"
+                      disabled={isSendingOtp || isVerifyingOtp}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="min-w-0 w-full bg-transparent text-[13px] font-medium tracking-tight text-white outline-none placeholder:text-white/35"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+
+                      if (isSendingOtp || isVerifyingOtp) return;
+
+                      if (isCountryPickerOpen) {
+                        closeCountryPicker();
+                        return;
+                      }
+
+                      openCountryPicker();
+                    }}
+                    disabled={isSendingOtp || isVerifyingOtp}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/8 text-white/70 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed"
+                    aria-label="Toggle country code options"
+                  >
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      className={`h-4 w-4 transition-transform ${
+                        isCountryPickerOpen ? 'rotate-180' : ''
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M5 7.5L10 12.5L15 7.5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {isCountryPickerOpen && (
+                  <div className="absolute left-0 top-[calc(100%+0.75rem)] z-20 w-80 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl">
+                    {/* <div className="border-b border-white/10 px-3 py-2">
+                      <p className="text-[11px] font-medium text-white/75">
+                        Type a country or extension
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-white/40">
+                        Selected: {selectedCountryOption.label}
+                      </p>
+                    </div> */}
+
+                    <div className="max-h-64 overflow-y-auto p-2">
+                      {filteredCountryOptions.length > 0 ? (
+                        filteredCountryOptions.map((option) => {
+                          const isSelected =
+                            option.label === selectedCountryOption.label;
+                          const optionFlag = getCountryFlag(option);
+
+                          return (
+                            <button
+                              key={`${option.label}-${option.code}`}
+                              type="button"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                              }}
+                              onClick={() => {
+                                selectCountryOption(option);
+                              }}
+                              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                                isSelected
+                                  ? 'bg-[#997cfa]/15 text-white'
+                                  : 'text-white/80 hover:bg-white/6 hover:text-white'
+                              }`}
+                            >
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/8 text-base">
+                                {optionFlag}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium">
+                                  {option.label}
+                                </span>
+                                {/* <span className="block text-xs text-white/45">
+                                  Type {option.code}
+                                </span> */}
+                              </span>
+                              {/* <span className="text-sm font-semibold text-white/70">
+                                {option.code}
+                              </span> */}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-sm text-white/45">
+                          No matching country code found.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex h-[58px] items-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#997cfa]/70 focus-within:bg-white/[0.08] focus-within:shadow-[0_0_0_1px_rgba(153,124,250,0.18)]">
+                <input
+                  type="tel"
+                  value={mobileNumber}
+                  onChange={(event) =>
+                    handleMobileNumberChange(event.target.value)
                   }
-                }}
-              />
-            </PhoneInputRow>
+                  placeholder="Mobile number"
+                  autoComplete="tel-national"
+                  inputMode="numeric"
+                  disabled={isSendingOtp || isVerifyingOtp}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      sendOtp({ moveToOtpScreen: true });
+                    }
+                  }}
+                  className="h-full w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                />
+              </div>
+            </div>
 
             <Button
               onClick={() => {
@@ -1012,24 +1530,99 @@ const Login = () => {
               Create a passcode to encrypt your wallet key on this device.
             </SectionDescription>
 
-            <SecureInput
-              type="password"
-              value={passcode}
-              onChange={(event) => {
-                setPasscode(event.target.value);
-                setErrorMessage(null);
-                setInfoMessage(null);
-              }}
-              placeholder="Create passcode"
-              autoComplete="new-password"
-              disabled={isAnyAuthActionInProgress}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  handleCreatePasscode();
+            <PasscodeInputWrapper>
+              <SecureInputWithAction
+                type={isCreatePasscodeVisible ? 'text' : 'password'}
+                value={passcode}
+                onChange={(event) => {
+                  setPasscode(event.target.value);
+                  setErrorMessage(null);
+                  setInfoMessage(null);
+                }}
+                placeholder="Create passcode"
+                autoComplete="new-password"
+                disabled={isAnyAuthActionInProgress}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (isCreateWalletDisabled) return;
+                    handleCreatePasscode();
+                  }
+                }}
+              />
+
+              <PasscodeVisibilityButton
+                type="button"
+                onClick={() => {
+                  setIsCreatePasscodeVisible((previousValue) => !previousValue);
+                }}
+                disabled={isAnyAuthActionInProgress}
+                aria-label={
+                  isCreatePasscodeVisible
+                    ? 'Hide create passcode'
+                    : 'Show create passcode'
                 }
-              }}
-            />
+              >
+                {isCreatePasscodeVisible ? (
+                  <svg
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M2.5 2.5L17.5 17.5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M8.5 5.6A8.4 8.4 0 0 1 10 5.5c4.5 0 7.4 4.5 7.4 4.5a14 14 0 0 1-2.3 2.8"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M12.1 12.1a3 3 0 0 1-4.2-4.2"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M5.2 14.8C3.4 13.5 2.6 12 2.6 12S5.5 7.5 10 7.5c.4 0 .7 0 1 .1"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M2.6 10S5.5 5.5 10 5.5s7.4 4.5 7.4 4.5-2.9 4.5-7.4 4.5S2.6 10 2.6 10Z"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle
+                      cx="10"
+                      cy="10"
+                      r="2.6"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                    />
+                  </svg>
+                )}
+              </PasscodeVisibilityButton>
+            </PasscodeInputWrapper>
 
             <SecureInput
               type="password"
@@ -1045,6 +1638,7 @@ const Login = () => {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
+                  if (isCreateWalletDisabled) return;
                   handleCreatePasscode();
                 }
               }}
@@ -1056,11 +1650,7 @@ const Login = () => {
               }}
               $fullWidth
               $last
-              disabled={
-                isAnyAuthActionInProgress ||
-                passcode.length === 0 ||
-                confirmPasscode.length === 0
-              }
+              disabled={isCreateWalletDisabled}
             >
               {isProcessingPasscode ? 'Creating Wallet...' : 'Create Wallet'}
             </Button>
@@ -1158,54 +1748,6 @@ const SectionDescription = styled.p`
   color: ${({ theme }) => theme.color.text.inputInactive};
 `;
 
-const PhoneInputRow = styled.div`
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 4fr);
-  gap: 10px;
-`;
-
-const CountryCodeField = styled.div`
-  position: relative;
-  height: 46px;
-  border: 1px solid ${({ theme }) => theme.color.border.buttonSecondary};
-  border-radius: 6px;
-  background: ${({ theme }) => theme.color.background.input};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  &:focus-within {
-    border-color: ${({ theme }) => theme.color.background.buttonPrimary};
-  }
-`;
-
-const CountryCodeDisplay = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-`;
-
-const CountryFlag = styled.span`
-  font-size: 18px;
-  line-height: 1;
-`;
-
-const CountryCodeText = styled.span`
-  font-size: 13px;
-  color: ${({ theme }) => theme.color.text.input};
-`;
-
-const CountryCodeSelect = styled.select`
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-`;
-
 const MobileNumberInput = styled.input`
   height: 46px;
   width: 100%;
@@ -1228,6 +1770,43 @@ const MobileNumberInput = styled.input`
 
 const SecureInput = styled(MobileNumberInput)`
   letter-spacing: 0.02em;
+`;
+
+const PasscodeInputWrapper = styled.div`
+  position: relative;
+  width: 100%;
+`;
+
+const SecureInputWithAction = styled(SecureInput)`
+  padding-right: 44px;
+`;
+
+const PasscodeVisibilityButton = styled.button`
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.color.text.inputInactive};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: ${({ theme }) => theme.color.text.input};
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
 `;
 
 const TopActions = styled.div`
