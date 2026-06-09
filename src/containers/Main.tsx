@@ -2,15 +2,16 @@
 import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth';
 import * as Sentry from '@sentry/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   createBrowserRouter,
+  createHashRouter,
   Navigate,
   RouterProvider,
 } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import { createWalletClient, custom, http, WalletClient } from 'viem';
-import { toAccount } from 'viem/accounts';
+import { privateKeyToAccount, toAccount } from 'viem/accounts';
 import type {
   Account,
   AuthorizationRequest,
@@ -39,6 +40,17 @@ import {
   signTransactionViaWebView,
   signTypedDataViaWebView,
 } from '../utils/pillarWalletMessaging';
+import {
+  PHONE_OTP_AUTH_STATE_EVENT,
+  getPhoneOtpAddressFromPrivateKey,
+  getUnlockedPhoneOtpPrivateKey,
+  hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession,
+  isPhoneOtpAuthenticated,
+} from '../utils/phoneOtpAuth';
+import {
+  isExtensionPopupView,
+  isExtensionRuntime,
+} from '../utils/extensionRuntime';
 
 // pages
 import Advertising from '../pages/Advertising';
@@ -80,16 +92,46 @@ const AuthLayout = () => {
 
   const { connectors } = useConnect();
   const { isConnected: wagmiIsConnected } = useAccount();
+  const isExtensionRuntimeEnabled = isExtensionRuntime();
+  const isExtensionPopupMode = isExtensionPopupView();
   const [provider, setProvider] = useState<WalletClient | undefined>(undefined);
   const [chainId, setChainId] = useState<number | undefined>(undefined);
+  const [isPhoneOtpUnlockStateHydrated, setIsPhoneOtpUnlockStateHydrated] =
+    useState(!isExtensionRuntimeEnabled);
   const { isLoading: isLoadingAllowedApps, allowed } = useAllowedApps();
-  const [eoaAddress, setEoaAddress] = useState<string | undefined>(undefined);
+  const [, setPhoneOtpAuthStateVersion] = useState(0);
+  const phoneOtpPrivateKey = getUnlockedPhoneOtpPrivateKey();
+  const phoneOtpAddress = useMemo(() => {
+    if (!phoneOtpPrivateKey || !isPhoneOtpAuthenticated()) return undefined;
+
+    try {
+      return getPhoneOtpAddressFromPrivateKey(phoneOtpPrivateKey);
+    } catch {
+      return undefined;
+    }
+  }, [phoneOtpPrivateKey]);
+  const [eoaAddress, setEoaAddress] = useState<string | undefined>(
+    phoneOtpAddress
+  );
   const [customAccount, setCustomAccount] = useState<Account | undefined>(
     undefined
   );
-  const previouslyAuthenticated = !!localStorage.getItem('privy:token');
-  const isAppReady = ready && !isLoadingAllowedApps;
-  const isAuthenticated = authenticated || wagmiIsConnected || !!eoaAddress;
+  const phoneOtpAuthEnabled = isPhoneOtpAuthenticated();
+  const previouslyAuthenticated = isExtensionRuntimeEnabled
+    ? phoneOtpAuthEnabled
+    : !!localStorage.getItem('privy:token') || phoneOtpAuthEnabled;
+  const isAppReady =
+    (isExtensionRuntimeEnabled ? isPhoneOtpUnlockStateHydrated : ready) &&
+    !isLoadingAllowedApps;
+  const isAuthenticated = isExtensionRuntimeEnabled
+    ? phoneOtpAuthEnabled && !!phoneOtpPrivateKey
+    : authenticated ||
+      wagmiIsConnected ||
+      !!eoaAddress ||
+      (phoneOtpAuthEnabled && !!phoneOtpPrivateKey);
+  const createRouter = isExtensionRuntimeEnabled
+    ? createHashRouter
+    : createBrowserRouter;
 
   // Minimal Sentry context for authentication state - only set on errors
   useEffect(() => {
@@ -116,9 +158,61 @@ const AuthLayout = () => {
   ]);
 
   useEffect(() => {
+    const handlePhoneOtpAuthStateChange = () => {
+      setPhoneOtpAuthStateVersion((previousVersion) => previousVersion + 1);
+    };
+
+    window.addEventListener(
+      PHONE_OTP_AUTH_STATE_EVENT,
+      handlePhoneOtpAuthStateChange
+    );
+
+    return () => {
+      window.removeEventListener(
+        PHONE_OTP_AUTH_STATE_EVENT,
+        handlePhoneOtpAuthStateChange
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydratePhoneOtpUnlockState = async () => {
+      if (!isExtensionRuntimeEnabled) {
+        if (!cancelled) {
+          setIsPhoneOtpUnlockStateHydrated(true);
+        }
+        return;
+      }
+
+      try {
+        await hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession();
+      } finally {
+        if (!cancelled) {
+          setIsPhoneOtpUnlockStateHydrated(true);
+        }
+      }
+    };
+
+    void hydratePhoneOtpUnlockState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isExtensionRuntimeEnabled]);
+
+  useEffect(() => {
     if (!authenticated) return;
     sessionStorage.setItem('loginPageReloaded', 'false');
   }, [authenticated]);
+
+  useEffect(() => {
+    if (!phoneOtpAddress) return;
+    if (localStorage.getItem('EOA_ADDRESS') === phoneOtpAddress) return;
+
+    localStorage.setItem('EOA_ADDRESS', phoneOtpAddress);
+  }, [phoneOtpAddress]);
 
   /**
    * Set up Pillar Wallet webview messaging and extract eoaAddress
@@ -229,7 +323,76 @@ const AuthLayout = () => {
 
     // Handle both Privy wallets and WalletConnect connections
     const updateProvider = async () => {
-      // PRIORITY 1: React Native custom account (takes precedence over all other methods)
+      // PRIORITY 1: Phone OTP authenticated local private key wallet
+      if (phoneOtpAuthEnabled && phoneOtpPrivateKey) {
+        Sentry.addBreadcrumb({
+          category: 'authentication',
+          message: 'Setting up local private key provider from phone OTP login',
+          level: 'info',
+          data: {
+            providerSetupId,
+          },
+        });
+
+        const account = privateKeyToAccount(phoneOtpPrivateKey);
+        const normalizedAccountAddress = account.address.toLowerCase();
+        const currentProviderAccountAddress =
+          typeof provider?.account === 'object' && provider.account !== null
+            ? provider.account.address.toLowerCase()
+            : undefined;
+
+        if (customAccount?.address.toLowerCase() !== normalizedAccountAddress) {
+          setCustomAccount(account);
+        }
+
+        if (eoaAddress?.toLowerCase() !== normalizedAccountAddress) {
+          setEoaAddress(account.address);
+        }
+
+        if (localStorage.getItem('EOA_ADDRESS') !== account.address) {
+          localStorage.setItem('EOA_ADDRESS', account.address);
+        }
+
+        const walletChainId = 1;
+        const isWithinVisibleChains = visibleChains.some(
+          (chain) => chain.id === walletChainId
+        );
+        const targetChainId = isWithinVisibleChains
+          ? walletChainId
+          : visibleChains[0].id;
+
+        const shouldRecreateProvider =
+          currentProviderAccountAddress !== normalizedAccountAddress ||
+          provider?.chain?.id !== walletChainId;
+
+        if (shouldRecreateProvider) {
+          const newProvider = createWalletClient({
+            account,
+            chain: getNetworkViem(walletChainId),
+            transport: http(),
+          });
+          setProvider(newProvider);
+        }
+
+        if (chainId !== targetChainId) {
+          setChainId(targetChainId);
+        }
+
+        Sentry.addBreadcrumb({
+          category: 'authentication',
+          message: 'Local private key provider setup completed',
+          level: 'info',
+          data: {
+            providerSetupId,
+            accountAddress: account.address,
+            walletChainId,
+          },
+        });
+
+        return;
+      }
+
+      // PRIORITY 2: React Native custom account (takes precedence over Privy/WalletConnect)
       if (eoaAddress) {
         Sentry.addBreadcrumb({
           category: 'authentication',
@@ -241,6 +404,12 @@ const AuthLayout = () => {
             accountAddress: eoaAddress,
           },
         });
+
+        const normalizedAccountAddress = eoaAddress.toLowerCase();
+        const currentProviderAccountAddress =
+          typeof provider?.account === 'object' && provider.account !== null
+            ? provider.account.address.toLowerCase()
+            : undefined;
 
         /**
          * @description Creates a custom account that delegates signing to the React Native app
@@ -347,23 +516,36 @@ const AuthLayout = () => {
           },
         });
 
-        // Store the account for passing to EtherspotTransactionKit
-        setCustomAccount(account);
+        if (customAccount?.address.toLowerCase() !== normalizedAccountAddress) {
+          setCustomAccount(account);
+        }
 
         const walletChainId = 1; // default chain id is 1 (mainnet)
-
-        const newProvider = createWalletClient({
-          account,
-          chain: getNetworkViem(walletChainId),
-          transport: http(),
-        });
-
-        setProvider(newProvider);
 
         const isWithinVisibleChains = visibleChains.some(
           (chain) => chain.id === walletChainId
         );
-        setChainId(isWithinVisibleChains ? walletChainId : visibleChains[0].id);
+        const targetChainId = isWithinVisibleChains
+          ? walletChainId
+          : visibleChains[0].id;
+
+        const shouldRecreateProvider =
+          currentProviderAccountAddress !== normalizedAccountAddress ||
+          provider?.chain?.id !== walletChainId;
+
+        if (shouldRecreateProvider) {
+          const newProvider = createWalletClient({
+            account,
+            chain: getNetworkViem(walletChainId),
+            transport: http(),
+          });
+
+          setProvider(newProvider);
+        }
+
+        if (chainId !== targetChainId) {
+          setChainId(targetChainId);
+        }
 
         Sentry.addBreadcrumb({
           category: 'authentication',
@@ -383,7 +565,7 @@ const AuthLayout = () => {
       } // END if (eoaAddress)
 
       // Don't run provider setup if Privy is still initializing and we're not using WalletConnect
-      if (!ready && !wagmiIsConnected) {
+      if (!ready && !wagmiIsConnected && !isExtensionRuntimeEnabled) {
         Sentry.addBreadcrumb({
           category: 'authentication',
           message: 'Provider setup skipped - not ready',
@@ -727,7 +909,17 @@ const AuthLayout = () => {
     updateProvider();
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallets, user, wagmiIsConnected, eoaAddress]);
+  }, [
+    wallets,
+    user,
+    wagmiIsConnected,
+    eoaAddress,
+    customAccount,
+    provider,
+    chainId,
+    phoneOtpAuthEnabled,
+    phoneOtpPrivateKey,
+  ]);
 
   /**
    * If all the following variables are truthy within the if
@@ -764,6 +956,7 @@ const AuthLayout = () => {
             provider={provider}
             eoaAddress={eoaAddress}
             customAccount={customAccount}
+            forceModularWalletMode={phoneOtpAuthEnabled}
           />
         ),
         children: [
@@ -860,19 +1053,23 @@ const AuthLayout = () => {
     // ...and return.
     return (
       <RouterProvider
-        router={createBrowserRouter(authorizedRoutesDefinition)}
+        router={createRouter(authorizedRoutesDefinition)}
       />
     );
   }
 
   // Determine if this is a root page, we'll need it later
+  const isExtensionEntryPage =
+    window.location.pathname === '/popup.html' ||
+    window.location.pathname === '/options.html';
   const isRootPage =
     window.location.pathname === '/' ||
     window.location.pathname === '/waitlist' ||
     window.location.pathname === '/developers' ||
     window.location.pathname === '/advertising' ||
     window.location.pathname === '/privacy-policy' ||
-    window.location.pathname === '/login';
+    window.location.pathname === '/login' ||
+    (isExtensionRuntimeEnabled && isExtensionEntryPage);
 
   /**
    * The following if statement determines if the user is
@@ -905,7 +1102,9 @@ const AuthLayout = () => {
     const unauthorizedRoutesDefinition = [
       {
         path: '/',
-        element: <LandingPage />,
+        element: isExtensionPopupMode
+          ? <Navigate to="/login" replace />
+          : <LandingPage />,
       },
       {
         path: '/waitlist',
@@ -954,7 +1153,7 @@ const AuthLayout = () => {
     // ...and return.
     return (
       <RouterProvider
-        router={createBrowserRouter(unauthorizedRoutesDefinition)}
+        router={createRouter(unauthorizedRoutesDefinition)}
       />
     );
   }
@@ -988,21 +1187,25 @@ const AuthLayout = () => {
 
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+const extensionRuntimeAtBootstrap = isExtensionRuntime();
+
 export const config = createConfig({
   chains: [mainnet],
-  connectors: [
-    walletConnect({
-      projectId: import.meta.env.VITE_REOWN_PROJECT_ID ?? '',
-      showQrModal: !isMobile,
-      isNewChainsStale: true,
-      metadata: {
-        name: 'PillarX',
-        description: 'PillarX',
-        url: 'https://pillarx.app/',
-        icons: ['https://pillarx.app/favicon.ico'],
-      },
-    }),
-  ],
+  connectors: extensionRuntimeAtBootstrap
+    ? []
+    : [
+        walletConnect({
+          projectId: import.meta.env.VITE_REOWN_PROJECT_ID ?? '',
+          showQrModal: !isMobile,
+          isNewChainsStale: true,
+          metadata: {
+            name: 'PillarX',
+            description: 'PillarX',
+            url: 'https://pillarx.app/',
+            icons: ['https://pillarx.app/favicon.ico'],
+          },
+        }),
+      ],
   transports: {
     [mainnet.id]: http(),
   },
@@ -1011,7 +1214,27 @@ export const config = createConfig({
 const queryClient = new QueryClient();
 
 const Main = () => {
+  const extensionRuntime = isExtensionRuntime();
   const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
+
+  const appContent = (
+    <QueryClientProvider client={queryClient}>
+      <WagmiProvider config={config}>
+        <AllowedAppsProvider>
+          <AuthLayout />
+        </AllowedAppsProvider>
+      </WagmiProvider>
+    </QueryClientProvider>
+  );
+
+  if (extensionRuntime) {
+    return (
+      <ThemeProvider theme={defaultTheme}>
+        <GlobalStyle />
+        <LanguageProvider>{appContent}</LanguageProvider>
+      </ThemeProvider>
+    );
+  }
 
   if (!privyAppId) {
     console.error(
@@ -1040,13 +1263,7 @@ const Main = () => {
             },
           }}
         >
-          <QueryClientProvider client={queryClient}>
-            <WagmiProvider config={config}>
-              <AllowedAppsProvider>
-                <AuthLayout />
-              </AllowedAppsProvider>
-            </WagmiProvider>
-          </QueryClientProvider>
+          {appContent}
         </PrivyProvider>
       </LanguageProvider>
     </ThemeProvider>

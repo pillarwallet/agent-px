@@ -1,6 +1,11 @@
 import { useLogout } from '@privy-io/react-auth';
 import { useAccount, useDisconnect } from 'wagmi';
 
+import {
+  clearPhoneOtpSession,
+  hasPhoneOtpEncryptedVault,
+} from './phoneOtpAuth';
+
 /**
  * Custom hook that provides comprehensive logout functionality
  * Handles both Privy and WAGMI disconnection
@@ -29,6 +34,9 @@ export const useComprehensiveLogout = () => {
 
     // Clear any stored data
     try {
+      clearPhoneOtpSession({
+        preserveLinkedPhoneData: hasPhoneOtpEncryptedVault(),
+      });
       sessionStorage.clear();
     } catch (e) {
       console.error('Error clearing storage:', e);

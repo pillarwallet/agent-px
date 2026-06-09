@@ -30,3 +30,7 @@ yarn-error.log*
 # Sentry Config File
 .sentryclirc
 /src/apps/insights/_lovable
+/build-extension
+
+# Wrangler
+/.wrangler

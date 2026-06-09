@@ -41,12 +41,14 @@ export default function Authorized({
   privateKey,
   eoaAddress,
   customAccount,
+  forceModularWalletMode,
 }: {
   provider: WalletClient;
   chainId: number;
   privateKey?: string;
   eoaAddress?: string;
   customAccount?: Account;
+  forceModularWalletMode?: boolean;
 }) {
   const [showAnimation, setShowAnimation] = useState(true);
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({});
@@ -91,6 +93,8 @@ export default function Authorized({
     eoaAddress,
     kit: tempKit,
   });
+
+  const effectiveWalletMode = forceModularWalletMode ? 'modular' : walletMode;
 
   useEffect(() => {
     // Check if we're coming from token-atlas
@@ -155,20 +159,36 @@ export default function Authorized({
   ]);
 
   // Memoize the config to prevent unnecessary kit recreation
-  const kitConfig = useMemo(
-    () =>
-      ({
-        provider,
-        chainId,
-        privateKey,
-        viemLocalAccount: customAccount,
-        bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
-        walletMode,
-      }) as EtherspotTransactionKitConfig,
-    [provider, chainId, privateKey, customAccount, walletMode]
-  );
+  // Etherspot delegated EOA mode accepts either privateKey or viemLocalAccount, not both.
+  const kitConfig = useMemo(() => {
+    const providerAccount =
+      typeof provider.account === 'object' && provider.account !== null
+        ? (provider.account as Account)
+        : undefined;
 
-  if (showAnimation || isVerifyingWalletMode) {
+    const resolvedViemAccount = customAccount ?? providerAccount;
+
+    const accountConfig =
+      effectiveWalletMode === 'delegatedEoa'
+        ? resolvedViemAccount
+          ? { viemLocalAccount: resolvedViemAccount }
+          : {}
+        : privateKey
+          ? { privateKey }
+          : resolvedViemAccount
+            ? { viemLocalAccount: resolvedViemAccount }
+            : {};
+
+    return {
+      provider,
+      chainId,
+      ...accountConfig,
+      bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
+      walletMode: effectiveWalletMode,
+    } as EtherspotTransactionKitConfig;
+  }, [provider, chainId, privateKey, customAccount, effectiveWalletMode]);
+
+  if (showAnimation || (!forceModularWalletMode && isVerifyingWalletMode)) {
     return <Loading type="enter" />;
   }
 

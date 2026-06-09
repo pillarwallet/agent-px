@@ -16,6 +16,8 @@ import walletPortfolioSlice from './apps/pillarx-app/reducer/WalletPortfolioSlic
 import swapSlice from './apps/the-exchange/reducer/theExchangeSlice';
 import tokenAtlasSlice from './apps/token-atlas/reducer/tokenAtlasSlice';
 import { pillarXApiPresence } from './services/pillarXApiPresence';
+import { pillarXApiVerification } from './services/pillarXApiVerification';
+import { pillarXApiVerificationCheck } from './services/pillarXApiVerificationCheck';
 import { pillarXApiTransactionsHistory } from './services/pillarXApiTransactionsHistory';
 import { pillarXApiWaitlist } from './services/pillarXApiWaitlist';
 import { pillarXApiWalletTransactions } from './services/pillarXApiWalletTransactions';
@@ -85,6 +87,8 @@ export const store = configureStore({
  */
 addMiddleware(pillarXApiWaitlist);
 addMiddleware(pillarXApiPresence);
+addMiddleware(pillarXApiVerification);
+addMiddleware(pillarXApiVerificationCheck);
 addMiddleware(pillarXApiTransactionsHistory);
 addMiddleware(pillarXApiWalletTransactions);
 addMiddleware(relayApi);

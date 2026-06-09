@@ -128,8 +128,8 @@ const AccountModal = ({ isContentVisible }: AccountModalProps) => {
   }, [accountAddress, copied]);
 
   const onLogoutClick = useCallback(async () => {
-    // Handle private key logout - clear account address from localStorage
-    // (Private key is never stored in localStorage for security reasons)
+    // Handle custom-account logout - clear the account address from localStorage.
+    // The persisted local private key (if any) is intentionally retained for the next OTP-verified login.
     if (isCustomAccount) {
       localStorage.removeItem('EOA_ADDRESS');
     }
