@@ -15,6 +15,7 @@ import {
   CompatibleChains,
   getNativeAssetForChainId,
 } from '../utils/blockchain';
+import { ARC_TESTNET_CHAIN_ID } from '../utils/arcTestnet';
 
 export type Token = {
   id: number;
@@ -89,6 +90,10 @@ export const chainNameFromViemToMobula = (chainName: string) => {
 
   if (chainName === 'Arbitrum One' || chainName === 'Arbitrum') {
     return 'Arbitrum';
+  }
+
+  if (chainName === 'Arc Testnet') {
+    return 'Arc Testnet';
   }
 
   return chainName;
@@ -223,6 +228,8 @@ export const chainIdToChainNameTokensData = (chainId: number | undefined) => {
       return 'Optimistic';
     case 42161:
       return 'Arbitrum';
+    case ARC_TESTNET_CHAIN_ID:
+      return 'Arc Testnet';
     case undefined:
       return '';
     default:
@@ -247,6 +254,8 @@ export const chainNameToChainIdTokensData = (chain: string | undefined) => {
       return 10;
     case 'Arbitrum':
       return 42161;
+    case 'Arc Testnet':
+      return ARC_TESTNET_CHAIN_ID;
     case undefined:
       return 0;
     default:

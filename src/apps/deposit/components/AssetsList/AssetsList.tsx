@@ -104,7 +104,7 @@ const AssetsList = ({ accountAddress, chainId }: AssetsListProps) => {
           const nativeTokenInfo: BalanceInfo = {
             chain: chainName,
             address: '0x0000000000000000000000000000000000000000',
-            decimals: 18,
+            decimals: getNetworkViem(chainId).nativeCurrency.decimals,
             balance: nativeBalance,
             name: allNativeTokens[chainName as Network].name,
             symbol: allNativeTokens[chainName as Network].symbol,

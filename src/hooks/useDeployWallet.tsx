@@ -1,7 +1,30 @@
 import axios from 'axios';
-import { formatEther } from 'viem';
+import { formatUnits } from 'viem';
+import {
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_ENABLED,
+  ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
+  ARC_TESTNET_RPC_URL,
+} from '../utils/arcTestnet';
 
 const useDeployWallet = () => {
+  const getRpcUrl = (chainId: number, apiKey?: string) => {
+    if (ARC_TESTNET_ENABLED && chainId === ARC_TESTNET_CHAIN_ID) {
+      return ARC_TESTNET_RPC_URL;
+    }
+
+    if (!apiKey) {
+      return undefined;
+    }
+
+    return `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
+  };
+
+  const getNativeDecimals = (chainId: number) =>
+    ARC_TESTNET_ENABLED && chainId === ARC_TESTNET_CHAIN_ID
+      ? ARC_TESTNET_NATIVE_TOKEN_DECIMALS
+      : 18;
+
   // This is to easily get the right localStorage key to retrieve
   const getWalletDeployedLocalStorageKey = (
     accountAddress: string,
@@ -55,17 +78,19 @@ const useDeployWallet = () => {
       return undefined;
     }
 
-    if (!apiKey) {
+    const url = getRpcUrl(chainId, apiKey);
+
+    if (!url) {
       console.error('getGasPrice: API key is missing');
       return undefined;
     }
-
-    const url = `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
 
     try {
       const response = await axios.post(
         url,
         {
+          id: 1,
+          jsonrpc: '2.0',
           method: 'skandha_getGasPrice',
         },
         {
@@ -77,8 +102,27 @@ const useDeployWallet = () => {
 
       return response.data.result.maxFeePerGas;
     } catch (error) {
-      console.error('getGasPrice: Failed to get gas price', error);
-      return undefined;
+      try {
+        const fallbackResponse = await axios.post(
+          url,
+          {
+            id: 1,
+            jsonrpc: '2.0',
+            method: 'eth_gasPrice',
+            params: [],
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        return fallbackResponse.data.result;
+      } catch (fallbackError) {
+        console.error('getGasPrice: Failed to get gas price', fallbackError);
+        return undefined;
+      }
     }
   };
 
@@ -98,7 +142,9 @@ const useDeployWallet = () => {
       return undefined;
     }
 
-    if (!apiKey) {
+    const url = getRpcUrl(chainId, apiKey);
+
+    if (!url) {
       console.error('isWalletDeployed: API key is missing');
       return undefined;
     }
@@ -115,12 +161,12 @@ const useDeployWallet = () => {
     }
 
     // If wallet has not deployed, then we will check on chain
-    const url = `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
-
     try {
       const response = await axios.post(
         url,
         {
+          id: 1,
+          jsonrpc: '2.0',
           method: 'eth_getCode',
           params: [accountAddress, 'latest'],
         },
@@ -187,10 +233,12 @@ const useDeployWallet = () => {
       // Calculate total gas cost in wei
       const gasCostWei = gasPrice * gasUnits;
 
-      // Convert wei to ETH (18 decimals) and then to number
-      const gasCostInEth = formatEther(gasCostWei);
+      const gasCostInNative = formatUnits(
+        gasCostWei,
+        getNativeDecimals(chainId)
+      );
 
-      return parseFloat(gasCostInEth);
+      return parseFloat(gasCostInNative);
     } catch (error) {
       console.error(
         'getWalletDeploymentCost: Error calculating deployment cost',

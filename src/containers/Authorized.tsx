@@ -28,6 +28,7 @@ import GlobalTransactionBatchesProvider from '../providers/GlobalTransactionsBat
 import SelectedChainsHistoryProvider from '../providers/SelectedChainsHistoryProvider';
 import { WalletConnectModalProvider } from '../providers/WalletConnectModalProvider';
 import { WalletConnectToastProvider } from '../providers/WalletConnectToastProvider';
+import { ARC_TESTNET_CHAIN_ID, ARC_TESTNET_ENABLED } from '../utils/arcTestnet';
 
 /**
  * @name Authorized
@@ -53,6 +54,7 @@ export default function Authorized({
   const [showAnimation, setShowAnimation] = useState(true);
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({});
   const [tempKit, setTempKit] = useState<EtherspotTransactionKit | null>(null);
+  const effectiveChainId = ARC_TESTNET_ENABLED ? ARC_TESTNET_CHAIN_ID : chainId;
 
   // Get hooks for debug info
   const { authenticated, ready, user } = usePrivy();
@@ -67,10 +69,10 @@ export default function Authorized({
   // Create temporary kit for wallet mode verification
   // Only recreate when provider or privateKey changes
   useEffect(() => {
-    if (provider && chainId) {
+    if (!ARC_TESTNET_ENABLED && provider && effectiveChainId) {
       const tempKitConfig = {
         provider,
-        chainId,
+        chainId: effectiveChainId,
         privateKey,
         bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
         walletMode: 'modular' as const, // Always start with modular for verification
@@ -78,9 +80,12 @@ export default function Authorized({
 
       const kit = new EtherspotTransactionKit(tempKitConfig);
       setTempKit(kit);
+      return;
     }
+
+    setTempKit(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, privateKey]);
+  }, [provider, privateKey, effectiveChainId]);
 
   // Use wallet mode verification hook
   const {
@@ -94,7 +99,15 @@ export default function Authorized({
     kit: tempKit,
   });
 
-  const effectiveWalletMode = forceModularWalletMode ? 'modular' : walletMode;
+  let effectiveWalletMode = walletMode;
+
+  if (ARC_TESTNET_ENABLED) {
+    effectiveWalletMode = 'delegatedEoa';
+  }
+
+  if (forceModularWalletMode) {
+    effectiveWalletMode = 'modular';
+  }
 
   useEffect(() => {
     // Check if we're coming from token-atlas
@@ -116,17 +129,26 @@ export default function Authorized({
 
   // Update debug info
   useEffect(() => {
+    const resolvedPrivyUser = user
+      ? {
+          id: user.id,
+          email: user.email?.address,
+          wallet: user.wallet?.address,
+        }
+      : null;
+    const resolvedWalletConnectConnector = walletConnectConnector
+      ? {
+          id: walletConnectConnector.id,
+          name: walletConnectConnector.name,
+          ready: Boolean(walletConnectConnector.ready),
+        }
+      : null;
+
     setDebugInfo({
       privy: {
         authenticated,
         ready,
-        user: user
-          ? {
-              id: user.id,
-              email: user.email?.address,
-              wallet: user.wallet?.address,
-            }
-          : null,
+        user: resolvedPrivyUser,
       },
       wagmi: {
         address,
@@ -136,13 +158,7 @@ export default function Authorized({
         error: error?.message,
         connectorsCount: connectors.length,
         connectorIds: connectors.map((c) => c.id),
-        walletConnectConnector: walletConnectConnector
-          ? {
-              id: walletConnectConnector.id,
-              name: walletConnectConnector.name,
-              ready: Boolean(walletConnectConnector.ready),
-            }
-          : null,
+        walletConnectConnector: resolvedWalletConnectConnector,
       },
     });
   }, [
@@ -168,25 +184,35 @@ export default function Authorized({
 
     const resolvedViemAccount = customAccount ?? providerAccount;
 
-    const accountConfig =
-      effectiveWalletMode === 'delegatedEoa'
-        ? resolvedViemAccount
-          ? { viemLocalAccount: resolvedViemAccount }
-          : {}
-        : privateKey
-          ? { privateKey }
-          : resolvedViemAccount
-            ? { viemLocalAccount: resolvedViemAccount }
-            : {};
+    let accountConfig:
+      | { privateKey: string }
+      | { viemLocalAccount: Account }
+      | Record<string, never> = {};
+
+    if (effectiveWalletMode === 'delegatedEoa') {
+      accountConfig = resolvedViemAccount
+        ? { viemLocalAccount: resolvedViemAccount }
+        : {};
+    } else if (privateKey) {
+      accountConfig = { privateKey };
+    } else if (resolvedViemAccount) {
+      accountConfig = { viemLocalAccount: resolvedViemAccount };
+    }
 
     return {
       provider,
-      chainId,
+      chainId: effectiveChainId,
       ...accountConfig,
       bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
       walletMode: effectiveWalletMode,
     } as EtherspotTransactionKitConfig;
-  }, [provider, chainId, privateKey, customAccount, effectiveWalletMode]);
+  }, [
+    provider,
+    effectiveChainId,
+    privateKey,
+    customAccount,
+    effectiveWalletMode,
+  ]);
 
   if (showAnimation || (!forceModularWalletMode && isVerifyingWalletMode)) {
     return <Loading type="enter" />;

@@ -29,6 +29,11 @@ import logoEvm from '../assets/images/logo-evm.png';
 import logoGnosis from '../assets/images/logo-gnosis.png';
 import logoOptimism from '../assets/images/logo-optimism.png';
 import logoPolygon from '../assets/images/logo-polygon.png';
+import {
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_ENABLED,
+  arcTestnetChain,
+} from './arcTestnet';
 
 export const isTestnet = (() => {
   const storedIsTestnet = localStorage.getItem('isTestnet');
@@ -140,6 +145,14 @@ export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
       'https://public.etherspot.io/buidler/chain_logos/ethereum.png';
   }
 
+  if (chainId === ARC_TESTNET_CHAIN_ID) {
+    nativeAsset.name = 'USDC';
+    nativeAsset.symbol = 'USDC';
+    nativeAsset.decimals = 6;
+    nativeAsset.logoURI =
+      'https://public.etherspot.io/buidler/chain_logos/native_tokens/usdc.png';
+  }
+
   return nativeAsset;
 };
 
@@ -152,6 +165,7 @@ const allSupportedChains = [
   optimism,
   arbitrum,
   sepolia,
+  ...(ARC_TESTNET_ENABLED ? [arcTestnetChain] : []),
 ];
 
 export const supportedChains = allSupportedChains.filter(
@@ -193,6 +207,10 @@ export const getLogoForChainId = (chainId: number): string => {
 
   if (chainId === base.id) {
     return logoBase;
+  }
+
+  if (chainId === ARC_TESTNET_CHAIN_ID) {
+    return logoEvm;
   }
 
   return logoEvm;
@@ -240,6 +258,8 @@ export const getBlockScan = (chain: number, isAddress: boolean = false) => {
       return `https://optimistic.etherscan.io/${isAddress ? 'address' : 'tx'}/`;
     case 42161:
       return `https://arbiscan.io/${isAddress ? 'address' : 'tx'}/`;
+    case ARC_TESTNET_CHAIN_ID:
+      return `https://testnet.arcscan.app/${isAddress ? 'address' : 'tx'}/`;
     default:
       return '';
   }
@@ -261,6 +281,8 @@ export const getBlockScanName = (chain: number) => {
       return 'Optimistic Etherscan';
     case 42161:
       return 'Arbiscan';
+    case ARC_TESTNET_CHAIN_ID:
+      return 'Arcscan';
     default:
       return '';
   }
@@ -282,6 +304,8 @@ export const getChainName = (chain: number) => {
       return 'Optimism';
     case 42161:
       return 'Arbitrum';
+    case ARC_TESTNET_CHAIN_ID:
+      return 'Arc Testnet';
     default:
       return `${chain}`;
   }

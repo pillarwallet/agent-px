@@ -10,10 +10,9 @@ import {
   createWalletClient,
   custom,
   encodeFunctionData,
-  formatEther,
+  formatUnits,
   getContract,
   http,
-  parseEther,
   parseUnits,
 } from 'viem';
 import {
@@ -33,6 +32,12 @@ import { AddedAssets, BalanceInfo, Network } from '../types/types';
 import ERC1155_ABI from './abis/ERC1155.json';
 import ERC20_ABI from './abis/ERC20Token.json';
 import ERC721_ABI from './abis/ERC721.json';
+import {
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_ENABLED,
+  ARC_TESTNET_RPC_URL,
+  arcTestnetChain,
+} from '../../../utils/arcTestnet';
 
 const isGnosisEnabled = import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true';
 
@@ -44,6 +49,7 @@ const allChainMapping = {
   'bnb smart chain': 'https://bsc.drpc.org',
   optimism: 'https://optimism-rpc.publicnode.com',
   arbitrum: 'https://arbitrum.drpc.org',
+  ...(ARC_TESTNET_ENABLED ? { 'arc testnet': ARC_TESTNET_RPC_URL } : {}),
 };
 
 const chainMapping = Object.fromEntries(
@@ -60,11 +66,14 @@ const allNativeTokensData: Record<Network, { name: string; symbol: string }> = {
   'bnb smart chain': { name: 'BNB', symbol: 'BNB' },
   optimism: { name: 'Ether', symbol: 'ETH' },
   arbitrum: { name: 'Ether', symbol: 'ETH' },
+  'arc testnet': { name: 'USDC', symbol: 'USDC' },
 };
 
 export const allNativeTokens = Object.fromEntries(
   Object.entries(allNativeTokensData).filter(
-    ([network]) => isGnosisEnabled || network !== 'gnosis'
+    ([network]) =>
+      (isGnosisEnabled || network !== 'gnosis') &&
+      (ARC_TESTNET_ENABLED || network !== 'arc testnet')
   )
 ) as Record<Network, { name: string; symbol: string }>;
 
@@ -88,6 +97,8 @@ export const getNetworkViem = (chainId: number): Chain => {
       return optimism;
     case 42161:
       return arbitrum;
+    case ARC_TESTNET_CHAIN_ID:
+      return arcTestnetChain;
     default:
       return mainnet;
   }
@@ -187,9 +198,12 @@ export const getNativeBalance = async (
       address: accountAddress as `0x${string}`,
     });
 
-    const balanceInEther = formatEther(nativeTokenBalance);
+    const balanceInNative = formatUnits(
+      nativeTokenBalance,
+      chain.nativeCurrency.decimals
+    );
 
-    return balanceInEther;
+    return balanceInNative;
   } catch (error) {
     return `Error to get the native balance for chain: ${chain.name}, ${error}`;
   }
@@ -336,8 +350,9 @@ export const transferTokens = async (
   amount: string
 ): Promise<string> => {
   try {
+    const chain = getNetworkViem(Number(chainId));
     const walletClient = createWalletClient({
-      chain: getNetworkViem(Number(chainId)),
+      chain,
       transport: custom(walletProvider),
     });
 
@@ -350,7 +365,7 @@ export const transferTokens = async (
       const txHash = await walletClient.sendTransaction({
         account: accountAddress as `0x${string}`,
         to: pillarXAddress as Address,
-        value: parseEther(amount),
+        value: parseUnits(amount, chain.nativeCurrency.decimals),
         data: '0x',
       });
       return txHash;
