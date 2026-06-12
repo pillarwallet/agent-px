@@ -161,6 +161,7 @@ export const getTopNonPrimeAssetsAcrossChains = (
 
 const ARC_NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
 const ARC_NATIVE_TOKEN_ID = 504200200;
+const ARC_CHAIN_ID_KEY = `eip155:${ARC_TESTNET_CHAIN_ID}`;
 
 const createEmptyPortfolioData = (wallet: string): PortfolioData => ({
   total_wallet_balance: 0,
@@ -168,6 +169,94 @@ const createEmptyPortfolioData = (wallet: string): PortfolioData => ({
   assets: [],
   balances_length: 0,
 });
+
+const normalizeArcBalanceValue = (
+  balanceRawValue: string | undefined,
+  decimals = ARC_TESTNET_NATIVE_TOKEN_DECIMALS
+) => {
+  if (!balanceRawValue) {
+    return 0;
+  }
+
+  try {
+    return Number(formatUnits(BigInt(balanceRawValue), decimals));
+  } catch {
+    return 0;
+  }
+};
+
+const normalizeArcPortfolioData = (
+  portfolioData: PortfolioData
+): PortfolioData => {
+  if (!ARC_TESTNET_ENABLED || !portfolioData?.assets?.length) {
+    return portfolioData;
+  }
+
+  let totalWalletBalanceDelta = 0;
+
+  const normalizedAssets = portfolioData.assets.map((asset) => {
+    const hasArcBalance = asset.contracts_balances.some(
+      (contract) => contract.chainId === ARC_CHAIN_ID_KEY
+    );
+
+    if (!hasArcBalance) {
+      return asset;
+    }
+
+    const normalizedContracts = asset.contracts_balances.map((contract) => {
+      if (contract.chainId !== ARC_CHAIN_ID_KEY) {
+        return contract;
+      }
+
+      return {
+        ...contract,
+        balance: normalizeArcBalanceValue(
+          contract.balanceRaw,
+          contract.decimals || ARC_TESTNET_NATIVE_TOKEN_DECIMALS
+        ),
+      };
+    });
+
+    const arcCrossChainBalance = asset.cross_chain_balances[ARC_CHAIN_ID_KEY];
+    const normalizedCrossChainBalances = arcCrossChainBalance
+      ? {
+          ...asset.cross_chain_balances,
+          [ARC_CHAIN_ID_KEY]: {
+            ...arcCrossChainBalance,
+            balance: normalizeArcBalanceValue(
+              arcCrossChainBalance.balanceRaw,
+              ARC_TESTNET_NATIVE_TOKEN_DECIMALS
+            ),
+          },
+        }
+      : asset.cross_chain_balances;
+
+    const normalizedTokenBalance = normalizedContracts.reduce(
+      (sum, contract) => sum + contract.balance,
+      0
+    );
+    const normalizedEstimatedBalance =
+      normalizedTokenBalance * (asset.price ?? 1);
+
+    totalWalletBalanceDelta +=
+      normalizedEstimatedBalance - asset.estimated_balance;
+
+    return {
+      ...asset,
+      contracts_balances: normalizedContracts,
+      cross_chain_balances: normalizedCrossChainBalances,
+      token_balance: normalizedTokenBalance,
+      estimated_balance: normalizedEstimatedBalance,
+    };
+  });
+
+  return {
+    ...portfolioData,
+    assets: normalizedAssets,
+    total_wallet_balance:
+      (portfolioData.total_wallet_balance || 0) + totalWalletBalanceDelta,
+  };
+};
 
 const appendArcNativeBalance = async (
   portfolioData: PortfolioData,
@@ -181,7 +270,7 @@ const appendArcNativeBalance = async (
   const balance = Number(
     formatUnits(balanceRaw, ARC_TESTNET_NATIVE_TOKEN_DECIMALS)
   );
-  const chainId = `eip155:${ARC_TESTNET_CHAIN_ID}`;
+  const chainId = ARC_CHAIN_ID_KEY;
   const basePortfolio = portfolioData || createEmptyPortfolioData(wallet);
   const assets = [...basePortfolio.assets];
   const usdcAssetIndex = assets.findIndex(
@@ -190,7 +279,7 @@ const appendArcNativeBalance = async (
 
   if (usdcAssetIndex >= 0) {
     const existingAsset = assets[usdcAssetIndex];
-    const price = existingAsset.price || 1;
+    const price = existingAsset.price ?? 1;
     const existingContracts = existingAsset.contracts_balances.filter(
       (contract) => contract.chainId !== chainId
     );
@@ -233,18 +322,18 @@ const appendArcNativeBalance = async (
       },
     };
 
-    return {
+    return normalizeArcPortfolioData({
       ...basePortfolio,
       assets,
       balances_length: basePortfolio.balances_length + (balance > 0 ? 1 : 0),
       total_wallet_balance:
         basePortfolio.total_wallet_balance + balance * price,
-    };
+    });
   }
 
   const estimatedBalance = balance;
 
-  return {
+  return normalizeArcPortfolioData({
     ...basePortfolio,
     assets: [
       ...assets,
@@ -285,7 +374,7 @@ const appendArcNativeBalance = async (
     ],
     balances_length: basePortfolio.balances_length + (balance > 0 ? 1 : 0),
     total_wallet_balance: basePortfolio.total_wallet_balance + estimatedBalance,
-  };
+  });
 };
 
 const fetchBaseQueryWithRetry = retry(

@@ -24,7 +24,7 @@ export const ARC_TESTNET_EXPLORER_URL = 'https://testnet.arcscan.app';
 export const ARC_TESTNET_SIMPLE_ACCOUNT_FACTORY_ADDRESS =
   '0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985';
 export const ARC_TESTNET_NATIVE_TOKEN_SYMBOL = 'USDC';
-export const ARC_TESTNET_NATIVE_TOKEN_DECIMALS = 6;
+export const ARC_TESTNET_NATIVE_TOKEN_DECIMALS = 18;
 
 export const arcTestnetChain = defineChain({
   id: ARC_TESTNET_CHAIN_ID,

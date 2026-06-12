@@ -20,7 +20,6 @@
     "format": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,scss,md}'"
   },
   "dependencies": {
-    "@coinbase/wallet-sdk": "^4.3.2",
     "@emotion/react": "11.11.4",
     "@emotion/styled": "11.11.5",
     "@etherspot/data-utils": "1.1.1",

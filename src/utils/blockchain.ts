@@ -32,6 +32,7 @@ import logoPolygon from '../assets/images/logo-polygon.png';
 import {
   ARC_TESTNET_CHAIN_ID,
   ARC_TESTNET_ENABLED,
+  ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
   arcTestnetChain,
 } from './arcTestnet';
 
@@ -148,7 +149,7 @@ export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
   if (chainId === ARC_TESTNET_CHAIN_ID) {
     nativeAsset.name = 'USDC';
     nativeAsset.symbol = 'USDC';
-    nativeAsset.decimals = 6;
+    nativeAsset.decimals = ARC_TESTNET_NATIVE_TOKEN_DECIMALS;
     nativeAsset.logoURI =
       'https://public.etherspot.io/buidler/chain_logos/native_tokens/usdc.png';
   }
