@@ -1,3 +1,4 @@
+import { BundlerConfig } from '@etherspot/transaction-kit';
 import axios from 'axios';
 
 export const getUserOperationStatus = async (
@@ -5,24 +6,26 @@ export const getUserOperationStatus = async (
   userOpHash: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any | undefined> => {
-  const apiKey = import.meta.env.VITE_ETHERSPOT_DATA_API_KEY;
-
   if (!chainId) {
     console.error('getUserOperationStatus: chainId is required');
     return undefined;
   }
+
+  const apiKey = import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY;
 
   if (!apiKey) {
     console.error('getUserOperationStatus: API key is missing');
     return undefined;
   }
 
-  const url = `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
+  const { url } = new BundlerConfig(chainId, apiKey);
 
   try {
     const response = await axios.post(
       url,
       {
+        id: 1,
+        jsonrpc: '2.0',
         method: 'skandha_userOperationStatus',
         params: [userOpHash],
       },

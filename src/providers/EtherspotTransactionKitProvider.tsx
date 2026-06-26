@@ -3,7 +3,6 @@ import {
   EtherspotTransactionKit,
   EtherspotTransactionKitConfig,
 } from '@etherspot/transaction-kit';
-
 import React, {
   createContext,
   useEffect,

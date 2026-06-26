@@ -166,6 +166,7 @@ const AssetSelect = ({
             setIsAssetSelected(false);
           }}
           hideValue
+          hideIcon
         />
       )}
       {!!chainId && (

@@ -9,7 +9,6 @@ import { SelectOption } from '../../../types';
 
 // components
 import RandomAvatar from '../../../apps/pillarx-app/components/RandomAvatar/RandomAvatar';
-import { CompatibleChains } from '../../../utils/blockchain';
 import SkeletonLoader from '../../SkeletonLoader';
 import Alert from '../../Text/Alert';
 
@@ -18,24 +17,22 @@ const ListItem = ({
   onClick,
   rightAddon,
   hideValue,
+  hideIcon,
 }: {
   option: SelectOption;
   onClick?: (option: SelectOption) => void;
   rightAddon?: React.ReactNode;
   hideValue?: boolean;
+  hideIcon?: boolean;
 }) => {
   const [hideImage, setHideImage] = useState(false);
-
-  const isChainName = CompatibleChains.map((chains) => chains.chainName).some(
-    (chain) => option.title.includes(chain)
-  );
 
   return (
     <ListItemWrapper
       onClick={() => onClick && onClick(option)}
       id={`action-bar-send-${option.title}`}
     >
-      {option.imageSrc && !hideImage && (
+      {!hideIcon && option.imageSrc && !hideImage && (
         <ListItemLeft>
           <ListItemImage
             src={option.imageSrc}
@@ -45,7 +42,7 @@ const ListItem = ({
           />
         </ListItemLeft>
       )}
-      {!option.imageSrc && !isChainName && (
+      {!hideIcon && !option.imageSrc && (
         <ListItemLeft>
           <RandomAvatar name={option.title} isRound variant="marble" />
         </ListItemLeft>
@@ -78,6 +75,7 @@ export const Select = ({
   onChange,
   isLoadingOptions,
   hideValue,
+  hideIcon,
   type,
 }: {
   options: SelectOption[];
@@ -85,6 +83,7 @@ export const Select = ({
   onChange: (option: SelectOption) => void;
   isLoadingOptions?: boolean;
   hideValue?: boolean;
+  hideIcon?: boolean;
   type?: 'token' | 'nft';
 }) => {
   const [t] = useTranslation();
@@ -119,6 +118,7 @@ export const Select = ({
           }
           onClick={() => setExpanded(!expanded)}
           hideValue={hideValue}
+          hideIcon={hideIcon}
         />
       )}
       {(expanded || !selected) &&
@@ -134,6 +134,7 @@ export const Select = ({
                 onChange(option);
               }}
               hideValue={hideValue}
+              hideIcon={hideIcon}
             />
           ))}
       {!options.length && (

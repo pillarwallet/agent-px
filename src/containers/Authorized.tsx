@@ -80,7 +80,7 @@ export default function Authorized({
       setTempKit(kit);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, privateKey]);
+  }, [provider, privateKey, chainId]);
 
   // Use wallet mode verification hook
   const {
@@ -116,17 +116,26 @@ export default function Authorized({
 
   // Update debug info
   useEffect(() => {
+    const resolvedPrivyUser = user
+      ? {
+          id: user.id,
+          email: user.email?.address,
+          wallet: user.wallet?.address,
+        }
+      : null;
+    const resolvedWalletConnectConnector = walletConnectConnector
+      ? {
+          id: walletConnectConnector.id,
+          name: walletConnectConnector.name,
+          ready: Boolean(walletConnectConnector.ready),
+        }
+      : null;
+
     setDebugInfo({
       privy: {
         authenticated,
         ready,
-        user: user
-          ? {
-              id: user.id,
-              email: user.email?.address,
-              wallet: user.wallet?.address,
-            }
-          : null,
+        user: resolvedPrivyUser,
       },
       wagmi: {
         address,
@@ -136,13 +145,7 @@ export default function Authorized({
         error: error?.message,
         connectorsCount: connectors.length,
         connectorIds: connectors.map((c) => c.id),
-        walletConnectConnector: walletConnectConnector
-          ? {
-              id: walletConnectConnector.id,
-              name: walletConnectConnector.name,
-              ready: Boolean(walletConnectConnector.ready),
-            }
-          : null,
+        walletConnectConnector: resolvedWalletConnectConnector,
       },
     });
   }, [
@@ -168,16 +171,20 @@ export default function Authorized({
 
     const resolvedViemAccount = customAccount ?? providerAccount;
 
-    const accountConfig =
-      effectiveWalletMode === 'delegatedEoa'
-        ? resolvedViemAccount
-          ? { viemLocalAccount: resolvedViemAccount }
-          : {}
-        : privateKey
-          ? { privateKey }
-          : resolvedViemAccount
-            ? { viemLocalAccount: resolvedViemAccount }
-            : {};
+    let accountConfig:
+      | { privateKey: string }
+      | { viemLocalAccount: Account }
+      | Record<string, never> = {};
+
+    if (effectiveWalletMode === 'delegatedEoa') {
+      accountConfig = resolvedViemAccount
+        ? { viemLocalAccount: resolvedViemAccount }
+        : {};
+    } else if (privateKey) {
+      accountConfig = { privateKey };
+    } else if (resolvedViemAccount) {
+      accountConfig = { viemLocalAccount: resolvedViemAccount };
+    }
 
     return {
       provider,

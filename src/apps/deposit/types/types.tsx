@@ -25,7 +25,8 @@ export type Network =
   | 'base'
   | 'bnb smart chain'
   | 'optimism'
-  | 'arbitrum';
+  | 'arbitrum'
+  | 'arc testnet';
 
 export type TokenList = {
   address: string;
