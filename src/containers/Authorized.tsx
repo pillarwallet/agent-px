@@ -28,7 +28,6 @@ import GlobalTransactionBatchesProvider from '../providers/GlobalTransactionsBat
 import SelectedChainsHistoryProvider from '../providers/SelectedChainsHistoryProvider';
 import { WalletConnectModalProvider } from '../providers/WalletConnectModalProvider';
 import { WalletConnectToastProvider } from '../providers/WalletConnectToastProvider';
-import { ARC_TESTNET_CHAIN_ID, ARC_TESTNET_ENABLED } from '../utils/arcTestnet';
 
 /**
  * @name Authorized
@@ -54,7 +53,6 @@ export default function Authorized({
   const [showAnimation, setShowAnimation] = useState(true);
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({});
   const [tempKit, setTempKit] = useState<EtherspotTransactionKit | null>(null);
-  const effectiveChainId = ARC_TESTNET_ENABLED ? ARC_TESTNET_CHAIN_ID : chainId;
 
   // Get hooks for debug info
   const { authenticated, ready, user } = usePrivy();
@@ -69,10 +67,10 @@ export default function Authorized({
   // Create temporary kit for wallet mode verification
   // Only recreate when provider or privateKey changes
   useEffect(() => {
-    if (!ARC_TESTNET_ENABLED && provider && effectiveChainId) {
+    if (provider && chainId) {
       const tempKitConfig = {
         provider,
-        chainId: effectiveChainId,
+        chainId,
         privateKey,
         bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
         walletMode: 'modular' as const, // Always start with modular for verification
@@ -80,12 +78,9 @@ export default function Authorized({
 
       const kit = new EtherspotTransactionKit(tempKitConfig);
       setTempKit(kit);
-      return;
     }
-
-    setTempKit(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, privateKey, effectiveChainId]);
+  }, [provider, privateKey, chainId]);
 
   // Use wallet mode verification hook
   const {
@@ -99,15 +94,7 @@ export default function Authorized({
     kit: tempKit,
   });
 
-  let effectiveWalletMode = walletMode;
-
-  if (ARC_TESTNET_ENABLED) {
-    effectiveWalletMode = 'delegatedEoa';
-  }
-
-  if (forceModularWalletMode) {
-    effectiveWalletMode = 'modular';
-  }
+  const effectiveWalletMode = forceModularWalletMode ? 'modular' : walletMode;
 
   useEffect(() => {
     // Check if we're coming from token-atlas
@@ -201,18 +188,12 @@ export default function Authorized({
 
     return {
       provider,
-      chainId: effectiveChainId,
+      chainId,
       ...accountConfig,
       bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
       walletMode: effectiveWalletMode,
     } as EtherspotTransactionKitConfig;
-  }, [
-    provider,
-    effectiveChainId,
-    privateKey,
-    customAccount,
-    effectiveWalletMode,
-  ]);
+  }, [provider, chainId, privateKey, customAccount, effectiveWalletMode]);
 
   if (showAnimation || (!forceModularWalletMode && isVerifyingWalletMode)) {
     return <Loading type="enter" />;

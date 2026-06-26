@@ -10,13 +10,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { WalletClient } from 'viem';
 
 import type { WalletProviderLike } from '../types/walletProvider';
-import {
-  ARC_TESTNET_ENABLED,
-  createArcTransactionKitAdapter,
-} from '../utils/arcTestnet';
 
 export interface EtherspotTransactionKitContextType {
   data: {
@@ -47,52 +42,29 @@ export const EtherspotTransactionKitProvider: React.FC<
       ? (config as { provider?: WalletProviderLike }).provider
       : undefined
   );
-  const configuredProvider =
-    'provider' in config
-      ? (config as { provider?: WalletProviderLike }).provider
-      : undefined;
-  const arcWalletClient =
-    configuredProvider && 'account' in configuredProvider
-      ? (configuredProvider as WalletClient)
-      : undefined;
 
   // Create kit with config
   const kit = useMemo(() => {
-    if (ARC_TESTNET_ENABLED) {
-      return null;
-    }
-
     const newKit = new EtherspotTransactionKit(config);
     kitRef.current = newKit;
     return newKit;
   }, [config]);
-  const arcKit = useMemo(() => {
-    if (!ARC_TESTNET_ENABLED || !arcWalletClient) {
-      return null;
-    }
-
-    return createArcTransactionKitAdapter({
-      walletClient: arcWalletClient,
-      walletProvider: configuredProvider,
-    });
-  }, [arcWalletClient, configuredProvider]);
-  const activeKit = arcKit ?? kit;
 
   // Get wallet address when kit changes
   useEffect(() => {
     const getWalletAddress = async () => {
-      if (!activeKit) return;
-
-      try {
-        const address = await activeKit.getWalletAddress();
-        setWalletAddress(address);
-      } catch (error) {
-        console.error('Failed to get wallet address:', error);
+      if (kit) {
+        try {
+          const address = await kit.getWalletAddress();
+          setWalletAddress(address);
+        } catch (error) {
+          console.error('Failed to get wallet address:', error);
+        }
       }
     };
 
     getWalletAddress();
-  }, [activeKit]);
+  }, [kit]);
 
   useEffect(() => {
     setExternalProvider(
@@ -106,10 +78,10 @@ export const EtherspotTransactionKitProvider: React.FC<
     () => ({
       walletAddress,
       setWalletAddress,
-      kit: (activeKit ?? arcKit ?? kit) as EtherspotTransactionKit,
+      kit,
       walletProvider: externalProvider,
     }),
-    [walletAddress, activeKit, arcKit, kit, externalProvider]
+    [walletAddress, kit, externalProvider]
   );
 
   return (

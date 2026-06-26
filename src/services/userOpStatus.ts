@@ -1,9 +1,5 @@
+import { BundlerConfig } from '@etherspot/transaction-kit';
 import axios from 'axios';
-import {
-  ARC_TESTNET_CHAIN_ID,
-  ARC_TESTNET_ENABLED,
-  ARC_TESTNET_RPC_URL,
-} from '../utils/arcTestnet';
 
 export const getUserOperationStatus = async (
   chainId: number,
@@ -15,17 +11,14 @@ export const getUserOperationStatus = async (
     return undefined;
   }
 
-  const isArcRpc = ARC_TESTNET_ENABLED && chainId === ARC_TESTNET_CHAIN_ID;
-  const apiKey = import.meta.env.VITE_ETHERSPOT_DATA_API_KEY;
+  const apiKey = import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY;
 
-  if (!isArcRpc && !apiKey) {
+  if (!apiKey) {
     console.error('getUserOperationStatus: API key is missing');
     return undefined;
   }
 
-  const url = isArcRpc
-    ? ARC_TESTNET_RPC_URL
-    : `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
+  const { url } = new BundlerConfig(chainId, apiKey);
 
   try {
     const response = await axios.post(

@@ -33,11 +33,9 @@ import ERC1155_ABI from './abis/ERC1155.json';
 import ERC20_ABI from './abis/ERC20Token.json';
 import ERC721_ABI from './abis/ERC721.json';
 import {
-  ARC_TESTNET_CHAIN_ID,
-  ARC_TESTNET_ENABLED,
   ARC_TESTNET_RPC_URL,
   arcTestnetChain,
-} from '../../../utils/arcTestnet';
+} from '../../../utils/blockchain';
 
 const isGnosisEnabled = import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true';
 
@@ -49,7 +47,7 @@ const allChainMapping = {
   'bnb smart chain': 'https://bsc.drpc.org',
   optimism: 'https://optimism-rpc.publicnode.com',
   arbitrum: 'https://arbitrum.drpc.org',
-  ...(ARC_TESTNET_ENABLED ? { 'arc testnet': ARC_TESTNET_RPC_URL } : {}),
+  'arc testnet': 'https://rpc.testnet.arc.network',
 };
 
 const chainMapping = Object.fromEntries(
@@ -71,9 +69,7 @@ const allNativeTokensData: Record<Network, { name: string; symbol: string }> = {
 
 export const allNativeTokens = Object.fromEntries(
   Object.entries(allNativeTokensData).filter(
-    ([network]) =>
-      (isGnosisEnabled || network !== 'gnosis') &&
-      (ARC_TESTNET_ENABLED || network !== 'arc testnet')
+    ([network]) => isGnosisEnabled || network !== 'gnosis'
   )
 ) as Record<Network, { name: string; symbol: string }>;
 
@@ -97,7 +93,7 @@ export const getNetworkViem = (chainId: number): Chain => {
       return optimism;
     case 42161:
       return arbitrum;
-    case ARC_TESTNET_CHAIN_ID:
+    case 5042002:
       return arcTestnetChain;
     default:
       return mainnet;

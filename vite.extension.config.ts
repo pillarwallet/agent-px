@@ -47,7 +47,6 @@ const emitManifestPlugin = (): Plugin => ({
 });
 
 export default defineConfig({
-  envPrefix: ['VITE_', 'ARC_'],
   plugins: [react(), svgr(), dynamicImport(), basicSsl(), emitManifestPlugin()],
   build: {
     outDir: 'build-extension',

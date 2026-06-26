@@ -52,9 +52,8 @@ import { useComprehensiveLogout } from '../utils/logout';
 import { getUserOperationStatus } from './userOpStatus';
 import {
   ARC_TESTNET_CHAIN_ID,
-  ARC_TESTNET_ENABLED,
   ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
-} from '../utils/arcTestnet';
+} from '../utils/blockchain';
 
 // In-memory mapping of batch IDs to transaction data
 const batchIdToTxDataMap = new Map<
@@ -63,7 +62,7 @@ const batchIdToTxDataMap = new Map<
 >();
 
 const getNativeDisplayDecimals = (chainIdNumber: number) =>
-  ARC_TESTNET_ENABLED && chainIdNumber === ARC_TESTNET_CHAIN_ID
+  chainIdNumber === ARC_TESTNET_CHAIN_ID
     ? ARC_TESTNET_NATIVE_TOKEN_DECIMALS
     : 18;
 
@@ -1166,7 +1165,7 @@ export const useWalletConnect = () => {
             'eip155:56',
             'eip155:10',
             'eip155:42161',
-            ...(ARC_TESTNET_ENABLED ? [`eip155:${ARC_TESTNET_CHAIN_ID}`] : []),
+            `eip155:${ARC_TESTNET_CHAIN_ID}`,
           ];
           const supportedAccounts = supportedChains.map(
             (chain) => `${chain}:${wallet}`

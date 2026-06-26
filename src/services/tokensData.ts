@@ -12,10 +12,10 @@ import {
 
 // utils
 import {
+  ARC_TESTNET_CHAIN_ID,
   CompatibleChains,
   getNativeAssetForChainId,
 } from '../utils/blockchain';
-import { ARC_TESTNET_CHAIN_ID } from '../utils/arcTestnet';
 
 export type Token = {
   id: number;
@@ -228,6 +228,8 @@ export const chainIdToChainNameTokensData = (chainId: number | undefined) => {
       return 'Optimistic';
     case 42161:
       return 'Arbitrum';
+    case 11155111:
+      return 'Ethereum Sepolia Testnet';
     case ARC_TESTNET_CHAIN_ID:
       return 'Arc Testnet';
     case undefined:
@@ -254,6 +256,9 @@ export const chainNameToChainIdTokensData = (chain: string | undefined) => {
       return 10;
     case 'Arbitrum':
       return 42161;
+    case 'Ethereum Sepolia Testnet':
+    case 'Sepolia':
+      return 11155111;
     case 'Arc Testnet':
       return ARC_TESTNET_CHAIN_ID;
     case undefined:

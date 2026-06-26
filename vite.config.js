@@ -11,7 +11,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-  envPrefix: ['VITE_', 'ARC_'],
   plugins: [react(), svgr(), dynamicImport(), basicSsl()],
   build: {
     outDir: 'build',

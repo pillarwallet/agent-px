@@ -55,16 +55,13 @@ import { getUserOperationStatus } from '../../../services/userOpStatus';
 // utils
 import { isNativeToken } from '../../../apps/the-exchange/utils/wrappedTokens';
 import {
+  ARC_TESTNET_CHAIN_ID,
   buildTransactionData,
   getNativeAssetForChainId,
   isValidEthereumAddress,
   safeBigIntConversion,
   supportedChains,
 } from '../../../utils/blockchain';
-import {
-  ARC_TESTNET_CHAIN_ID,
-  ARC_TESTNET_ENABLED,
-} from '../../../utils/arcTestnet';
 import {
   pasteFromClipboard,
   transactionDescription,
@@ -524,14 +521,14 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     {
       skip:
         !selectedAsset?.chainId ||
-        (ARC_TESTNET_ENABLED && selectedAsset.chainId === ARC_TESTNET_CHAIN_ID),
+        selectedAsset.chainId === ARC_TESTNET_CHAIN_ID,
     }
   );
 
   useEffect(() => {
     if (!selectedAsset) return;
     if (selectedAsset.type !== 'token') return;
-    if (ARC_TESTNET_ENABLED && selectedAsset.chainId === ARC_TESTNET_CHAIN_ID) {
+    if (selectedAsset.chainId === ARC_TESTNET_CHAIN_ID) {
       setNativeAssetPrice(1);
       setSelectedAssetPrice(selectedAsset.asset.price || 1);
       return;

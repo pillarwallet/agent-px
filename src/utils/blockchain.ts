@@ -1,6 +1,7 @@
 /* eslint-disable no-restricted-syntax */
+import { BundlerConfig } from '@etherspot/transaction-kit';
 import { ethers } from 'ethers';
-import { encodeFunctionData, erc20Abi, parseUnits } from 'viem';
+import { defineChain, encodeFunctionData, erc20Abi, parseUnits } from 'viem';
 import {
   arbitrum,
   avalanche,
@@ -29,12 +30,40 @@ import logoEvm from '../assets/images/logo-evm.png';
 import logoGnosis from '../assets/images/logo-gnosis.png';
 import logoOptimism from '../assets/images/logo-optimism.png';
 import logoPolygon from '../assets/images/logo-polygon.png';
-import {
+
+export const ARC_TESTNET_CHAIN_ID = 5_042_002;
+export const ARC_TESTNET_EXPLORER_URL = 'https://testnet.arcscan.app';
+export const ARC_TESTNET_NATIVE_TOKEN_DECIMALS = 18;
+
+export const ARC_TESTNET_RPC_URL = new BundlerConfig(
   ARC_TESTNET_CHAIN_ID,
-  ARC_TESTNET_ENABLED,
-  ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
-  arcTestnetChain,
-} from './arcTestnet';
+  import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY
+).url;
+
+export const arcTestnetChain = defineChain({
+  id: 5_042_002,
+  name: 'Arc Testnet',
+  nativeCurrency: {
+    name: 'USDC',
+    symbol: 'USDC',
+    decimals: ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
+  },
+  rpcUrls: {
+    default: {
+      http: [ARC_TESTNET_RPC_URL],
+    },
+    public: {
+      http: [ARC_TESTNET_RPC_URL],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Arcscan',
+      url: ARC_TESTNET_EXPLORER_URL,
+    },
+  },
+  testnet: true,
+});
 
 export const isTestnet = (() => {
   const storedIsTestnet = localStorage.getItem('isTestnet');
@@ -146,7 +175,7 @@ export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
       'https://public.etherspot.io/buidler/chain_logos/ethereum.png';
   }
 
-  if (chainId === ARC_TESTNET_CHAIN_ID) {
+  if (chainId === arcTestnetChain.id) {
     nativeAsset.name = 'USDC';
     nativeAsset.symbol = 'USDC';
     nativeAsset.decimals = ARC_TESTNET_NATIVE_TOKEN_DECIMALS;
@@ -166,7 +195,7 @@ const allSupportedChains = [
   optimism,
   arbitrum,
   sepolia,
-  ...(ARC_TESTNET_ENABLED ? [arcTestnetChain] : []),
+  arcTestnetChain,
 ];
 
 export const supportedChains = allSupportedChains.filter(
@@ -210,7 +239,7 @@ export const getLogoForChainId = (chainId: number): string => {
     return logoBase;
   }
 
-  if (chainId === ARC_TESTNET_CHAIN_ID) {
+  if (chainId === arcTestnetChain.id) {
     return logoEvm;
   }
 
@@ -259,7 +288,7 @@ export const getBlockScan = (chain: number, isAddress: boolean = false) => {
       return `https://optimistic.etherscan.io/${isAddress ? 'address' : 'tx'}/`;
     case 42161:
       return `https://arbiscan.io/${isAddress ? 'address' : 'tx'}/`;
-    case ARC_TESTNET_CHAIN_ID:
+    case 5042002:
       return `https://testnet.arcscan.app/${isAddress ? 'address' : 'tx'}/`;
     default:
       return '';
@@ -282,7 +311,7 @@ export const getBlockScanName = (chain: number) => {
       return 'Optimistic Etherscan';
     case 42161:
       return 'Arbiscan';
-    case ARC_TESTNET_CHAIN_ID:
+    case 5042002:
       return 'Arcscan';
     default:
       return '';
@@ -305,7 +334,9 @@ export const getChainName = (chain: number) => {
       return 'Optimism';
     case 42161:
       return 'Arbitrum';
-    case ARC_TESTNET_CHAIN_ID:
+    case 11155111:
+      return 'Sepolia';
+    case 5042002:
       return 'Arc Testnet';
     default:
       return `${chain}`;
@@ -343,9 +374,17 @@ const allCompatibleChains = [
   },
 ];
 
-export const CompatibleChains = allCompatibleChains.filter(
-  (chain) => isGnosisEnabled || chain.chainId !== 100
-);
+const testnetCompatibleChains = [
+  {
+    chainId: sepolia.id,
+    chainName: 'Sepolia',
+  },
+];
+
+export const CompatibleChains = [
+  ...allCompatibleChains,
+  ...(isTestnet ? testnetCompatibleChains : []),
+].filter((chain) => isGnosisEnabled || chain.chainId !== 100);
 
 const allStablecoinAddresses: Record<number, Set<string>> = {
   1: new Set([

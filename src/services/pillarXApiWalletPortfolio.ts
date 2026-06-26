@@ -1,10 +1,5 @@
 /* eslint-disable no-restricted-syntax */
-import {
-  type FetchBaseQueryError,
-  createApi,
-  fetchBaseQuery,
-  retry,
-} from '@reduxjs/toolkit/query/react';
+import { createApi, fetchBaseQuery, retry } from '@reduxjs/toolkit/query/react';
 import { formatUnits } from 'viem';
 
 // types
@@ -21,18 +16,15 @@ import { addMiddleware } from '../store';
 
 // utils
 import {
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
+  ARC_TESTNET_RPC_URL,
   CompatibleChains,
+  getNativeAssetForChainId,
   getWrappedTokenSymbol,
   isTestnet,
   isWrappedNativeToken,
 } from '../utils/blockchain';
-import {
-  ARC_TESTNET_CHAIN_ID,
-  ARC_TESTNET_ENABLED,
-  ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
-  ARC_TESTNET_NATIVE_TOKEN_SYMBOL,
-  getArcNativeBalance,
-} from '../utils/arcTestnet';
 
 // services
 import { PortfolioToken, chainIdToChainNameTokensData } from './tokensData';
@@ -159,16 +151,7 @@ export const getTopNonPrimeAssetsAcrossChains = (
   return topThree;
 };
 
-const ARC_NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
-const ARC_NATIVE_TOKEN_ID = 504200200;
 const ARC_CHAIN_ID_KEY = `eip155:${ARC_TESTNET_CHAIN_ID}`;
-
-const createEmptyPortfolioData = (wallet: string): PortfolioData => ({
-  total_wallet_balance: 0,
-  wallets: wallet ? [wallet] : [],
-  assets: [],
-  balances_length: 0,
-});
 
 const normalizeArcBalanceValue = (
   balanceRawValue: string | undefined,
@@ -188,7 +171,7 @@ const normalizeArcBalanceValue = (
 const normalizeArcPortfolioData = (
   portfolioData: PortfolioData
 ): PortfolioData => {
-  if (!ARC_TESTNET_ENABLED || !portfolioData?.assets?.length) {
+  if (!portfolioData?.assets?.length) {
     return portfolioData;
   }
 
@@ -258,123 +241,210 @@ const normalizeArcPortfolioData = (
   };
 };
 
-const appendArcNativeBalance = async (
+type JsonRpcBalanceResponse = {
+  result?: string;
+  error?: {
+    message?: string;
+  };
+};
+
+const fetchArcNativeBalanceRaw = async (
+  wallet: string
+): Promise<string | undefined> => {
+  try {
+    const response = await fetch(ARC_TESTNET_RPC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        id: 1,
+        jsonrpc: '2.0',
+        method: 'eth_getBalance',
+        params: [wallet, 'latest'],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Arc balance RPC failed with status ${response.status}`);
+    }
+
+    const data = (await response.json()) as JsonRpcBalanceResponse;
+
+    if (data.error || !data.result) {
+      throw new Error(
+        data.error?.message || 'Arc balance RPC returned no result'
+      );
+    }
+
+    return BigInt(data.result).toString();
+  } catch (error) {
+    console.warn('Failed to fetch Arc Testnet native balance', error);
+    return undefined;
+  }
+};
+
+const addArcNativeBalanceToPortfolioData = async (
   portfolioData: PortfolioData,
   wallet: string
 ): Promise<PortfolioData> => {
-  if (!ARC_TESTNET_ENABLED || !wallet) {
+  if (!isTestnet || !wallet) {
     return portfolioData;
   }
 
-  const balanceRaw = await getArcNativeBalance(wallet);
-  const balance = Number(
-    formatUnits(balanceRaw, ARC_TESTNET_NATIVE_TOKEN_DECIMALS)
-  );
-  const chainId = ARC_CHAIN_ID_KEY;
-  const basePortfolio = portfolioData || createEmptyPortfolioData(wallet);
-  const assets = [...basePortfolio.assets];
-  const usdcAssetIndex = assets.findIndex(
-    (asset) => asset.asset.symbol === ARC_TESTNET_NATIVE_TOKEN_SYMBOL
-  );
+  const balanceRaw = await fetchArcNativeBalanceRaw(wallet);
 
-  if (usdcAssetIndex >= 0) {
-    const existingAsset = assets[usdcAssetIndex];
-    const price = existingAsset.price ?? 1;
-    const existingContracts = existingAsset.contracts_balances.filter(
-      (contract) => contract.chainId !== chainId
-    );
-    const arcContract = {
-      address: ARC_NATIVE_TOKEN_ADDRESS,
-      balance,
-      balanceRaw: balanceRaw.toString(),
-      chainId,
-      decimals: ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
-    };
-
-    assets[usdcAssetIndex] = {
-      ...existingAsset,
-      contracts_balances: [...existingContracts, arcContract],
-      cross_chain_balances: {
-        ...existingAsset.cross_chain_balances,
-        [chainId]: {
-          address: ARC_NATIVE_TOKEN_ADDRESS,
-          balance,
-          balanceRaw: balanceRaw.toString(),
-          chainId,
-        },
-      },
-      estimated_balance: existingAsset.estimated_balance + balance * price,
-      token_balance: existingAsset.token_balance + balance,
-      asset: {
-        ...existingAsset.asset,
-        blockchains: Array.from(
-          new Set([...existingAsset.asset.blockchains, 'Arc Testnet'])
-        ),
-        contracts: Array.from(
-          new Set([...existingAsset.asset.contracts, ARC_NATIVE_TOKEN_ADDRESS])
-        ),
-        decimals: Array.from(
-          new Set([
-            ...existingAsset.asset.decimals,
-            ARC_TESTNET_NATIVE_TOKEN_DECIMALS.toString(),
-          ])
-        ),
-      },
-    };
-
-    return normalizeArcPortfolioData({
-      ...basePortfolio,
-      assets,
-      balances_length: basePortfolio.balances_length + (balance > 0 ? 1 : 0),
-      total_wallet_balance:
-        basePortfolio.total_wallet_balance + balance * price,
-    });
+  if (!balanceRaw) {
+    return portfolioData;
   }
 
-  const estimatedBalance = balance;
+  const balance = normalizeArcBalanceValue(
+    balanceRaw,
+    ARC_TESTNET_NATIVE_TOKEN_DECIMALS
+  );
 
-  return normalizeArcPortfolioData({
-    ...basePortfolio,
-    assets: [
-      ...assets,
-      {
-        allocation: 0,
-        asset: {
-          id: ARC_NATIVE_TOKEN_ID,
-          name: ARC_TESTNET_NATIVE_TOKEN_SYMBOL,
-          symbol: ARC_TESTNET_NATIVE_TOKEN_SYMBOL,
-          logo: '',
-          decimals: [ARC_TESTNET_NATIVE_TOKEN_DECIMALS.toString()],
-          contracts: [ARC_NATIVE_TOKEN_ADDRESS],
-          blockchains: ['Arc Testnet'],
-        },
-        contracts_balances: [
-          {
-            address: ARC_NATIVE_TOKEN_ADDRESS,
-            balance,
-            balanceRaw: balanceRaw.toString(),
-            chainId,
-            decimals: ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
+  if (balance <= 0) {
+    return portfolioData;
+  }
+
+  const nativeAsset = getNativeAssetForChainId(ARC_TESTNET_CHAIN_ID);
+  const nativeAssetAddress = nativeAsset.address.toLowerCase();
+  const existingAssets = portfolioData.assets || [];
+
+  const arcContractBalance = {
+    address: nativeAsset.address,
+    balance,
+    balanceRaw,
+    chainId: ARC_CHAIN_ID_KEY,
+    decimals: nativeAsset.decimals,
+  };
+
+  const arcCrossChainBalance = {
+    address: nativeAsset.address,
+    balance,
+    balanceRaw,
+    chainId: ARC_CHAIN_ID_KEY,
+  };
+
+  const existingArcAssetIndex = existingAssets.findIndex((asset) =>
+    asset.contracts_balances.some(
+      (contract) =>
+        contract.chainId === ARC_CHAIN_ID_KEY &&
+        contract.address.toLowerCase() === nativeAssetAddress
+    )
+  );
+
+  const existingNativeAssetIndex = existingAssets.findIndex(
+    (asset) => asset.asset.symbol === nativeAsset.symbol
+  );
+
+  const targetAssetIndex =
+    existingArcAssetIndex >= 0
+      ? existingArcAssetIndex
+      : existingNativeAssetIndex;
+
+  if (targetAssetIndex < 0) {
+    return {
+      ...portfolioData,
+      total_wallet_balance: (portfolioData.total_wallet_balance || 0) + balance,
+      balances_length: (portfolioData.balances_length || 0) + 1,
+      assets: [
+        ...existingAssets,
+        {
+          contracts_balances: [arcContractBalance],
+          cross_chain_balances: {
+            [ARC_CHAIN_ID_KEY]: arcCrossChainBalance,
           },
-        ],
-        cross_chain_balances: {
-          [chainId]: {
-            address: ARC_NATIVE_TOKEN_ADDRESS,
-            balance,
-            balanceRaw: balanceRaw.toString(),
-            chainId,
+          price_change_24h: 0,
+          estimated_balance: balance,
+          price: 1,
+          token_balance: balance,
+          allocation: 0,
+          asset: {
+            id: ARC_TESTNET_CHAIN_ID,
+            name: nativeAsset.name,
+            symbol: nativeAsset.symbol,
+            logo: nativeAsset.logoURI || '',
+            decimals: [String(nativeAsset.decimals)],
+            contracts: [nativeAsset.address],
+            blockchains: ['Arc Testnet'],
           },
+          wallets: [wallet],
         },
-        estimated_balance: estimatedBalance,
-        price: 1,
-        price_change_24h: 0,
-        token_balance: balance,
-        wallets: wallet ? [wallet] : [],
+      ],
+    };
+  }
+
+  const updatedAssets = existingAssets.map((asset, index) => {
+    if (index !== targetAssetIndex) {
+      return asset;
+    }
+
+    const existingArcContract = asset.contracts_balances.find(
+      (contract) =>
+        contract.chainId === ARC_CHAIN_ID_KEY &&
+        contract.address.toLowerCase() === nativeAssetAddress
+    );
+    const previousArcBalance = existingArcContract?.balance || 0;
+    const balanceDelta = balance - previousArcBalance;
+    const assetPrice = asset.price || 1;
+    const contracts = existingArcContract
+      ? asset.contracts_balances.map((contract) =>
+          contract.chainId === ARC_CHAIN_ID_KEY &&
+          contract.address.toLowerCase() === nativeAssetAddress
+            ? arcContractBalance
+            : contract
+        )
+      : [...asset.contracts_balances, arcContractBalance];
+
+    return {
+      ...asset,
+      contracts_balances: contracts,
+      cross_chain_balances: {
+        ...asset.cross_chain_balances,
+        [ARC_CHAIN_ID_KEY]: arcCrossChainBalance,
       },
-    ],
-    balances_length: basePortfolio.balances_length + (balance > 0 ? 1 : 0),
-    total_wallet_balance: basePortfolio.total_wallet_balance + estimatedBalance,
+      estimated_balance: asset.estimated_balance + balanceDelta * assetPrice,
+      token_balance: asset.token_balance + balanceDelta,
+      price: assetPrice,
+      asset: {
+        ...asset.asset,
+        logo: asset.asset.logo || nativeAsset.logoURI || '',
+        contracts: Array.from(
+          new Set([...asset.asset.contracts, nativeAsset.address])
+        ),
+        blockchains: Array.from(
+          new Set([...asset.asset.blockchains, 'Arc Testnet'])
+        ),
+        decimals: Array.from(
+          new Set([...asset.asset.decimals, String(nativeAsset.decimals)])
+        ),
+      },
+    };
   });
+
+  const previousArcBalance =
+    targetAssetIndex >= 0
+      ? existingAssets[targetAssetIndex].contracts_balances.find(
+          (contract) =>
+            contract.chainId === ARC_CHAIN_ID_KEY &&
+            contract.address.toLowerCase() === nativeAssetAddress
+        )?.balance || 0
+      : 0;
+  const balanceDelta = balance - previousArcBalance;
+  const targetAssetPrice = existingAssets[targetAssetIndex]?.price || 1;
+
+  return {
+    ...portfolioData,
+    total_wallet_balance:
+      (portfolioData.total_wallet_balance || 0) +
+      balanceDelta * targetAssetPrice,
+    balances_length:
+      previousArcBalance > 0
+        ? portfolioData.balances_length
+        : (portfolioData.balances_length || 0) + 1,
+    assets: updatedAssets,
+  };
 };
 
 const fetchBaseQueryWithRetry = retry(
@@ -422,54 +492,33 @@ export const pillarXApiWalletPortfolio = createApi({
         });
 
         if ('error' in response) {
-          const responseError = response.error as FetchBaseQueryError;
-
-          if (!ARC_TESTNET_ENABLED) {
-            return { error: responseError };
-          }
-
-          try {
-            const data = await appendArcNativeBalance(
-              createEmptyPortfolioData(wallet),
-              wallet
-            );
-            return {
-              data: {
-                result: {
-                  data,
-                },
-              },
-            };
-          } catch (error) {
-            return { error: responseError };
-          }
+          return { error: response.error };
         }
 
         const baseResponse = response.data as WalletPortfolioMobulaResponse;
+        const portfolioData = baseResponse?.result?.data;
 
-        if (!ARC_TESTNET_ENABLED) {
+        if (!portfolioData) {
           return { data: baseResponse };
         }
 
-        try {
-          const augmentedData = await appendArcNativeBalance(
-            baseResponse?.result?.data || createEmptyPortfolioData(wallet),
+        const normalizedPortfolioData =
+          normalizeArcPortfolioData(portfolioData);
+        const portfolioDataWithArcBalance =
+          await addArcNativeBalanceToPortfolioData(
+            normalizedPortfolioData,
             wallet
           );
 
-          return {
-            data: {
-              ...baseResponse,
-              result: {
-                ...baseResponse.result,
-                data: augmentedData,
-              },
+        return {
+          data: {
+            ...baseResponse,
+            result: {
+              ...baseResponse.result,
+              data: portfolioDataWithArcBalance,
             },
-          };
-        } catch (error) {
-          console.error('Failed to append Arc native balance:', error);
-          return { data: baseResponse };
-        }
+          },
+        };
       },
     }),
   }),

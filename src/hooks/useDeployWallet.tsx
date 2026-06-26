@@ -1,30 +1,8 @@
+import { BundlerConfig } from '@etherspot/transaction-kit';
 import axios from 'axios';
-import { formatUnits } from 'viem';
-import {
-  ARC_TESTNET_CHAIN_ID,
-  ARC_TESTNET_ENABLED,
-  ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
-  ARC_TESTNET_RPC_URL,
-} from '../utils/arcTestnet';
+import { formatEther } from 'viem';
 
 const useDeployWallet = () => {
-  const getRpcUrl = (chainId: number, apiKey?: string) => {
-    if (ARC_TESTNET_ENABLED && chainId === ARC_TESTNET_CHAIN_ID) {
-      return ARC_TESTNET_RPC_URL;
-    }
-
-    if (!apiKey) {
-      return undefined;
-    }
-
-    return `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
-  };
-
-  const getNativeDecimals = (chainId: number) =>
-    ARC_TESTNET_ENABLED && chainId === ARC_TESTNET_CHAIN_ID
-      ? ARC_TESTNET_NATIVE_TOKEN_DECIMALS
-      : 18;
-
   // This is to easily get the right localStorage key to retrieve
   const getWalletDeployedLocalStorageKey = (
     accountAddress: string,
@@ -71,19 +49,19 @@ const useDeployWallet = () => {
   };
 
   const getGasPrice = async (chainId: number): Promise<string | undefined> => {
-    const apiKey = import.meta.env.VITE_ETHERSPOT_DATA_API_KEY;
+    const apiKey = import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY;
 
     if (!chainId) {
       console.error('getGasPrice: chainId is required');
       return undefined;
     }
 
-    const url = getRpcUrl(chainId, apiKey);
-
-    if (!url) {
+    if (!apiKey) {
       console.error('getGasPrice: API key is missing');
       return undefined;
     }
+
+    const { url } = new BundlerConfig(chainId, apiKey);
 
     try {
       const response = await axios.post(
@@ -130,7 +108,7 @@ const useDeployWallet = () => {
     accountAddress: string,
     chainId: number
   ): Promise<boolean | undefined> => {
-    const apiKey = import.meta.env.VITE_ETHERSPOT_DATA_API_KEY;
+    const apiKey = import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY;
 
     if (!accountAddress) {
       console.error('isWalletDeployed: accountAddress is required');
@@ -142,9 +120,7 @@ const useDeployWallet = () => {
       return undefined;
     }
 
-    const url = getRpcUrl(chainId, apiKey);
-
-    if (!url) {
+    if (!apiKey) {
       console.error('isWalletDeployed: API key is missing');
       return undefined;
     }
@@ -161,6 +137,8 @@ const useDeployWallet = () => {
     }
 
     // If wallet has not deployed, then we will check on chain
+    const { url } = new BundlerConfig(chainId, apiKey);
+
     try {
       const response = await axios.post(
         url,
@@ -233,10 +211,7 @@ const useDeployWallet = () => {
       // Calculate total gas cost in wei
       const gasCostWei = gasPrice * gasUnits;
 
-      const gasCostInNative = formatUnits(
-        gasCostWei,
-        getNativeDecimals(chainId)
-      );
+      const gasCostInNative = formatEther(gasCostWei);
 
       return parseFloat(gasCostInNative);
     } catch (error) {
