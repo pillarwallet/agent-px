@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   checksumAddress,
   createPublicClient,
-  formatEther,
+  formatUnits,
   hexToBigInt,
   http,
   isAddressEqual,
@@ -50,12 +50,29 @@ import { getNetworkViem } from '../apps/deposit/utils/blockchain';
 import { serializeBigInts } from '../utils/common';
 import { useComprehensiveLogout } from '../utils/logout';
 import { getUserOperationStatus } from './userOpStatus';
+import {
+  ARC_TESTNET_CHAIN_ID,
+  ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
+} from '../utils/blockchain';
 
 // In-memory mapping of batch IDs to transaction data
 const batchIdToTxDataMap = new Map<
   string,
   { txHash: string; userOpHash?: string }
 >();
+
+const getNativeDisplayDecimals = (chainIdNumber: number) =>
+  chainIdNumber === ARC_TESTNET_CHAIN_ID
+    ? ARC_TESTNET_NATIVE_TOKEN_DECIMALS
+    : 18;
+
+const formatNativeValue = (value: string | undefined, chainIdNumber: number) =>
+  value
+    ? formatUnits(
+        hexToBigInt(value as `0x${string}`),
+        getNativeDisplayDecimals(chainIdNumber)
+      )
+    : '0';
 
 // Helper function to capture Sentry events with context
 const captureWithContext = (
@@ -1139,20 +1156,26 @@ export const useWalletConnect = () => {
 
       if (!existingClientSession) {
         try {
+          const supportedChains = [
+            'eip155:11155111',
+            'eip155:1',
+            'eip155:100',
+            'eip155:137',
+            'eip155:8453',
+            'eip155:56',
+            'eip155:10',
+            'eip155:42161',
+            `eip155:${ARC_TESTNET_CHAIN_ID}`,
+          ];
+          const supportedAccounts = supportedChains.map(
+            (chain) => `${chain}:${wallet}`
+          );
+
           const approvedNamespaces = buildApprovedNamespaces({
             proposal: params,
             supportedNamespaces: {
               eip155: {
-                chains: [
-                  'eip155:11155111',
-                  'eip155:1',
-                  'eip155:100',
-                  'eip155:137',
-                  'eip155:8453',
-                  'eip155:56',
-                  'eip155:10',
-                  'eip155:42161',
-                ],
+                chains: supportedChains,
                 methods: [
                   PERSONAL_SIGN,
                   ETH_SEND_TX,
@@ -1175,16 +1198,7 @@ export const useWalletConnect = () => {
                   WALLETCONNECT_EVENT.PROPOSAL_EXPIRE,
                   WALLETCONNECT_EVENT.SESSION_REQUEST_EXPIRE,
                 ],
-                accounts: [
-                  `eip155:11155111:${wallet}`,
-                  `eip155:1:${wallet}`,
-                  `eip155:100:${wallet}`,
-                  `eip155:137:${wallet}`,
-                  `eip155:8453:${wallet}`,
-                  `eip155:56:${wallet}`,
-                  `eip155:10:${wallet}`,
-                  `eip155:42161:${wallet}`,
-                ],
+                accounts: supportedAccounts,
               },
             },
           });
@@ -1421,9 +1435,7 @@ export const useWalletConnect = () => {
               description: `${dAppName} wants to send a transaction`,
               transaction: {
                 to: checksumAddress(transaction.to),
-                value: transaction.value
-                  ? formatEther(hexToBigInt(transaction.value))
-                  : '0',
+                value: formatNativeValue(transaction.value, chainIdNumber),
                 data: transaction.data,
                 chainId: chainIdNumber,
               },
@@ -1531,11 +1543,10 @@ export const useWalletConnect = () => {
                 description: `${dAppName} wants to send a transaction`,
                 transaction: {
                   to: checksumAddress(transaction.to as `0x${string}`),
-                  value: transaction.value
-                    ? formatEther(
-                        hexToBigInt(transaction.value as `0x${string}`)
-                      )
-                    : '0',
+                  value: formatNativeValue(
+                    transaction.value as `0x${string}` | undefined,
+                    chainIdNumber
+                  ),
                   data: transaction.data,
                   chainId: chainIdNumber,
                 },
@@ -1568,9 +1579,10 @@ export const useWalletConnect = () => {
 
             return {
               to: checksumAddress(call.to as `0x${string}`),
-              value: call.value
-                ? formatEther(hexToBigInt(call.value as `0x${string}`))
-                : '0',
+              value: formatNativeValue(
+                call.value as `0x${string}` | undefined,
+                callsChainId
+              ),
               data: call.data as `0x${string}`,
               chainId: callsChainId,
             };

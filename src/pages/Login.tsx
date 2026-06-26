@@ -40,7 +40,6 @@ type MobileLengthRule = {
 };
 
 const DEFAULT_COUNTRY_OPTION_LABEL = 'United States (+1)';
-const DEFAULT_COUNTRY_CODE = '+1';
 const COUNTRY_LOOKUP_ENDPOINT = '/api/geo/country';
 const COUNTRY_LOOKUP_URL = import.meta.env.VITE_COUNTRY_LOOKUP_URL?.trim();
 

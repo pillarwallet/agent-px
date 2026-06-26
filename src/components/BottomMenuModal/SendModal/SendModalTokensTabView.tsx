@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { TransactionEstimateResult } from '@etherspot/transaction-kit';
 import * as Sentry from '@sentry/react';
-import { BigNumber, ethers, utils } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import {
   ArrangeVertical as ArrangeVerticalIcon,
   ClipboardText as IconClipboardText,
@@ -55,6 +55,7 @@ import { getUserOperationStatus } from '../../../services/userOpStatus';
 // utils
 import { isNativeToken } from '../../../apps/the-exchange/utils/wrappedTokens';
 import {
+  ARC_TESTNET_CHAIN_ID,
   buildTransactionData,
   getNativeAssetForChainId,
   isValidEthereumAddress,
@@ -424,9 +425,15 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   ]);
 
   const setApprovalData = async (gasCost: number) => {
-    if (selectedFeeAsset && gasPrice && gasCost) {
+    if (selectedAsset && selectedFeeAsset && gasPrice && gasCost) {
+      const nativeDecimals = getNativeAssetForChainId(
+        selectedAsset.chainId
+      ).decimals;
       const estimatedCost = Number(
-        utils.formatEther(BigNumber.from(gasCost).mul(gasPrice))
+        formatUnits(
+          BigInt(BigNumber.from(gasCost).mul(gasPrice).toString()),
+          nativeDecimals
+        )
       );
       const costAsFiat = +estimatedCost * nativeAssetPrice;
       const feeTokenPrice = selectedFeeAsset.tokenPrice;
@@ -511,12 +518,21 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       symbol: nativeSymbol,
       blockchain: selectedAsset ? String(selectedAsset.chainId) : undefined,
     },
-    { skip: !selectedAsset?.chainId }
+    {
+      skip:
+        !selectedAsset?.chainId ||
+        selectedAsset.chainId === ARC_TESTNET_CHAIN_ID,
+    }
   );
 
   useEffect(() => {
     if (!selectedAsset) return;
     if (selectedAsset.type !== 'token') return;
+    if (selectedAsset.chainId === ARC_TESTNET_CHAIN_ID) {
+      setNativeAssetPrice(1);
+      setSelectedAssetPrice(selectedAsset.asset.price || 1);
+      return;
+    }
     if (
       tokenData &&
       tokenData.result &&
@@ -1370,31 +1386,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           return;
         }
 
-        // TO DO - review this logic
-        // Convert decimal value to wei if it's a decimal string
-        const valueToUse = (() => {
-          if (payloadTx?.value === undefined) return '0';
-
-          const valueStr = payloadTx.value.toString();
-
-          // If it's already a numeric string without decimals, assume it's in wei
-          if (!valueStr.includes('.') && !isNaN(Number(valueStr))) {
-            return valueStr;
-          }
-
-          // Convert decimal value to wei using parseUnits
-          try {
-            return parseUnits(valueStr, 18).toString();
-          } catch {
-            return '0';
-          }
-        })();
-
-        const txData = {
-          to: payloadTx.to,
-          value: valueToUse,
-          data: payloadTx?.data || undefined,
-        };
         const chainIdToUse = payloadTx?.chainId;
 
         if (
@@ -1407,6 +1398,34 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           );
           return;
         }
+
+        // TO DO - review this logic
+        // Convert decimal value to native base units if it's a decimal string
+        const valueToUse = (() => {
+          if (payloadTx?.value === undefined) return '0';
+
+          const valueStr = payloadTx.value.toString();
+
+          // If it's already a numeric string without decimals, assume it's in base units
+          if (!valueStr.includes('.') && !isNaN(Number(valueStr))) {
+            return valueStr;
+          }
+
+          try {
+            return parseUnits(
+              valueStr,
+              getNativeAssetForChainId(chainIdToUse).decimals
+            ).toString();
+          } catch {
+            return '0';
+          }
+        })();
+
+        const txData = {
+          to: payloadTx.to,
+          value: valueToUse,
+          data: payloadTx?.data || undefined,
+        };
 
         kit
           .transaction({

@@ -1,3 +1,4 @@
+import { BundlerConfig } from '@etherspot/transaction-kit';
 import axios from 'axios';
 import { formatEther } from 'viem';
 
@@ -48,7 +49,7 @@ const useDeployWallet = () => {
   };
 
   const getGasPrice = async (chainId: number): Promise<string | undefined> => {
-    const apiKey = import.meta.env.VITE_ETHERSPOT_DATA_API_KEY;
+    const apiKey = import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY;
 
     if (!chainId) {
       console.error('getGasPrice: chainId is required');
@@ -60,12 +61,14 @@ const useDeployWallet = () => {
       return undefined;
     }
 
-    const url = `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
+    const { url } = new BundlerConfig(chainId, apiKey);
 
     try {
       const response = await axios.post(
         url,
         {
+          id: 1,
+          jsonrpc: '2.0',
           method: 'skandha_getGasPrice',
         },
         {
@@ -77,8 +80,27 @@ const useDeployWallet = () => {
 
       return response.data.result.maxFeePerGas;
     } catch (error) {
-      console.error('getGasPrice: Failed to get gas price', error);
-      return undefined;
+      try {
+        const fallbackResponse = await axios.post(
+          url,
+          {
+            id: 1,
+            jsonrpc: '2.0',
+            method: 'eth_gasPrice',
+            params: [],
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        return fallbackResponse.data.result;
+      } catch (fallbackError) {
+        console.error('getGasPrice: Failed to get gas price', fallbackError);
+        return undefined;
+      }
     }
   };
 
@@ -86,7 +108,7 @@ const useDeployWallet = () => {
     accountAddress: string,
     chainId: number
   ): Promise<boolean | undefined> => {
-    const apiKey = import.meta.env.VITE_ETHERSPOT_DATA_API_KEY;
+    const apiKey = import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY;
 
     if (!accountAddress) {
       console.error('isWalletDeployed: accountAddress is required');
@@ -115,12 +137,14 @@ const useDeployWallet = () => {
     }
 
     // If wallet has not deployed, then we will check on chain
-    const url = `https://rpc.etherspot.io/v2/${chainId}?api-key=${apiKey}`;
+    const { url } = new BundlerConfig(chainId, apiKey);
 
     try {
       const response = await axios.post(
         url,
         {
+          id: 1,
+          jsonrpc: '2.0',
           method: 'eth_getCode',
           params: [accountAddress, 'latest'],
         },
@@ -187,10 +211,9 @@ const useDeployWallet = () => {
       // Calculate total gas cost in wei
       const gasCostWei = gasPrice * gasUnits;
 
-      // Convert wei to ETH (18 decimals) and then to number
-      const gasCostInEth = formatEther(gasCostWei);
+      const gasCostInNative = formatEther(gasCostWei);
 
-      return parseFloat(gasCostInEth);
+      return parseFloat(gasCostInNative);
     } catch (error) {
       console.error(
         'getWalletDeploymentCost: Error calculating deployment cost',

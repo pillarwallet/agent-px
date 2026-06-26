@@ -214,7 +214,7 @@ const App = ({ id }: { id: string }) => {
     }); // artificial 1s delay
 
     try {
-      const appImport = await import(`../../apps/${id}`);
+      const appImport = await import(`../../apps/${id}/index.tsx`);
       return appImport;
     } catch (e) {
       console.error(`Failed to load app component for ${id}`, e);
