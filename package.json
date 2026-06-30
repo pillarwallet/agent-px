@@ -24,8 +24,6 @@
     "@emotion/styled": "11.11.5",
     "@etherspot/data-utils": "1.1.1",
     "@etherspot/intent-sdk": "1.0.0-alpha.12",
-    "@etherspot/modular-sdk": "6.1.1",
-    "@etherspot/transaction-kit": "2.1.5",
     "@hookform/resolvers": "^5.2.2",
     "@hypelab/sdk-react": "1.0.4",
     "@lifi/sdk": "3.6.8",

@@ -42,7 +42,7 @@ vi.mock('viem', () => ({
   erc20Abi: [],
 }));
 
-vi.mock('@etherspot/transaction-kit', () => ({
+vi.mock('../../../../utils/nativeTransactionKit', () => ({
   EtherspotUtils: {
     isZeroAddress: vi.fn(),
   },

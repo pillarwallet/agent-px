@@ -2,7 +2,6 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-plusplus */
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { TransactionEstimateResult } from '@etherspot/transaction-kit';
 import * as Sentry from '@sentry/react';
 import { BigNumber, ethers } from 'ethers';
 import {
@@ -67,6 +66,7 @@ import {
   transactionDescription,
 } from '../../../utils/common';
 import { getEIP7702AuthorizationIfNeeded } from '../../../utils/eip7702Authorization';
+import type { TransactionEstimateResult } from '../../../utils/nativeTransactionKit';
 import { formatAmountDisplay, isValidAmount } from '../../../utils/number';
 
 // types

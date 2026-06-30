@@ -1,4 +1,3 @@
-import { EtherspotTransactionKit } from '@etherspot/transaction-kit';
 import { useEffect, useState } from 'react';
 import { createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -7,6 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { visibleChains } from '../utils/blockchain';
 import { sanitizeError } from '../utils/common';
 import { OUR_EIP7702_IMPLEMENTATION_ADDRESS } from '../utils/eip7702Authorization';
+import type { EtherspotTransactionKit } from '../utils/nativeTransactionKit';
 
 type WalletMode = 'modular' | 'delegatedEoa';
 

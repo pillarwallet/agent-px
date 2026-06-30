@@ -1,5 +1,4 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import * as TransactionKit from '@etherspot/transaction-kit';
 import { RenderResult, act, render } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
@@ -17,6 +16,7 @@ import { defaultTheme } from '../../../theme';
 // providers
 import AccountTransactionHistoryProvider from '../../../providers/AccountTransactionHistoryProvider';
 import BottomMenuModalProvider from '../../../providers/BottomMenuModalProvider';
+import { EtherspotTransactionKitProvider } from '../../../providers/EtherspotTransactionKitProvider';
 import LanguageProvider from '../../../providers/LanguageProvider';
 
 const randomWallet = privateKeyToAccount(
@@ -49,7 +49,14 @@ describe('<SendModal />', () => {
     await act(async () => {
       rendered = render(
         <BrowserRouter>
-          <TransactionKit.EtherspotTransactionKit provider={provider}>
+          <EtherspotTransactionKitProvider
+            config={{
+              provider,
+              chainId: goerli.id,
+              walletMode: 'delegatedEoa',
+              viemLocalAccount: randomWallet,
+            }}
+          >
             <AccountTransactionHistoryProvider>
               <ThemeProvider theme={defaultTheme}>
                 <LanguageProvider>
@@ -59,7 +66,7 @@ describe('<SendModal />', () => {
                 </LanguageProvider>
               </ThemeProvider>
             </AccountTransactionHistoryProvider>
-          </TransactionKit.EtherspotTransactionKit>
+          </EtherspotTransactionKitProvider>
         </BrowserRouter>
       );
     });

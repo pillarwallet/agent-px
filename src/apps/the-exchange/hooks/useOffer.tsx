@@ -1,4 +1,3 @@
-import { EtherspotUtils } from '@etherspot/transaction-kit';
 import {
   LiFiStep,
   Route,
@@ -28,6 +27,7 @@ import {
   chainNameToChainIdTokensData,
 } from '../../../services/tokensData';
 import { isStableCoin } from '../../../utils/blockchain';
+import { EtherspotUtils } from '../../../utils/nativeTransactionKit';
 import { getNetworkViem } from '../../deposit/utils/blockchain';
 import {
   getNativeBalanceFromPortfolio,

@@ -1,8 +1,4 @@
 /* eslint-disable react/jsx-no-constructed-context-values */
-import {
-  EtherspotTransactionKit,
-  EtherspotTransactionKitConfig,
-} from '@etherspot/transaction-kit';
 import React, {
   createContext,
   useEffect,
@@ -12,6 +8,10 @@ import React, {
 } from 'react';
 
 import type { WalletProviderLike } from '../types/walletProvider';
+import {
+  EtherspotTransactionKit,
+  type EtherspotTransactionKitConfig,
+} from '../utils/nativeTransactionKit';
 
 export interface EtherspotTransactionKitContextType {
   data: {

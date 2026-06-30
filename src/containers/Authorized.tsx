@@ -1,8 +1,4 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import {
-  EtherspotTransactionKit,
-  EtherspotTransactionKitConfig,
-} from '@etherspot/transaction-kit';
 import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -28,6 +24,10 @@ import GlobalTransactionBatchesProvider from '../providers/GlobalTransactionsBat
 import SelectedChainsHistoryProvider from '../providers/SelectedChainsHistoryProvider';
 import { WalletConnectModalProvider } from '../providers/WalletConnectModalProvider';
 import { WalletConnectToastProvider } from '../providers/WalletConnectToastProvider';
+import {
+  EtherspotTransactionKit,
+  type EtherspotTransactionKitConfig,
+} from '../utils/nativeTransactionKit';
 
 /**
  * @name Authorized

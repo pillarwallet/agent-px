@@ -1,11 +1,11 @@
 /* eslint-disable no-plusplus */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { EtherspotTransactionKit } from '@etherspot/transaction-kit';
 import { renderHook, waitFor } from '@testing-library/react';
 import { privateKeyToAccount } from 'viem/accounts';
 import { vi } from 'vitest';
 
 import { OUR_EIP7702_IMPLEMENTATION_ADDRESS } from '../../utils/eip7702Authorization';
+import type { EtherspotTransactionKit } from '../../utils/nativeTransactionKit';
 import { useWalletModeVerification } from '../useWalletModeVerification';
 
 vi.mock('viem', () => ({

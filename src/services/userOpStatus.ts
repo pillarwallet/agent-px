@@ -1,5 +1,5 @@
-import { BundlerConfig } from '@etherspot/transaction-kit';
 import axios from 'axios';
+import { getEtherspotBundlerUrl } from '../utils/bundler';
 
 export const getUserOperationStatus = async (
   chainId: number,
@@ -18,7 +18,7 @@ export const getUserOperationStatus = async (
     return undefined;
   }
 
-  const { url } = new BundlerConfig(chainId, apiKey);
+  const url = getEtherspotBundlerUrl({ chainId, apiKey });
 
   try {
     const response = await axios.post(

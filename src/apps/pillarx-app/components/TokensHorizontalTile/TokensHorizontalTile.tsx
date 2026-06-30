@@ -1,4 +1,3 @@
-import { EtherspotUtils } from '@etherspot/transaction-kit';
 import { createRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,6 +10,7 @@ import useRefDimensions from '../../hooks/useRefDimensions';
 // utils
 import { chainNameFromViemToMobula } from '../../../../services/tokensData';
 import { CompatibleChains } from '../../../../utils/blockchain';
+import { EtherspotUtils } from '../../../../utils/nativeTransactionKit';
 
 // components
 import TileContainer from '../TileContainer/TileContainer';

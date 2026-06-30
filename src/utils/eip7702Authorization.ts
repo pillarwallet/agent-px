@@ -1,5 +1,5 @@
-import { EtherspotTransactionKit } from '@etherspot/transaction-kit';
 import { SignAuthorizationReturnType } from 'viem/accounts';
+import type { EtherspotTransactionKit } from './nativeTransactionKit';
 
 // From KernelVersionToAddressesMap[KERNEL_V3_3].accountImplementationAddress
 export const OUR_EIP7702_IMPLEMENTATION_ADDRESS =

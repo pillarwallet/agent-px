@@ -1,7 +1,6 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-plusplus */
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { TransactionBuilder } from '@etherspot/transaction-kit';
 import * as Sentry from '@sentry/react';
 import { ethers } from 'ethers';
 import {
@@ -36,6 +35,7 @@ import {
   getNativeAssetForChainId,
 } from '../../../utils/blockchain';
 import { getEIP7702AuthorizationIfNeeded } from '../../../utils/eip7702Authorization';
+import type { TransactionBuilder } from '../../../utils/nativeTransactionKit';
 import { formatAmountDisplay } from '../../../utils/number';
 
 const SendModalBatchesTabView = () => {

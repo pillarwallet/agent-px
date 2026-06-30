@@ -1,5 +1,4 @@
 /* eslint-disable no-restricted-syntax */
-import { BundlerConfig } from '@etherspot/transaction-kit';
 import { ethers } from 'ethers';
 import { defineChain, encodeFunctionData, erc20Abi, parseUnits } from 'viem';
 import {
@@ -19,6 +18,7 @@ import { isNativeToken } from '../apps/the-exchange/utils/wrappedTokens';
 
 // types
 import { TokenListToken } from '../types/blockchain';
+import { getEtherspotBundlerUrl } from './bundler';
 
 // images
 import logoArbitrum from '../assets/images/logo-arbitrum.png';
@@ -35,10 +35,10 @@ export const ARC_TESTNET_CHAIN_ID = 5_042_002;
 export const ARC_TESTNET_EXPLORER_URL = 'https://testnet.arcscan.app';
 export const ARC_TESTNET_NATIVE_TOKEN_DECIMALS = 18;
 
-export const ARC_TESTNET_RPC_URL = new BundlerConfig(
-  ARC_TESTNET_CHAIN_ID,
-  import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY
-).url;
+export const ARC_TESTNET_RPC_URL = getEtherspotBundlerUrl({
+  chainId: ARC_TESTNET_CHAIN_ID,
+  apiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
+});
 
 export const arcTestnetChain = defineChain({
   id: 5_042_002,
