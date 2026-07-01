@@ -24,41 +24,35 @@ const summarizeAuthorization = (
  *
  * @param kit - The EtherspotTransactionKit instance
  * @param chainId - The chain ID to check
- * @returns Authorization object if needed, null if already has our implementation, undefined if not in delegatedEoa mode
+ * @returns Authorization object if needed, null if already has our implementation
  */
 export async function getEIP7702AuthorizationIfNeeded(
   kit: EtherspotTransactionKit,
   chainId: number
-): Promise<SignAuthorizationReturnType | null | undefined> {
-  const walletMode = kit.getEtherspotProvider().getWalletMode();
+): Promise<SignAuthorizationReturnType | null> {
   transactionDebugLog('[EIP7702] authorization check started', {
     chainId,
-    walletMode,
   });
-
-  if (walletMode !== 'delegatedEoa') {
-    transactionDebugLog('[EIP7702] authorization skipped', {
-      chainId,
-      reason: 'wallet mode is not delegatedEoa',
-      walletMode,
-    });
-    return undefined;
-  }
 
   try {
     // Check if EOA is designated on this chain
-    const isDesignated = await kit.isDelegateSmartAccountToEoa(chainId);
+    const delegationStatus =
+      await kit.getDelegateSmartAccountToEoaStatus(chainId);
+    const {
+      code: senderCode,
+      delegateAddress,
+      isDelegated,
+      walletAddress,
+    } = delegationStatus;
     transactionDebugLog('[EIP7702] designation check result', {
       chainId,
-      isDesignated,
+      isDesignated: isDelegated,
+      walletAddress,
+      delegateAddress,
     });
 
-    if (isDesignated === true) {
+    if (isDelegated === true) {
       // EOA is designated, check if it's our implementation
-      const etherspotProvider = kit.getEtherspotProvider();
-      const publicClient = await etherspotProvider.getPublicClient(chainId);
-      const walletAddress = await kit.getWalletAddress(chainId);
-
       if (!walletAddress) {
         transactionDebugError(
           `Cannot get wallet address for chain ${chainId}, skipping authorization check`
@@ -67,9 +61,6 @@ export async function getEIP7702AuthorizationIfNeeded(
       }
 
       // Get code at EOA address
-      const senderCode = await publicClient.getCode({
-        address: walletAddress as `0x${string}`,
-      });
       transactionDebugLog('[EIP7702] sender code fetched', {
         chainId,
         walletAddress,
@@ -77,11 +68,6 @@ export async function getEIP7702AuthorizationIfNeeded(
       });
 
       if (senderCode && senderCode.startsWith('0xef0100')) {
-        // EIP-7702 format: 0xef0100 + 20-byte delegate address
-        // Extract delegate address using regex
-        const match = senderCode.match(/^0xef0100(.{40})$/);
-        const delegateAddress = match ? `0x${match[1]}` : null;
-
         // Check if it's our implementation (Kernel V3.3)
         const isOurImplementation =
           delegateAddress?.toLowerCase() ===

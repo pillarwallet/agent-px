@@ -26,9 +26,13 @@ import type {
   TypedDataDefinition,
   WalletClient,
 } from 'viem';
-import type {
-  EstimateUserOperationGasReturnType,
-  SmartAccount,
+import {
+  formatUserOperationGas,
+  formatUserOperationRequest,
+  type EstimateUserOperationGasReturnType,
+  type RpcEstimateUserOperationGasReturnType,
+  type SmartAccount,
+  type UserOperation,
 } from 'viem/account-abstraction';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { SignAuthorizationReturnType } from 'viem/accounts';
@@ -44,7 +48,7 @@ import {
 } from './pillarSmartAccountClient';
 import { transactionDebugError, transactionDebugLog } from './transactionDebug';
 
-export type WalletMode = 'modular' | 'delegatedEoa';
+export type WalletMode = 'delegatedEoa';
 
 export interface EtherspotTransactionKitConfig {
   chainId: number;
@@ -164,6 +168,34 @@ type BatchParams = {
 
 type BundlerClient = Awaited<ReturnType<typeof createPillarSmartAccountClient>>;
 
+type EstimateTransactionsResult = {
+  cost: bigint;
+  calls: PillarCall[];
+  fees: {
+    maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
+  };
+  gas: EstimateUserOperationGasReturnType;
+  isDelegated: boolean | undefined;
+  preparedUserOperation: Partial<UserOperation>;
+  shouldUseAuthorization: boolean;
+};
+
+type EoaDelegationStatus = {
+  code?: Hex;
+  delegateAddress?: Address;
+  isDelegated: boolean | undefined;
+  walletAddress?: string;
+};
+
+type UserOperationFeeEstimate = {
+  feePerGas: bigint;
+  fees: {
+    maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
+  };
+};
+
 const retainCompatibleParameter = (...values: unknown[]) => values.length;
 
 const redactBundlerUrl = (url: string) =>
@@ -188,6 +220,44 @@ const summarizeTransaction = (transaction: TransactionBuilder) => ({
   transactionName: transaction.transactionName,
   batchName: transaction.batchName,
 });
+
+const getEstimateAuthorizationCachePayload = (
+  authorization?: SignAuthorizationReturnType
+) =>
+  authorization
+    ? {
+        chainId: authorization.chainId,
+        address: authorization.address.toLowerCase(),
+        nonce: authorization.nonce?.toString(),
+        yParity: authorization.yParity,
+        r: authorization.r,
+        s: authorization.s,
+      }
+    : undefined;
+
+const getEstimateTransactionCachePayload = (
+  transaction: TransactionBuilder
+) => ({
+  chainId: transaction.chainId,
+  to: transaction.to?.toLowerCase(),
+  value: transaction.value?.toString() ?? '0',
+  data: transaction.data ?? '0x',
+});
+
+const getEstimateTransactionsCacheKey = ({
+  chainId,
+  transactions,
+  authorization,
+}: {
+  chainId: number;
+  transactions: TransactionBuilder[];
+  authorization?: SignAuthorizationReturnType;
+}) =>
+  JSON.stringify({
+    chainId,
+    transactions: transactions.map(getEstimateTransactionCachePayload),
+    authorization: getEstimateAuthorizationCachePayload(authorization),
+  });
 
 const summarizeError = (error: unknown) => ({
   name: error instanceof Error ? error.name : undefined,
@@ -449,7 +519,7 @@ export class PillarTransactionProvider {
   }
 
   getWalletMode(): WalletMode {
-    return this.config.walletMode || 'modular';
+    return this.config.walletMode || 'delegatedEoa';
   }
 
   getConfig() {
@@ -638,6 +708,16 @@ export class EtherspotTransactionKit {
 
   private debugMode = false;
 
+  private estimateTransactionsCache = new Map<
+    string,
+    EstimateTransactionsResult
+  >();
+
+  private eoaDelegationStatusCache: Record<
+    number,
+    Promise<EoaDelegationStatus>
+  > = {};
+
   constructor(private readonly config: EtherspotTransactionKitConfig) {
     this.etherspotProvider = new PillarTransactionProvider(config);
     this.debugMode = Boolean(config.debugMode);
@@ -656,6 +736,19 @@ export class EtherspotTransactionKit {
     this.selectedTransactionName = undefined;
     this.selectedBatchName = undefined;
     this.workingTransaction = undefined;
+  }
+
+  private clearEstimateTransactionsCache() {
+    this.estimateTransactionsCache.clear();
+  }
+
+  private clearEoaDelegationStatusCache(chainId?: number) {
+    if (typeof chainId === 'number') {
+      delete this.eoaDelegationStatusCache[chainId];
+      return;
+    }
+
+    this.eoaDelegationStatusCache = {};
   }
 
   private resultMethods() {
@@ -705,47 +798,80 @@ export class EtherspotTransactionKit {
     return undefined;
   }
 
-  private async getCost({
-    chainId,
-    gas,
-  }: {
-    chainId: number;
-    gas: EstimateUserOperationGasReturnType;
-  }) {
+  private async getUserOperationFeeEstimate(
+    chainId: number
+  ): Promise<UserOperationFeeEstimate> {
     const publicClient = await this.etherspotProvider.getPublicClient(chainId);
-    const totalGas = sumUserOperationGas(gas);
-    transactionDebugLog('[TransactionKit] calculating estimated cost', {
-      chainId,
-      gas,
-      totalGas: totalGas.toString(),
-    });
 
     try {
       const fees = await publicClient.estimateFeesPerGas();
-      const feePerGas = fees.maxFeePerGas || fees.gasPrice || BigInt(0);
-      const cost = totalGas * feePerGas;
+      const maxFeePerGas = fees.maxFeePerGas || fees.gasPrice || BigInt(0);
+      const maxPriorityFeePerGas =
+        fees.maxPriorityFeePerGas || fees.gasPrice || BigInt(0);
       transactionDebugLog('[TransactionKit] fee estimate resolved', {
         chainId,
         maxFeePerGas: fees.maxFeePerGas?.toString(),
         gasPrice: fees.gasPrice?.toString(),
-        feePerGas: feePerGas.toString(),
-        cost: cost.toString(),
+        feePerGas: maxFeePerGas.toString(),
       });
-      return cost;
+      return {
+        feePerGas: maxFeePerGas,
+        fees: {
+          // Match viem's sendUserOperation fee buffer without paying for
+          // viem's second prepare/fee-estimation pass.
+          maxFeePerGas: maxFeePerGas * BigInt(2),
+          maxPriorityFeePerGas: maxPriorityFeePerGas * BigInt(2),
+        },
+      };
     } catch (error) {
       transactionDebugError('[TransactionKit] estimateFeesPerGas failed', {
         chainId,
         error: summarizeError(error),
       });
       const gasPrice = await publicClient.getGasPrice();
-      const cost = totalGas * gasPrice;
       transactionDebugLog('[TransactionKit] gas price fallback resolved', {
         chainId,
         gasPrice: gasPrice.toString(),
-        cost: cost.toString(),
       });
-      return cost;
+      return {
+        feePerGas: gasPrice,
+        fees: {
+          maxFeePerGas: gasPrice,
+          maxPriorityFeePerGas: gasPrice,
+        },
+      };
     }
+  }
+
+  private async getCost({
+    chainId,
+    feeEstimate,
+    gas,
+  }: {
+    chainId: number;
+    feeEstimate: UserOperationFeeEstimate;
+    gas: EstimateUserOperationGasReturnType;
+  }): Promise<{
+    cost: bigint;
+    fees: {
+      maxFeePerGas: bigint;
+      maxPriorityFeePerGas: bigint;
+    };
+  }> {
+    const totalGas = sumUserOperationGas(gas);
+    const cost = totalGas * feeEstimate.feePerGas;
+    transactionDebugLog('[TransactionKit] calculating estimated cost', {
+      chainId,
+      gas,
+      totalGas: totalGas.toString(),
+      feePerGas: feeEstimate.feePerGas.toString(),
+      cost: cost.toString(),
+    });
+
+    return {
+      cost,
+      fees: feeEstimate.fees,
+    };
   }
 
   private async estimateTransactions({
@@ -756,7 +882,24 @@ export class EtherspotTransactionKit {
     chainId: number;
     transactions: TransactionBuilder[];
     authorization?: SignAuthorizationReturnType;
-  }) {
+  }): Promise<EstimateTransactionsResult> {
+    const cacheKey = getEstimateTransactionsCacheKey({
+      chainId,
+      transactions,
+      authorization,
+    });
+    const cachedEstimate = this.estimateTransactionsCache.get(cacheKey);
+
+    if (cachedEstimate) {
+      transactionDebugLog('[TransactionKit] estimateTransactions cache hit', {
+        chainId,
+        transactions: transactions.map(summarizeTransaction),
+        cost: cachedEstimate.cost.toString(),
+        shouldUseAuthorization: cachedEstimate.shouldUseAuthorization,
+      });
+      return cachedEstimate;
+    }
+
     transactionDebugLog('[TransactionKit] estimateTransactions started', {
       chainId,
       walletMode: this.etherspotProvider.getWalletMode(),
@@ -814,12 +957,43 @@ export class EtherspotTransactionKit {
     });
 
     let gas: EstimateUserOperationGasReturnType;
+    let feeEstimate: UserOperationFeeEstimate;
+    let preparedUserOperation: Partial<UserOperation>;
     try {
-      gas = await bundlerClient.estimateUserOperationGas({
+      preparedUserOperation = await bundlerClient.prepareUserOperation({
         account: bundlerClient.account,
         calls,
         ...(shouldUseAuthorization ? { authorization } : {}),
+        parameters: [
+          'authorization',
+          'factory',
+          'nonce',
+          'paymaster',
+          'signature',
+        ],
       });
+      transactionDebugLog('[TransactionKit] user operation prepared', {
+        chainId,
+        sender: preparedUserOperation.sender,
+        nonce: preparedUserOperation.nonce?.toString(),
+        callDataLength: preparedUserOperation.callData?.length,
+        hasAuthorization: Boolean(preparedUserOperation.authorization),
+      });
+
+      const [rpcGas, resolvedFeeEstimate] = await Promise.all([
+        bundlerClient.request({
+          method: 'eth_estimateUserOperationGas',
+          params: [
+            formatUserOperationRequest(preparedUserOperation),
+            bundlerClient.account.entryPoint.address,
+          ],
+        }),
+        this.getUserOperationFeeEstimate(chainId),
+      ]);
+      feeEstimate = resolvedFeeEstimate;
+      gas = formatUserOperationGas(
+        rpcGas as RpcEstimateUserOperationGasReturnType
+      );
       transactionDebugLog('[TransactionKit] user operation gas estimated', {
         chainId,
         gas,
@@ -841,13 +1015,97 @@ export class EtherspotTransactionKit {
       throw error;
     }
 
-    const cost = await this.getCost({ chainId, gas });
+    const { cost, fees } = await this.getCost({
+      chainId,
+      feeEstimate,
+      gas,
+    });
     transactionDebugLog('[TransactionKit] estimateTransactions completed', {
       chainId,
       cost: cost.toString(),
+      maxFeePerGas: fees.maxFeePerGas.toString(),
+      maxPriorityFeePerGas: fees.maxPriorityFeePerGas.toString(),
     });
 
-    return { cost, calls };
+    const estimateResult = {
+      cost,
+      calls,
+      fees,
+      gas,
+      isDelegated,
+      preparedUserOperation,
+      shouldUseAuthorization,
+    };
+    this.estimateTransactionsCache.set(cacheKey, estimateResult);
+
+    return estimateResult;
+  }
+
+  private async sendPreparedUserOperation({
+    bundlerClient,
+    estimate,
+  }: {
+    bundlerClient: BundlerClient;
+    estimate: EstimateTransactionsResult;
+  }) {
+    if (!bundlerClient.account) {
+      throw new Error('No smart account configured for user operation');
+    }
+
+    if (!bundlerClient.account.signUserOperation) {
+      throw new Error('Smart account cannot sign user operations');
+    }
+
+    const userOperation = {
+      ...estimate.preparedUserOperation,
+      ...estimate.fees,
+      callGasLimit: estimate.gas.callGasLimit,
+      preVerificationGas: estimate.gas.preVerificationGas,
+      verificationGasLimit: estimate.gas.verificationGasLimit,
+      ...(typeof estimate.gas.paymasterPostOpGasLimit !== 'undefined'
+        ? {
+            paymasterPostOpGasLimit: estimate.gas.paymasterPostOpGasLimit,
+          }
+        : {}),
+      ...(typeof estimate.gas.paymasterVerificationGasLimit !== 'undefined'
+        ? {
+            paymasterVerificationGasLimit:
+              estimate.gas.paymasterVerificationGasLimit,
+          }
+        : {}),
+    } as UserOperation;
+
+    const signature =
+      await bundlerClient.account.signUserOperation(userOperation);
+    const signedUserOperation = {
+      ...userOperation,
+      signature,
+    };
+
+    transactionDebugLog('[TransactionKit] sending prepared user operation', {
+      sender: signedUserOperation.sender,
+      nonce: signedUserOperation.nonce?.toString(),
+      callGasLimit: signedUserOperation.callGasLimit?.toString(),
+      verificationGasLimit:
+        signedUserOperation.verificationGasLimit?.toString(),
+      preVerificationGas: signedUserOperation.preVerificationGas?.toString(),
+      maxFeePerGas: signedUserOperation.maxFeePerGas?.toString(),
+      maxPriorityFeePerGas:
+        signedUserOperation.maxPriorityFeePerGas?.toString(),
+      hasAuthorization: Boolean(signedUserOperation.authorization),
+      hasSignature: Boolean(signedUserOperation.signature),
+    });
+
+    return bundlerClient.request(
+      {
+        method: 'eth_sendUserOperation',
+        params: [
+          formatUserOperationRequest(signedUserOperation),
+          bundlerClient.account.entryPoint.address,
+        ],
+      },
+      { retryCount: 0 }
+    );
   }
 
   async getWalletAddress(chainId = this.config.chainId) {
@@ -865,7 +1123,25 @@ export class EtherspotTransactionKit {
     }
   }
 
-  async isDelegateSmartAccountToEoa(chainId = this.config.chainId) {
+  async getDelegateSmartAccountToEoaStatus(
+    chainId = this.config.chainId
+  ): Promise<EoaDelegationStatus> {
+    if (await this.eoaDelegationStatusCache[chainId]) {
+      transactionDebugLog('[TransactionKit] EOA delegation cache hit', {
+        chainId,
+      });
+      return this.eoaDelegationStatusCache[chainId];
+    }
+
+    this.eoaDelegationStatusCache[chainId] =
+      this.fetchEoaDelegationStatus(chainId);
+
+    return this.eoaDelegationStatusCache[chainId];
+  }
+
+  private async fetchEoaDelegationStatus(
+    chainId = this.config.chainId
+  ): Promise<EoaDelegationStatus> {
     transactionDebugLog('[TransactionKit] checking EOA delegation code', {
       chainId,
     });
@@ -876,7 +1152,9 @@ export class EtherspotTransactionKit {
       transactionDebugError('[TransactionKit] wallet address unavailable', {
         chainId,
       });
-      return undefined;
+      return {
+        isDelegated: undefined,
+      };
     }
 
     const code = await publicClient.getCode({
@@ -885,14 +1163,29 @@ export class EtherspotTransactionKit {
     const isDelegated = Boolean(
       code && code !== '0x' && code.startsWith('0xef0100')
     );
+    const match = code?.match(/^0xef0100(.{40})$/);
+    const delegateAddress = match
+      ? getAddress(`0x${match[1]}` as Address)
+      : undefined;
     transactionDebugLog('[TransactionKit] EOA delegation code result', {
       chainId,
       walletAddress,
       code,
       isDelegated,
+      delegateAddress,
     });
 
-    return isDelegated;
+    return {
+      code,
+      delegateAddress,
+      isDelegated,
+      walletAddress,
+    };
+  }
+
+  async isDelegateSmartAccountToEoa(chainId = this.config.chainId) {
+    const status = await this.getDelegateSmartAccountToEoaStatus(chainId);
+    return status.isDelegated;
   }
 
   async delegateSmartAccountToEoa({
@@ -1038,6 +1331,7 @@ export class EtherspotTransactionKit {
   }
 
   transaction({ chainId, to, value = '0', data = '0x' }: TransactionParams) {
+    this.clearEstimateTransactionsCache();
     this.selectedBatchName = undefined;
     this.workingTransaction = {
       chainId,
@@ -1089,6 +1383,7 @@ export class EtherspotTransactionKit {
       ...this.workingTransaction,
       batchName,
     };
+    this.clearEstimateTransactionsCache();
     this.workingTransaction = transaction;
     this.namedTransactions[this.selectedTransactionName] = transaction;
 
@@ -1120,6 +1415,8 @@ export class EtherspotTransactionKit {
   }
 
   remove() {
+    this.clearEstimateTransactionsCache();
+
     if (this.selectedBatchName) {
       const transactions = this.batches[this.selectedBatchName] || [];
       transactions.forEach((tx) => {
@@ -1161,6 +1458,7 @@ export class EtherspotTransactionKit {
       ...this.workingTransaction,
       transactionName: this.selectedTransactionName,
     };
+    this.clearEstimateTransactionsCache();
 
     return this;
   }
@@ -1247,19 +1545,14 @@ export class EtherspotTransactionKit {
         transaction: summarizeTransaction(transaction),
         authorization: summarizeAuthorization(params.authorization),
       });
-      const { cost, calls } = await this.estimateTransactions({
+      const estimate = await this.estimateTransactions({
         chainId,
         transactions: [transaction],
         authorization: params.authorization,
       });
-      const isDelegated = await this.isDelegateSmartAccountToEoa(chainId);
+      const { cost, calls, shouldUseAuthorization } = estimate;
       const bundlerClient =
         await this.etherspotProvider.getBundlerClient(chainId);
-      const shouldUseAuthorization = Boolean(
-        params.authorization &&
-          params.authorization.chainId === chainId &&
-          !isDelegated
-      );
       transactionDebugLog('[TransactionKit] sending user operation', {
         chainId,
         sender: bundlerClient.account?.address,
@@ -1269,18 +1562,16 @@ export class EtherspotTransactionKit {
           ? summarizeAuthorization(params.authorization)
           : undefined,
       });
-      const userOpHash = await bundlerClient.sendUserOperation({
-        account: bundlerClient.account,
-        calls,
-        ...(shouldUseAuthorization
-          ? { authorization: params.authorization }
-          : {}),
+      const userOpHash = await this.sendPreparedUserOperation({
+        bundlerClient,
+        estimate,
       });
       transactionDebugLog('[TransactionKit] user operation sent', {
         chainId,
         userOpHash,
         cost: cost.toString(),
       });
+      this.clearEoaDelegationStatusCache(chainId);
 
       if (this.selectedTransactionName) {
         this.remove();
@@ -1424,26 +1715,19 @@ export class EtherspotTransactionKit {
           const chainId = Number(chainIdString);
 
           try {
-            const { cost, calls } = await this.estimateTransactions({
+            const estimate = await this.estimateTransactions({
               chainId,
               transactions: chainTransactions,
               authorization: params.authorization,
             });
-            const isDelegated = await this.isDelegateSmartAccountToEoa(chainId);
-            const shouldUseAuthorization = Boolean(
-              params.authorization &&
-                params.authorization.chainId === chainId &&
-                !isDelegated
-            );
+            const { cost } = estimate;
             const bundlerClient =
               await this.etherspotProvider.getBundlerClient(chainId);
-            const userOpHash = await bundlerClient.sendUserOperation({
-              account: bundlerClient.account,
-              calls,
-              ...(shouldUseAuthorization
-                ? { authorization: params.authorization }
-                : {}),
+            const userOpHash = await this.sendPreparedUserOperation({
+              bundlerClient,
+              estimate,
             });
+            this.clearEoaDelegationStatusCache(chainId);
             const transactionResults = chainTransactions.map((transaction) => ({
               ...toBaseResult(transaction),
               cost,
@@ -1583,6 +1867,7 @@ export class EtherspotTransactionKit {
   }
 
   reset() {
+    this.clearEstimateTransactionsCache();
     this.batches = {};
     this.namedTransactions = {};
     this.walletAddresses = {};
