@@ -102,7 +102,6 @@ export const isPolygonAssetNative = (address: string, chainId: number) =>
 /**
  * Cross-check for supported with:
  * - https://etherspot.fyi/prime-sdk/chains-supported
- * - https://docs.privy.io/guide/configuration/networks#default-configuration
  */
 export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
   // return different native asset for chains where it's not POL (POL), otherwise return POL (POL)

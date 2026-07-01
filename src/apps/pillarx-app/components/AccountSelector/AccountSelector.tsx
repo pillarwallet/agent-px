@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
 
 // services
 import { useGetWalletPortfolioQuery } from '../../../../services/pillarXApiWalletPortfolio';
 
 // hooks
+import { useAuthAccount } from '../../../../hooks/useAuthAccount';
 import useTransactionKit from '../../../../hooks/useTransactionKit';
 import { useAppDispatch, useAppSelector } from '../../hooks/useReducerHooks';
 
@@ -19,13 +19,13 @@ const AccountSelector = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dispatch = useAppDispatch();
 
-  const { user } = usePrivy();
+  const { walletAddress: authWalletAddress } = useAuthAccount();
   const { walletAddress } = useTransactionKit();
   const activeAccountMode = useAppSelector(
     (state) => state.walletPortfolio.activeAccountMode
   );
 
-  const eoaAddress = user?.wallet?.address;
+  const eoaAddress = authWalletAddress;
   const smartAddress = walletAddress;
 
   // Fetch portfolio data for both accounts

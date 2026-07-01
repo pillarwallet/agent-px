@@ -1,4 +1,3 @@
-import { usePrivy } from '@privy-io/react-auth';
 import { useState } from 'react';
 import { RiArrowDownLine } from 'react-icons/ri';
 import { TailSpin } from 'react-loader-spinner';
@@ -26,25 +25,13 @@ import FrameIcon from '../../images/Frame.svg';
 
 const WalletPortfolioButtons = () => {
   const dispatch = useAppDispatch();
-  const { user } = usePrivy();
   const { isConnected } = useAccount();
   const { isEligible, handleUpgradeClick } = useEIP7702Upgrade();
   const { walletAddress: accountAddress } = useTransactionKit();
   const [isAddCashLoading, setIsAddCashLoading] = useState(false);
 
-  // Check if Privy user is connected via WalletConnect using linkedAccounts
-  const isPrivyConnectedViaWalletConnect = user?.linkedAccounts?.some(
-    (account) =>
-      account.type === 'wallet' &&
-      (account.connectorType === 'wallet_connect' ||
-        account.connectorType === 'wallet_connect_v1' ||
-        account.connectorType === 'wallet_connect_v2')
-  );
-
-  // Don't show WalletConnectDropdown if user is connected via Wagmi
-  // or if user is connected via Privy with WalletConnect
-  const shouldShowWalletConnectDropdown =
-    !isConnected && !isPrivyConnectedViaWalletConnect;
+  // Don't show WalletConnectDropdown if user is already connected via Wagmi.
+  const shouldShowWalletConnectDropdown = !isConnected;
 
   const handleAddCash = async () => {
     if (isAddCashLoading) return;

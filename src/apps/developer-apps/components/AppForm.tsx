@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWallets } from '@privy-io/react-auth';
 
 // api
 import {
@@ -10,6 +9,7 @@ import {
 } from '../api/developerAppsApi';
 
 // hooks
+import { useAuthAccount } from '../../../hooks/useAuthAccount';
 import { useAppForm } from '../hooks/useAppForm';
 
 // utils
@@ -28,8 +28,7 @@ interface AppFormProps {
 
 const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
   const navigate = useNavigate();
-  const { wallets } = useWallets();
-  const eoaAddress = wallets?.[0]?.address;
+  const { walletAddress: eoaAddress } = useAuthAccount();
 
   const { formData, errors, updateField, validateForm, prepareSubmitData, setFormData } =
     useAppForm(existingApp);
@@ -393,4 +392,3 @@ const AppForm: React.FC<AppFormProps> = ({ existingApp, mode }) => {
 };
 
 export default AppForm;
-

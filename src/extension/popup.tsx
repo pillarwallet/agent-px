@@ -1,3 +1,5 @@
-window.__PILLARX_EXTENSION_VIEW__ = 'popup';
+window.pillarXExtensionView = 'popup';
 
-void import('../main');
+import('../main').catch((error) => {
+  console.error('Failed to load PillarX popup entrypoint', error);
+});

@@ -136,11 +136,16 @@ vi.mock('../hooks/useGlobalTransactionsBatch', () => ({
 vi.mock('axios');
 vi.mock('@etherspot/data-utils');
 
-vi.mock('@privy-io/react-auth', () => ({
-  PrivyProvider: ({ children }: { children: React.ReactNode }) => children,
-  usePrivy: vi.fn(() => ({ authenticated: false })),
-  useWallets: vi.fn(() => ({ wallets: [] })),
-  useLogout: vi.fn(() => ({ logout: vi.fn() })),
+vi.mock('../hooks/useAuthAccount', () => ({
+  useAuthAccount: vi.fn(() => ({
+    ready: true,
+    authenticated: false,
+    user: null,
+    walletAddress: undefined,
+    address: undefined,
+    chainId: undefined,
+    source: undefined,
+  })),
 }));
 
 export const etherspotTestAssets = [

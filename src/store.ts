@@ -25,7 +25,10 @@ import { relayApi } from './services/relayApi';
 
 // Initialisation
 const dynamicMiddleware = createDynamicMiddleware();
-const middlewareReducers: { [key: string]: Reducer } = {};
+const baseReducer: Reducer<null> = (state = null) => state;
+const middlewareReducers: { [key: string]: Reducer } = {
+  __base: baseReducer,
+};
 
 /**
  * @name addReducer
@@ -67,10 +70,7 @@ export const addMiddleware = (newMiddleware: {
  * Export a store from RTK
  */
 export const store = configureStore({
-  // Empty reducer for now - the addMiddleware function
-  // below will dynamically regenerate the reducers required
-  // from the middleware functions.
-  reducer: {},
+  reducer: combineReducers(middlewareReducers),
   // Adding the api middleware enables caching, invalidation, polling,
   // and other useful features of `rtk-query`.
   // Note: here we have added dynamicMiddleware.middleware

@@ -24,19 +24,22 @@ type ChromeLike = {
 const chromeLike = (globalThis as { chrome?: ChromeLike }).chrome;
 
 chromeLike?.runtime?.onInstalled?.addListener((details) => {
+  // eslint-disable-next-line no-console
   console.info('PillarX extension installed/updated', details.reason);
 });
 
-chromeLike?.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
-  if (
-    typeof message === 'object' &&
-    message !== null &&
-    'type' in message &&
-    (message as { type?: string }).type === 'PILLARX_EXTENSION_PING'
-  ) {
-    sendResponse({ ok: true, source: 'background' });
-    return true;
-  }
+chromeLike?.runtime?.onMessage?.addListener(
+  (message, _sender, sendResponse) => {
+    if (
+      typeof message === 'object' &&
+      message !== null &&
+      'type' in message &&
+      (message as { type?: string }).type === 'PILLARX_EXTENSION_PING'
+    ) {
+      sendResponse({ ok: true, source: 'background' });
+      return true;
+    }
 
-  return false;
-});
+    return false;
+  }
+);

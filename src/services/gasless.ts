@@ -31,9 +31,16 @@ export const getAllGaslessPaymasters = async (
   chainId: number,
   tokens_list: Token[]
 ): Promise<Paymasters[] | null> => {
+  const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
+  if (!paymasterUrl) return null;
+
+  const safePaymasterUrl = paymasterUrl.endsWith('/')
+    ? paymasterUrl.slice(0, -1)
+    : paymasterUrl;
+
   try {
     const res = await fetch(
-      `${import.meta.env.VITE_PAYMASTER_URL}/getAllCommonERC20PaymasterAddress`,
+      `${safePaymasterUrl}/getAllCommonERC20PaymasterAddress`,
       {
         method: 'POST',
         body: JSON.stringify({}),

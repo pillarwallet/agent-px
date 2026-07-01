@@ -1,4 +1,3 @@
-import { useWallets } from '@privy-io/react-auth';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WalletClient } from 'viem';
 import { createPublicClient, http } from 'viem';
@@ -7,6 +6,7 @@ import { createPublicClient, http } from 'viem';
 import './styles/tailwindKeyWallet.css';
 
 // Hooks
+import { useAuthAccount } from '../../hooks/useAuthAccount';
 import useTransactionKit from '../../hooks/useTransactionKit';
 import type {
   Eip1193LikeProvider,
@@ -39,7 +39,7 @@ const App = () => {
   const contextProvider = transactionKit?.walletProvider as
     | WalletProviderLike
     | undefined;
-  const { wallets } = useWallets();
+  const { walletAddress: authWalletAddress } = useAuthAccount();
 
   // State
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -47,8 +47,8 @@ const App = () => {
   const [walletProvider, setWalletProvider] =
     useState<WalletProviderLike | null>(null);
   const [eoaAddress, setEoaAddress] = useState<string>(() => {
-    if (wallets?.[0]?.address) {
-      return wallets[0].address;
+    if (authWalletAddress) {
+      return authWalletAddress;
     }
     if (typeof window !== 'undefined') {
       return localStorage.getItem('EOA_ADDRESS') || '';
@@ -70,11 +70,12 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (wallets?.[0]?.address) {
-      const address = wallets[0].address;
-      setEoaAddress((prev) => (prev === address ? prev : address));
+    if (authWalletAddress) {
+      setEoaAddress((prev) =>
+        prev === authWalletAddress ? prev : authWalletAddress
+      );
       if (typeof window !== 'undefined') {
-        localStorage.setItem('EOA_ADDRESS', address);
+        localStorage.setItem('EOA_ADDRESS', authWalletAddress);
       }
       return;
     }
@@ -85,9 +86,9 @@ const App = () => {
         setEoaAddress(storedAddress);
       }
     }
-  }, [wallets, eoaAddress]);
+  }, [authWalletAddress, eoaAddress]);
 
-  // Resolve wallet provider from Privy or TransactionKit (EOA mode)
+  // Resolve wallet provider from TransactionKit (EOA mode)
   useEffect(() => {
     let cancelled = false;
 
@@ -96,27 +97,12 @@ const App = () => {
         return;
       }
 
-      if (wallets?.[0]) {
-        try {
-          const provider = await wallets[0].getEthereumProvider();
-          if (!cancelled && isMountedRef.current) {
-            setWalletProvider(provider as WalletProviderLike);
-          }
-        } catch (error) {
-          console.error('Failed to get Ethereum provider:', error);
-          if (!cancelled && isMountedRef.current) {
-            setWalletProvider(null);
-          }
-        }
-        return;
-      }
-
       if (contextProvider) {
         if (!cancelled && isMountedRef.current) {
           setWalletProvider(contextProvider ?? null);
         }
 
-        if (!wallets?.[0] && !eoaAddress && isMountedRef.current) {
+        if (!eoaAddress && isMountedRef.current) {
           try {
             let detectedAddress: string | undefined;
 
@@ -169,7 +155,7 @@ const App = () => {
     return () => {
       cancelled = true;
     };
-  }, [wallets, contextProvider, eoaAddress]);
+  }, [contextProvider, eoaAddress]);
 
   // Fetch portfolio data for the EOA address
   const {

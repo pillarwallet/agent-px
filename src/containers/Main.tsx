@@ -1,5 +1,4 @@
 /* eslint-disable import/extensions */
-import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth';
 import * as Sentry from '@sentry/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
@@ -20,7 +19,7 @@ import type {
   TransactionSerializable,
   TypedData,
 } from 'viem';
-import { mainnet, sepolia } from 'viem/chains';
+import { mainnet } from 'viem/chains';
 import { createConfig, useAccount, useConnect, WagmiProvider } from 'wagmi';
 import { walletConnect } from 'wagmi/connectors';
 
@@ -33,7 +32,7 @@ import LanguageProvider from '../providers/LanguageProvider';
 
 // utils
 import { getNetworkViem } from '../apps/deposit/utils/blockchain';
-import { isTestnet, visibleChains } from '../utils/blockchain';
+import { visibleChains } from '../utils/blockchain';
 import {
   signAuthorizationViaWebView,
   signMessageViaWebView,
@@ -66,6 +65,7 @@ import Authorized from './Authorized';
 
 // hooks
 import useAllowedApps from '../hooks/useAllowedApps';
+import { useAuthAccount } from '../hooks/useAuthAccount';
 
 // UI
 import App from '../pages/App';
@@ -87,8 +87,7 @@ const AuthLayout = () => {
    * we will need to determine what authentication
    * state the user is in.
    */
-  const { ready, authenticated, user } = usePrivy();
-  const { wallets } = useWallets();
+  const { ready, authenticated, user } = useAuthAccount();
 
   const { connectors } = useConnect();
   const { isConnected: wagmiIsConnected } = useAccount();
@@ -119,7 +118,7 @@ const AuthLayout = () => {
   const phoneOtpAuthEnabled = isPhoneOtpAuthenticated();
   const previouslyAuthenticated = isExtensionRuntimeEnabled
     ? phoneOtpAuthEnabled
-    : !!localStorage.getItem('privy:token') || phoneOtpAuthEnabled;
+    : authenticated || phoneOtpAuthEnabled;
   const isAppReady =
     (isExtensionRuntimeEnabled ? isPhoneOtpUnlockStateHydrated : ready) &&
     !isLoadingAllowedApps;
@@ -195,7 +194,7 @@ const AuthLayout = () => {
       }
     };
 
-    void hydratePhoneOtpUnlockState();
+    hydratePhoneOtpUnlockState();
 
     return () => {
       cancelled = true;
@@ -300,7 +299,7 @@ const AuthLayout = () => {
   /**
    * The following useEffect is to detemine if the
    * user is logging in (or has logged in)  with a
-   * private key or if the wallet state of Privy changed,
+   * private key or if the wallet state changed,
    * and if it did, update the provider (if any).
    * This would also re-render Authorized component with
    * the new state.
@@ -316,12 +315,11 @@ const AuthLayout = () => {
       ready,
       authenticated,
       hasUser: !!user,
-      hasWallets: wallets.length > 0,
       wagmiIsConnected,
       connectorsCount: connectors.length,
     });
 
-    // Handle both Privy wallets and WalletConnect connections
+    // Handle local wallets, native app accounts, and WalletConnect connections
     const updateProvider = async () => {
       // PRIORITY 1: Phone OTP authenticated local private key wallet
       if (phoneOtpAuthEnabled && phoneOtpPrivateKey) {
@@ -392,7 +390,7 @@ const AuthLayout = () => {
         return;
       }
 
-      // PRIORITY 2: React Native custom account (takes precedence over Privy/WalletConnect)
+      // PRIORITY 2: React Native custom account (takes precedence over WalletConnect)
       if (eoaAddress) {
         Sentry.addBreadcrumb({
           category: 'authentication',
@@ -564,7 +562,7 @@ const AuthLayout = () => {
         return;
       } // END if (eoaAddress)
 
-      // Don't run provider setup if Privy is still initializing and we're not using WalletConnect
+      // Don't run provider setup if auth is still initializing and we're not using WalletConnect
       if (!ready && !wagmiIsConnected && !isExtensionRuntimeEnabled) {
         Sentry.addBreadcrumb({
           category: 'authentication',
@@ -580,9 +578,7 @@ const AuthLayout = () => {
         return;
       }
 
-      // Check if we have any wallets (Privy or WalletConnect)
-      const hasWallets = wallets.length > 0;
-      const isWalletConnectConnected = wagmiIsConnected && !hasWallets;
+      const isWalletConnectConnected = wagmiIsConnected;
 
       Sentry.addBreadcrumb({
         category: 'authentication',
@@ -591,23 +587,20 @@ const AuthLayout = () => {
         data: {
           providerSetupId,
           isAuthenticated,
-          hasWallets,
           isWalletConnectConnected,
           wagmiIsConnected,
-          walletsCount: wallets.length,
           connectorsCount: connectors.length,
         },
       });
 
       // If no wallets and not connected via WalletConnect, return early
-      if (!hasWallets && !isWalletConnectConnected) {
+      if (!isWalletConnectConnected) {
         Sentry.addBreadcrumb({
           category: 'authentication',
           message: 'No wallets or WalletConnect connection detected',
           level: 'info',
           data: {
             providerSetupId,
-            hasWallets,
             isWalletConnectConnected,
           },
         });
@@ -615,72 +608,14 @@ const AuthLayout = () => {
         return;
       }
 
-      // If we have Privy wallets, don't try to setup WalletConnect
-      if (hasWallets) {
-        Sentry.addBreadcrumb({
-          category: 'authentication',
-          message: 'Privy wallets detected, skipping WalletConnect setup',
-          level: 'info',
-          data: {
-            providerSetupId,
-            walletsCount: wallets.length,
-          },
-        });
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let privyEthereumProvider: any;
-
-      const privyWalletAddress = user?.wallet?.address;
-
-      const walletProvider = wallets.find(
-        (wallet) => wallet.address === privyWalletAddress
-      );
-
-      if (walletProvider) {
-        // Handle Privy wallet
-        Sentry.addBreadcrumb({
-          category: 'authentication',
-          message: 'Setting up Privy wallet provider',
-          level: 'info',
-          data: {
-            providerSetupId,
-            walletAddress: walletProvider.address,
-            chainId: walletProvider.chainId,
-          },
-        });
-
-        privyEthereumProvider = await walletProvider.getEthereumProvider();
-
-        const walletChainId = +wallets[0].chainId.split(':')[1]; // extract from CAIP-2
-
-        const newProvider = createWalletClient({
-          account: walletProvider.address as `0x${string}`,
-          chain: getNetworkViem(walletChainId),
-          transport: custom(privyEthereumProvider),
-        });
-
-        setProvider(newProvider);
-
-        Sentry.addBreadcrumb({
-          category: 'authentication',
-          message: 'Privy wallet provider setup completed',
-          level: 'info',
-          data: {
-            providerSetupId,
-            walletAddress: walletProvider.address,
-            walletChainId,
-            hasProvider: !!newProvider,
-          },
-        });
-      } else if (isWalletConnectConnected && !hasWallets) {
-        // Handle WalletConnect connection - only if no Privy wallets are present
+      if (isWalletConnectConnected) {
+        // Handle WalletConnect connection
         Sentry.addBreadcrumb({
           category: 'authentication',
           message: 'Attempting to setup WalletConnect provider',
           level: 'info',
           data: {
             providerSetupId,
-            hasWallets,
             isWalletConnectConnected,
           },
         });
@@ -746,15 +681,32 @@ const AuthLayout = () => {
               });
 
               if (wcAccount) {
-                // Create wallet client with WalletConnect provider
-                const newProvider = createWalletClient({
-                  account: wcAccount as `0x${string}`,
-                  chain: getNetworkViem(1), // Default to mainnet
-                  transport: custom(wcProvider),
-                });
+                const walletChainId = 1; // Default to mainnet
+                const normalizedWalletConnectAccountAddress =
+                  String(wcAccount).toLowerCase();
+                const currentProviderAccountAddress =
+                  typeof provider?.account === 'object' &&
+                  provider.account !== null
+                    ? provider.account.address.toLowerCase()
+                    : undefined;
+                const shouldRecreateProvider =
+                  currentProviderAccountAddress !==
+                    normalizedWalletConnectAccountAddress ||
+                  provider?.chain?.id !== walletChainId;
 
-                setProvider(newProvider);
-                setChainId(1); // Default to mainnet
+                if (shouldRecreateProvider) {
+                  const newProvider = createWalletClient({
+                    account: wcAccount as `0x${string}`,
+                    chain: getNetworkViem(walletChainId),
+                    transport: custom(wcProvider),
+                  });
+
+                  setProvider(newProvider);
+                }
+
+                if (chainId !== walletChainId) {
+                  setChainId(walletChainId);
+                }
 
                 Sentry.addBreadcrumb({
                   category: 'authentication',
@@ -762,9 +714,10 @@ const AuthLayout = () => {
                   level: 'info',
                   data: {
                     providerSetupId,
-                    account: newProvider.account,
-                    chainId: newProvider.chain?.id,
+                    account: wcAccount,
+                    chainId: walletChainId,
                     transport: 'custom(wcProvider)',
+                    recreatedProvider: shouldRecreateProvider,
                   },
                 });
 
@@ -780,9 +733,10 @@ const AuthLayout = () => {
                     contexts: {
                       walletconnect_success: {
                         providerSetupId,
-                        account: newProvider.account,
-                        chainId: newProvider.chain?.id,
+                        account: wcAccount,
+                        chainId: walletChainId,
                         transport: 'custom(wcProvider)',
+                        recreatedProvider: shouldRecreateProvider,
                       },
                     },
                   }
@@ -858,7 +812,6 @@ const AuthLayout = () => {
               walletconnect_error: {
                 providerSetupId,
                 error: error instanceof Error ? error.message : String(error),
-                hasWallets,
                 isWalletConnectConnected,
               },
             },
@@ -866,32 +819,7 @@ const AuthLayout = () => {
         }
       }
 
-      // Set chain ID for Privy wallets or WalletConnect
-      if (wallets.length > 0) {
-        const walletChainId = +wallets[0].chainId.split(':')[1]; // extract from CAIP-2
-        const isWithinVisibleChains = visibleChains.some(
-          (chain) => chain.id === walletChainId
-        );
-        /**
-         * Sets supported chain ID rather than throw unsupported bundler error.
-         * This does not affect transaction send flow if chain ID remains provided to TransationKit Batches JSX.
-         */
-        setChainId(isWithinVisibleChains ? walletChainId : visibleChains[0].id);
-
-        Sentry.addBreadcrumb({
-          category: 'authentication',
-          message: 'Chain ID set for Privy wallets',
-          level: 'info',
-          data: {
-            providerSetupId,
-            walletChainId,
-            isWithinVisibleChains,
-            finalChainId: isWithinVisibleChains
-              ? walletChainId
-              : visibleChains[0].id,
-          },
-        });
-      } else if (isWalletConnectConnected && !chainId) {
+      if (isWalletConnectConnected && !chainId) {
         // For WalletConnect, default to mainnet if no chain ID is set
         setChainId(1);
 
@@ -910,8 +838,6 @@ const AuthLayout = () => {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    wallets,
-    user,
     wagmiIsConnected,
     eoaAddress,
     customAccount,
@@ -956,7 +882,6 @@ const AuthLayout = () => {
             provider={provider}
             eoaAddress={eoaAddress}
             customAccount={customAccount}
-            forceModularWalletMode={phoneOtpAuthEnabled}
           />
         ),
         children: [
@@ -1051,11 +976,7 @@ const AuthLayout = () => {
     });
 
     // ...and return.
-    return (
-      <RouterProvider
-        router={createRouter(authorizedRoutesDefinition)}
-      />
-    );
+    return <RouterProvider router={createRouter(authorizedRoutesDefinition)} />;
   }
 
   // Determine if this is a root page, we'll need it later
@@ -1102,9 +1023,11 @@ const AuthLayout = () => {
     const unauthorizedRoutesDefinition = [
       {
         path: '/',
-        element: isExtensionPopupMode
-          ? <Navigate to="/login" replace />
-          : <LandingPage />,
+        element: isExtensionPopupMode ? (
+          <Navigate to="/login" replace />
+        ) : (
+          <LandingPage />
+        ),
       },
       {
         path: '/waitlist',
@@ -1152,9 +1075,7 @@ const AuthLayout = () => {
 
     // ...and return.
     return (
-      <RouterProvider
-        router={createRouter(unauthorizedRoutesDefinition)}
-      />
+      <RouterProvider router={createRouter(unauthorizedRoutesDefinition)} />
     );
   }
 
@@ -1188,24 +1109,26 @@ const AuthLayout = () => {
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
 const extensionRuntimeAtBootstrap = isExtensionRuntime();
+const reownProjectId = import.meta.env.VITE_REOWN_PROJECT_ID?.trim();
 
 export const config = createConfig({
   chains: [mainnet],
-  connectors: extensionRuntimeAtBootstrap
-    ? []
-    : [
-        walletConnect({
-          projectId: import.meta.env.VITE_REOWN_PROJECT_ID ?? '',
-          showQrModal: !isMobile,
-          isNewChainsStale: true,
-          metadata: {
-            name: 'PillarX',
-            description: 'PillarX',
-            url: 'https://pillarx.app/',
-            icons: ['https://pillarx.app/favicon.ico'],
-          },
-        }),
-      ],
+  connectors:
+    extensionRuntimeAtBootstrap || !reownProjectId
+      ? []
+      : [
+          walletConnect({
+            projectId: reownProjectId,
+            showQrModal: !isMobile,
+            isNewChainsStale: true,
+            metadata: {
+              name: 'PillarX',
+              description: 'PillarX',
+              url: 'https://pillarx.app/',
+              icons: ['https://pillarx.app/favicon.ico'],
+            },
+          }),
+        ],
   transports: {
     [mainnet.id]: http(),
   },
@@ -1214,9 +1137,6 @@ export const config = createConfig({
 const queryClient = new QueryClient();
 
 const Main = () => {
-  const extensionRuntime = isExtensionRuntime();
-  const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
-
   const appContent = (
     <QueryClientProvider client={queryClient}>
       <WagmiProvider config={config}>
@@ -1227,45 +1147,10 @@ const Main = () => {
     </QueryClientProvider>
   );
 
-  if (extensionRuntime) {
-    return (
-      <ThemeProvider theme={defaultTheme}>
-        <GlobalStyle />
-        <LanguageProvider>{appContent}</LanguageProvider>
-      </ThemeProvider>
-    );
-  }
-
-  if (!privyAppId) {
-    console.error(
-      'VITE_PRIVY_APP_ID is not defined. Please check your environment variables.'
-    );
-    return (
-      <div style={{ padding: '20px', color: 'red', fontFamily: 'monospace' }}>
-        <h1>Configuration Error</h1>
-        <p>VITE_PRIVY_APP_ID environment variable is not set.</p>
-        <p>Please configure this in your deployment settings.</p>
-      </div>
-    );
-  }
-
   return (
     <ThemeProvider theme={defaultTheme}>
       <GlobalStyle />
-      <LanguageProvider>
-        <PrivyProvider
-          appId={privyAppId}
-          config={{
-            appearance: { theme: 'dark' },
-            defaultChain: isTestnet ? sepolia : mainnet,
-            embeddedWallets: {
-              createOnLogin: 'users-without-wallets',
-            },
-          }}
-        >
-          {appContent}
-        </PrivyProvider>
-      </LanguageProvider>
+      <LanguageProvider>{appContent}</LanguageProvider>
     </ThemeProvider>
   );
 };

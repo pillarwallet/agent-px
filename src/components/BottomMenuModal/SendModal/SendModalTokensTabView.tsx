@@ -122,6 +122,43 @@ const getAssetContract = (
   return selectedAsset.collection.contractAddress;
 };
 
+const getSelectedAssetDebugInfo = (
+  selectedAsset: AssetSelectOption | undefined
+) => {
+  if (!selectedAsset) return undefined;
+
+  if (selectedAsset.type === 'token') {
+    return {
+      id: selectedAsset.id,
+      type: selectedAsset.type,
+      chainId: selectedAsset.chainId,
+      title: selectedAsset.title,
+      value: selectedAsset.value,
+      balance: selectedAsset.balance,
+      asset: {
+        name: selectedAsset.asset.name,
+        symbol: selectedAsset.asset.symbol,
+        contract: selectedAsset.asset.contract,
+        decimals: selectedAsset.asset.decimals,
+        balance: selectedAsset.asset.balance,
+        price: selectedAsset.asset.price,
+      },
+    };
+  }
+
+  return {
+    id: selectedAsset.id,
+    type: selectedAsset.type,
+    chainId: selectedAsset.chainId,
+    title: selectedAsset.title,
+    value: selectedAsset.value,
+    collection: {
+      contractAddress: selectedAsset.collection.contractAddress,
+      contractName: selectedAsset.collection.contractName,
+    },
+  };
+};
+
 const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   const [t] = useTranslation();
   const [recipient, setRecipient] = React.useState<string>('');
@@ -409,7 +446,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           setPaymasterContext(null);
           setIsPaymaster(false);
           setFeeAssetOptions([]);
-          setFeeType([]);
+          setFeeType([feeTypeOptions[1]]); // Only "Native Token" option when gasless is unavailable
+          setSelectedFeeType('Native Token');
         }
         setIsLoadingFeeOptions(false);
       })
@@ -1077,7 +1115,26 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       }
     }
 
-    transactionDebugLog('Preparing to send transaction');
+    transactionDebugLog('Preparing to send transaction', {
+      sendId,
+      accountAddress,
+      walletMode: kit.getEtherspotProvider().getWalletMode(),
+      isDelegatedEoa,
+      selectedAsset: getSelectedAssetDebugInfo(selectedAsset),
+      amount,
+      amountInFiat,
+      amountForPrice,
+      isAmountInputAsFiat,
+      recipient,
+      isPaymaster,
+      selectedFeeType,
+      paymasterContext,
+      selectedPaymasterAddress,
+      selectedFeeAsset,
+      hasPayload: Boolean(payload),
+      isPayloadBatches,
+      isPayloadTransaction,
+    });
 
     Sentry.addBreadcrumb({
       category: 'send_flow',
@@ -1923,11 +1980,26 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       const valueToSend = isAmountInputAsFiat
         ? amountForPrice.toString()
         : amount;
+      transactionDebugLog('Building single transaction data', {
+        sendId,
+        valueToSend,
+        selectedAsset: getSelectedAssetDebugInfo(selectedAsset),
+        recipient,
+      });
       const txData = buildTransactionData({
         tokenAddress: selectedAsset.asset.contract,
         recipient,
         amount: valueToSend,
         decimals: selectedAsset.asset.decimals,
+      });
+      transactionDebugLog('Built single transaction data', {
+        sendId,
+        txData: {
+          to: txData.to,
+          value: txData.value?.toString(),
+          dataLength: txData.data?.length ?? 0,
+          dataPrefix: txData.data?.slice(0, 18),
+        },
       });
       // Use the correct chainId for the fee payment method
       const feeChainId = selectedAsset.chainId;
@@ -1943,6 +2015,14 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
         return;
       }
 
+      transactionDebugLog('Registering single transaction with kit', {
+        sendId,
+        feeChainId,
+        to: txData.to,
+        value: txData.value !== undefined ? txData.value.toString() : '0',
+        dataLength: txData.data?.length ?? 0,
+        dataPrefix: txData.data?.slice(0, 18),
+      });
       kit
         .transaction({
           chainId: feeChainId,
@@ -1954,10 +2034,29 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
 
       transactionDebugLog('Estimating single transaction');
       // Get authorization if needed for this chainId in delegatedEoa mode
+      transactionDebugLog('Requesting EIP-7702 authorization if needed', {
+        sendId,
+        feeChainId,
+        walletMode: kit.getEtherspotProvider().getWalletMode(),
+      });
       const singleFlowAuthorization = await getEIP7702AuthorizationIfNeeded(
         kit,
         feeChainId
       );
+      transactionDebugLog('EIP-7702 authorization resolved for single send', {
+        sendId,
+        feeChainId,
+        authorization: singleFlowAuthorization
+          ? {
+              chainId: singleFlowAuthorization.chainId,
+              address: singleFlowAuthorization.address,
+              nonce: singleFlowAuthorization.nonce?.toString(),
+              hasSignature: Boolean(
+                singleFlowAuthorization.r && singleFlowAuthorization.s
+              ),
+            }
+          : singleFlowAuthorization,
+      });
       const estimated = await kit.estimate({
         authorization: singleFlowAuthorization || undefined,
       });
@@ -2144,6 +2243,15 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
         },
       });
     } catch (error: unknown) {
+      transactionDebugLog('Send flow threw before completion', {
+        sendId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        selectedAsset: getSelectedAssetDebugInfo(selectedAsset),
+        amount,
+        recipient,
+      });
+
       Sentry.captureException(error, {
         tags: {
           component: 'send_flow',

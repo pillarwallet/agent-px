@@ -2,7 +2,7 @@ export type ExtensionViewContext = 'popup' | 'options' | undefined;
 
 declare global {
   interface Window {
-    __PILLARX_EXTENSION_VIEW__?: ExtensionViewContext;
+    pillarXExtensionView?: ExtensionViewContext;
   }
 }
 
@@ -23,7 +23,7 @@ export const isExtensionRuntime = () => Boolean(getChromeRuntime()?.id);
 
 export const getExtensionViewContext = (): ExtensionViewContext => {
   if (typeof window === 'undefined') return undefined;
-  return window.__PILLARX_EXTENSION_VIEW__;
+  return window.pillarXExtensionView;
 };
 
 export const isExtensionPopupView = () =>

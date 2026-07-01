@@ -42,6 +42,7 @@ import {
   type PillarCall,
   type PillarSmartAccount,
 } from './pillarSmartAccountClient';
+import { transactionDebugError, transactionDebugLog } from './transactionDebug';
 
 export type WalletMode = 'modular' | 'delegatedEoa';
 
@@ -164,6 +165,38 @@ type BatchParams = {
 type BundlerClient = Awaited<ReturnType<typeof createPillarSmartAccountClient>>;
 
 const retainCompatibleParameter = (...values: unknown[]) => values.length;
+
+const redactBundlerUrl = (url: string) =>
+  url.replace(/([?&]api-key=)[^&]+/i, '$1<redacted>');
+
+const summarizeAuthorization = (authorization?: SignAuthorizationReturnType) =>
+  authorization
+    ? {
+        chainId: authorization.chainId,
+        address: authorization.address,
+        nonce: authorization.nonce?.toString(),
+        hasSignature: Boolean(authorization.r && authorization.s),
+      }
+    : undefined;
+
+const summarizeTransaction = (transaction: TransactionBuilder) => ({
+  chainId: transaction.chainId,
+  to: transaction.to,
+  value: transaction.value?.toString(),
+  dataLength: transaction.data?.length ?? 0,
+  dataPrefix: transaction.data?.slice(0, 18),
+  transactionName: transaction.transactionName,
+  batchName: transaction.batchName,
+});
+
+const summarizeError = (error: unknown) => ({
+  name: error instanceof Error ? error.name : undefined,
+  message: error instanceof Error ? error.message : String(error),
+  cause:
+    error instanceof Error && 'cause' in error
+      ? (error as Error & { cause?: unknown }).cause
+      : undefined,
+});
 
 const getChainById = (chainId: number): Chain => {
   const chain = supportedChains.find((supported) => supported.id === chainId);
@@ -438,28 +471,51 @@ export class PillarTransactionProvider {
   }
 
   getBundlerUrl(chainId = this.config.chainId): string {
-    return getEtherspotBundlerUrl({
+    const bundlerUrl = getEtherspotBundlerUrl({
       chainId,
       apiKey: this.config.bundlerApiKey,
       bundlerUrl: this.config.bundlerUrl,
       apiKeyFormat: this.config.bundlerApiKeyFormat,
     });
+
+    transactionDebugLog('[TransactionKit] resolved bundler URL', {
+      chainId,
+      bundlerUrl: redactBundlerUrl(bundlerUrl),
+      hasConfiguredBundlerUrl: Boolean(this.config.bundlerUrl),
+      hasBundlerApiKey: Boolean(this.config.bundlerApiKey),
+    });
+
+    return bundlerUrl;
   }
 
   async getOwnerAccount(): Promise<LocalAccount> {
     if (this.config.viemLocalAccount) {
+      transactionDebugLog('[TransactionKit] using viem local account owner', {
+        address: this.config.viemLocalAccount.address,
+      });
       return this.config.viemLocalAccount;
     }
 
     if (this.config.privateKey) {
-      return privateKeyToAccount(this.config.privateKey as Hex);
+      const account = privateKeyToAccount(this.config.privateKey as Hex);
+      transactionDebugLog('[TransactionKit] using private key owner', {
+        address: account.address,
+      });
+      return account;
     }
 
-    return createProviderBackedAccount(this.config.provider);
+    const account = await createProviderBackedAccount(this.config.provider);
+    transactionDebugLog('[TransactionKit] using provider-backed owner', {
+      address: account.address,
+    });
+    return account;
   }
 
   async getPublicClient(chainId = this.config.chainId): Promise<PublicClient> {
     if (!this.publicClientPerChain[chainId]) {
+      transactionDebugLog('[TransactionKit] creating public client', {
+        chainId,
+      });
       this.publicClientPerChain[chainId] = Promise.resolve(
         createPublicClient({
           chain: getChainById(chainId),
@@ -473,6 +529,9 @@ export class PillarTransactionProvider {
 
   async getWalletClient(chainId = this.config.chainId): Promise<WalletClient> {
     if (!this.walletClientPerChain[chainId]) {
+      transactionDebugLog('[TransactionKit] creating wallet client', {
+        chainId,
+      });
       this.walletClientPerChain[chainId] = this.getOwnerAccount().then(
         (account) =>
           createWalletClient({
@@ -490,6 +549,9 @@ export class PillarTransactionProvider {
     chainId = this.config.chainId
   ): Promise<SmartAccount> {
     if (!this.accountPerChain[chainId]) {
+      transactionDebugLog('[TransactionKit] creating delegated EOA account', {
+        chainId,
+      });
       this.accountPerChain[chainId] = (async () => {
         const publicClient = await this.getPublicClient(chainId);
         const owner = await this.getOwnerAccount();
@@ -511,6 +573,9 @@ export class PillarTransactionProvider {
     chainId = this.config.chainId
   ): Promise<BundlerClient> {
     if (!this.bundlerClientPerChain[chainId]) {
+      transactionDebugLog('[TransactionKit] creating bundler client', {
+        chainId,
+      });
       this.bundlerClientPerChain[chainId] = (async () => {
         const publicClient = await this.getPublicClient(chainId);
         const owner = await this.getOwnerAccount();
@@ -581,7 +646,10 @@ export class EtherspotTransactionKit {
   private log(message: string, data?: unknown) {
     if (this.debugMode) {
       console.log(`[PillarTransactionKit] ${message}`, data);
+      return;
     }
+
+    transactionDebugLog(`[PillarTransactionKit] ${message}`, data);
   }
 
   private clearWorkingState() {
@@ -646,13 +714,37 @@ export class EtherspotTransactionKit {
   }) {
     const publicClient = await this.etherspotProvider.getPublicClient(chainId);
     const totalGas = sumUserOperationGas(gas);
+    transactionDebugLog('[TransactionKit] calculating estimated cost', {
+      chainId,
+      gas,
+      totalGas: totalGas.toString(),
+    });
 
     try {
       const fees = await publicClient.estimateFeesPerGas();
-      return totalGas * (fees.maxFeePerGas || fees.gasPrice || BigInt(0));
-    } catch {
+      const feePerGas = fees.maxFeePerGas || fees.gasPrice || BigInt(0);
+      const cost = totalGas * feePerGas;
+      transactionDebugLog('[TransactionKit] fee estimate resolved', {
+        chainId,
+        maxFeePerGas: fees.maxFeePerGas?.toString(),
+        gasPrice: fees.gasPrice?.toString(),
+        feePerGas: feePerGas.toString(),
+        cost: cost.toString(),
+      });
+      return cost;
+    } catch (error) {
+      transactionDebugError('[TransactionKit] estimateFeesPerGas failed', {
+        chainId,
+        error: summarizeError(error),
+      });
       const gasPrice = await publicClient.getGasPrice();
-      return totalGas * gasPrice;
+      const cost = totalGas * gasPrice;
+      transactionDebugLog('[TransactionKit] gas price fallback resolved', {
+        chainId,
+        gasPrice: gasPrice.toString(),
+        cost: cost.toString(),
+      });
+      return cost;
     }
   }
 
@@ -665,16 +757,41 @@ export class EtherspotTransactionKit {
     transactions: TransactionBuilder[];
     authorization?: SignAuthorizationReturnType;
   }) {
+    transactionDebugLog('[TransactionKit] estimateTransactions started', {
+      chainId,
+      walletMode: this.etherspotProvider.getWalletMode(),
+      transactions: transactions.map(summarizeTransaction),
+      authorization: summarizeAuthorization(authorization),
+    });
+
     const authorizationError = this.validateAuthorization(
       authorization,
       chainId
     );
     if (authorizationError) {
+      transactionDebugError(
+        '[TransactionKit] authorization validation failed',
+        {
+          chainId,
+          authorization: summarizeAuthorization(authorization),
+          authorizationError,
+        }
+      );
       throw new Error(authorizationError);
     }
 
     const isDelegated = await this.isDelegateSmartAccountToEoa(chainId);
+    transactionDebugLog('[TransactionKit] EOA delegation status resolved', {
+      chainId,
+      isDelegated,
+      hasAuthorization: Boolean(authorization),
+    });
+
     if (!isDelegated && !authorization) {
+      transactionDebugError('[TransactionKit] missing EIP-7702 authorization', {
+        chainId,
+        isDelegated,
+      });
       throw new Error(
         'EOA is not designated for EIP-7702. Please authorize first or provide authorization.'
       );
@@ -686,13 +803,49 @@ export class EtherspotTransactionKit {
     const shouldUseAuthorization = Boolean(
       authorization && authorization.chainId === chainId && !isDelegated
     );
-
-    const gas = await bundlerClient.estimateUserOperationGas({
-      account: bundlerClient.account,
+    transactionDebugLog('[TransactionKit] estimating user operation gas', {
+      chainId,
+      sender: bundlerClient.account?.address,
       calls,
-      ...(shouldUseAuthorization ? { authorization } : {}),
+      shouldUseAuthorization,
+      authorization: shouldUseAuthorization
+        ? summarizeAuthorization(authorization)
+        : undefined,
     });
+
+    let gas: EstimateUserOperationGasReturnType;
+    try {
+      gas = await bundlerClient.estimateUserOperationGas({
+        account: bundlerClient.account,
+        calls,
+        ...(shouldUseAuthorization ? { authorization } : {}),
+      });
+      transactionDebugLog('[TransactionKit] user operation gas estimated', {
+        chainId,
+        gas,
+      });
+    } catch (error) {
+      transactionDebugError(
+        '[TransactionKit] estimateUserOperationGas failed',
+        {
+          chainId,
+          sender: bundlerClient.account?.address,
+          calls,
+          shouldUseAuthorization,
+          authorization: shouldUseAuthorization
+            ? summarizeAuthorization(authorization)
+            : undefined,
+          error: summarizeError(error),
+        }
+      );
+      throw error;
+    }
+
     const cost = await this.getCost({ chainId, gas });
+    transactionDebugLog('[TransactionKit] estimateTransactions completed', {
+      chainId,
+      cost: cost.toString(),
+    });
 
     return { cost, calls };
   }
@@ -713,18 +866,33 @@ export class EtherspotTransactionKit {
   }
 
   async isDelegateSmartAccountToEoa(chainId = this.config.chainId) {
+    transactionDebugLog('[TransactionKit] checking EOA delegation code', {
+      chainId,
+    });
     const publicClient = await this.etherspotProvider.getPublicClient(chainId);
     const walletAddress = await this.getWalletAddress(chainId);
 
     if (!walletAddress) {
+      transactionDebugError('[TransactionKit] wallet address unavailable', {
+        chainId,
+      });
       return undefined;
     }
 
     const code = await publicClient.getCode({
       address: walletAddress as Address,
     });
+    const isDelegated = Boolean(
+      code && code !== '0x' && code.startsWith('0xef0100')
+    );
+    transactionDebugLog('[TransactionKit] EOA delegation code result', {
+      chainId,
+      walletAddress,
+      code,
+      isDelegated,
+    });
 
-    return Boolean(code && code !== '0x' && code.startsWith('0xef0100'));
+    return isDelegated;
   }
 
   async delegateSmartAccountToEoa({
@@ -734,6 +902,11 @@ export class EtherspotTransactionKit {
     chainId?: number;
     delegateImmediately?: boolean;
   } = {}) {
+    transactionDebugLog('[TransactionKit] delegateSmartAccountToEoa started', {
+      chainId,
+      delegateImmediately,
+      delegateAddress: PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
+    });
     const owner = await this.etherspotProvider.getOwnerAccount();
     const walletClient = await this.etherspotProvider.getWalletClient(chainId);
     const eoaAddress = owner.address;
@@ -741,8 +914,19 @@ export class EtherspotTransactionKit {
     const isAlreadyInstalled = Boolean(
       await this.isDelegateSmartAccountToEoa(chainId)
     );
+    transactionDebugLog('[TransactionKit] delegation preflight result', {
+      chainId,
+      eoaAddress,
+      delegateAddress,
+      isAlreadyInstalled,
+    });
 
     if (isAlreadyInstalled) {
+      transactionDebugLog('[TransactionKit] delegation already installed', {
+        chainId,
+        eoaAddress,
+        delegateAddress,
+      });
       return {
         authorization: undefined,
         isAlreadyInstalled: true,
@@ -751,10 +935,32 @@ export class EtherspotTransactionKit {
       };
     }
 
-    const authorization = await walletClient.signAuthorization({
-      account: owner,
-      contractAddress: delegateAddress,
-    });
+    let authorization: SignAuthorizationReturnType;
+    try {
+      transactionDebugLog('[TransactionKit] signing EIP-7702 authorization', {
+        chainId,
+        eoaAddress,
+        delegateAddress,
+      });
+      authorization = await walletClient.signAuthorization({
+        account: owner,
+        contractAddress: delegateAddress,
+      });
+      transactionDebugLog('[TransactionKit] EIP-7702 authorization signed', {
+        chainId,
+        eoaAddress,
+        delegateAddress,
+        authorization: summarizeAuthorization(authorization),
+      });
+    } catch (error) {
+      transactionDebugError('[TransactionKit] signAuthorization failed', {
+        chainId,
+        eoaAddress,
+        delegateAddress,
+        error: summarizeError(error),
+      });
+      throw error;
+    }
 
     if (!delegateImmediately) {
       return {
@@ -768,6 +974,15 @@ export class EtherspotTransactionKit {
     try {
       const bundlerClient =
         await this.etherspotProvider.getBundlerClient(chainId);
+      transactionDebugLog(
+        '[TransactionKit] sending immediate delegation user operation',
+        {
+          chainId,
+          sender: bundlerClient.account?.address,
+          eoaAddress,
+          authorization: summarizeAuthorization(authorization),
+        }
+      );
       const userOpHash = await bundlerClient.sendUserOperation({
         account: bundlerClient.account,
         authorization,
@@ -779,6 +994,10 @@ export class EtherspotTransactionKit {
           },
         ],
       });
+      transactionDebugLog('[TransactionKit] delegation user operation sent', {
+        chainId,
+        userOpHash,
+      });
 
       return {
         authorization,
@@ -788,6 +1007,15 @@ export class EtherspotTransactionKit {
         userOpHash,
       };
     } catch (error) {
+      transactionDebugError(
+        '[TransactionKit] failed to send delegation user operation',
+        {
+          chainId,
+          eoaAddress,
+          authorization: summarizeAuthorization(authorization),
+          error: summarizeError(error),
+        }
+      );
       this.log('Failed to send delegation user operation', error);
 
       return {
@@ -941,6 +1169,9 @@ export class EtherspotTransactionKit {
     const transaction = this.getSelectedTransaction();
 
     if (!transaction) {
+      transactionDebugError('[TransactionKit] estimate skipped', {
+        reason: 'No transaction selected for estimation',
+      });
       return {
         isEstimatedSuccessfully: false,
         errorMessage: 'No transaction selected for estimation',
@@ -951,10 +1182,20 @@ export class EtherspotTransactionKit {
 
     this.isEstimating = true;
     try {
+      const chainId = transaction.chainId || this.config.chainId;
+      transactionDebugLog('[TransactionKit] estimate started', {
+        chainId,
+        transaction: summarizeTransaction(transaction),
+        authorization: summarizeAuthorization(params.authorization),
+      });
       const { cost } = await this.estimateTransactions({
-        chainId: transaction.chainId || this.config.chainId,
+        chainId,
         transactions: [transaction],
         authorization: params.authorization,
+      });
+      transactionDebugLog('[TransactionKit] estimate succeeded', {
+        chainId,
+        cost: cost.toString(),
       });
 
       return {
@@ -965,6 +1206,11 @@ export class EtherspotTransactionKit {
       };
     } catch (error) {
       this.containsEstimatingError = true;
+      transactionDebugError('[TransactionKit] estimate failed', {
+        transaction: summarizeTransaction(transaction),
+        authorization: summarizeAuthorization(params.authorization),
+        error: summarizeError(error),
+      });
       return {
         ...toBaseResult(transaction),
         isEstimatedSuccessfully: false,
@@ -981,6 +1227,9 @@ export class EtherspotTransactionKit {
     const transaction = this.getSelectedTransaction();
 
     if (!transaction) {
+      transactionDebugError('[TransactionKit] send skipped', {
+        reason: 'No transaction selected for sending',
+      });
       return {
         isEstimatedSuccessfully: false,
         isSentSuccessfully: false,
@@ -993,6 +1242,11 @@ export class EtherspotTransactionKit {
     this.isSending = true;
     try {
       const chainId = transaction.chainId || this.config.chainId;
+      transactionDebugLog('[TransactionKit] send started', {
+        chainId,
+        transaction: summarizeTransaction(transaction),
+        authorization: summarizeAuthorization(params.authorization),
+      });
       const { cost, calls } = await this.estimateTransactions({
         chainId,
         transactions: [transaction],
@@ -1006,12 +1260,26 @@ export class EtherspotTransactionKit {
           params.authorization.chainId === chainId &&
           !isDelegated
       );
+      transactionDebugLog('[TransactionKit] sending user operation', {
+        chainId,
+        sender: bundlerClient.account?.address,
+        calls,
+        shouldUseAuthorization,
+        authorization: shouldUseAuthorization
+          ? summarizeAuthorization(params.authorization)
+          : undefined,
+      });
       const userOpHash = await bundlerClient.sendUserOperation({
         account: bundlerClient.account,
         calls,
         ...(shouldUseAuthorization
           ? { authorization: params.authorization }
           : {}),
+      });
+      transactionDebugLog('[TransactionKit] user operation sent', {
+        chainId,
+        userOpHash,
+        cost: cost.toString(),
       });
 
       if (this.selectedTransactionName) {
@@ -1028,6 +1296,11 @@ export class EtherspotTransactionKit {
       };
     } catch (error) {
       this.containsSendingError = true;
+      transactionDebugError('[TransactionKit] send failed', {
+        transaction: summarizeTransaction(transaction),
+        authorization: summarizeAuthorization(params.authorization),
+        error: summarizeError(error),
+      });
       return {
         ...toBaseResult(transaction),
         isEstimatedSuccessfully: false,

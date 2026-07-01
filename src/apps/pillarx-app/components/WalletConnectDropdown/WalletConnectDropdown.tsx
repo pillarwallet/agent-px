@@ -2,15 +2,11 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 /* eslint-disable react/no-unstable-nested-components */
 import { CircularProgress } from '@mui/material';
-import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useRef, useState } from 'react';
 import { RiArrowDownSLine } from 'react-icons/ri';
 
 // services
 import { useWalletConnect } from '../../../../services/walletConnect';
-
-// utils
-import { isAddressInSessionViaPrivy } from '../../../../utils/walletConnect';
 
 // images
 import SettingIcon from '../../images/setting-wheel.svg';
@@ -38,7 +34,6 @@ const WalletConnectDropdown = () => {
     isLoadingDisconnect,
     isLoadingDisconnectAll,
   } = useWalletConnect();
-  const { user } = usePrivy();
 
   const getClipboardText = async (prompt: boolean) => {
     try {
@@ -126,13 +121,7 @@ const WalletConnectDropdown = () => {
     setIsDropdownOpen(false);
   };
 
-  const filteredSessions = Object.fromEntries(
-    Object.entries(activeSessions || {}).filter(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ([_, session]) =>
-        !isAddressInSessionViaPrivy(session, user?.wallet?.address || '')
-    )
-  );
+  const filteredSessions = activeSessions || {};
 
   const numberActiveSessions =
     !!filteredSessions && Object.entries(filteredSessions).length;

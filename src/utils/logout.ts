@@ -1,4 +1,3 @@
-import { useLogout } from '@privy-io/react-auth';
 import { useAccount, useDisconnect } from 'wagmi';
 
 import {
@@ -8,10 +7,9 @@ import {
 
 /**
  * Custom hook that provides comprehensive logout functionality
- * Handles both Privy and WAGMI disconnection
+ * Handles local auth/session cleanup and WAGMI disconnection
  */
 export const useComprehensiveLogout = () => {
-  const { logout: privyLogout } = useLogout();
   const { isConnected } = useAccount();
   const { disconnect: wagmiDisconnect } = useDisconnect();
 
@@ -23,13 +21,6 @@ export const useComprehensiveLogout = () => {
       } catch (e) {
         console.error('Error disconnecting from WAGMI:', e);
       }
-    }
-
-    // Then logout from Privy
-    try {
-      await privyLogout();
-    } catch (e) {
-      console.error('Error during Privy logout:', e);
     }
 
     // Clear any stored data

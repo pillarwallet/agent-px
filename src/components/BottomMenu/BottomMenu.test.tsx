@@ -1,4 +1,3 @@
-import { usePrivy } from '@privy-io/react-auth';
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 import renderer, {
@@ -14,6 +13,7 @@ import type { Mock } from 'vitest';
 
 // components
 import BottomMenu from '.';
+import { useAuthAccount } from '../../hooks/useAuthAccount';
 
 // theme
 import { defaultTheme } from '../../theme';
@@ -49,7 +49,9 @@ describe('<BottomMenu />', () => {
   });
 
   it('renders correctly when authenticated', async () => {
-    (usePrivy as Mock).mockImplementation(() => ({ authenticated: true }));
+    (useAuthAccount as Mock).mockImplementation(() => ({
+      authenticated: true,
+    }));
 
     await act(async () => {
       rendered = renderer.create(
@@ -88,7 +90,7 @@ describe('<BottomMenu />', () => {
   });
 
   it('renders correctly if not authenticated', async () => {
-    (usePrivy as Mock).mockImplementation(() => ({
+    (useAuthAccount as Mock).mockImplementation(() => ({
       authenticated: false,
     }));
 

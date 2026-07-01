@@ -307,58 +307,11 @@ describe('useWalletModeVerification', () => {
     });
   });
 
-  describe('Smart Account Deployment Checks', () => {
-    it('should remain modular when smart account is deployed on any chain', async () => {
+  describe('EOA EIP-7702 Mode Checks', () => {
+    it('should use delegatedEoa for an EOA without checking a counterfactual wallet', async () => {
       setupMockGetCode({
         eoaResponses: ['0x', '0x'],
-        counterfactualResponses: ['0x1234', '0x'], // Chain 1: deployed, Chain 137: not deployed
-      });
-
-      mockGetBalance.mockResolvedValue(BigInt(0));
-
-      const { result } = renderHook(() =>
-        useWalletModeVerification({
-          eoaAddress: TEST_EOA_ADDRESS,
-          kit: mockKit,
-        })
-      );
-
-      await waitFor(() => {
-        expect(result.current.walletMode).toBe('modular');
-        expect(result.current.eip7702Info).toEqual({});
-      });
-
-      expect(mockGetCode).toHaveBeenCalledTimes(4);
-      expect(mockGetBalance).toHaveBeenCalledTimes(1); // Only chain 137 checks balance
-    });
-
-    it('should remain modular when smart account has balance on any chain', async () => {
-      setupMockGetCode({
-        eoaResponses: ['0x', '0x'],
-        counterfactualResponses: ['0x', '0x'], // Not deployed on either chain
-      });
-
-      mockGetBalance
-        .mockResolvedValueOnce(BigInt(1000000000000000000)) // Chain 1: has balance
-        .mockResolvedValueOnce(BigInt(0)); // Chain 137: no balance
-
-      const { result } = renderHook(() =>
-        useWalletModeVerification({
-          eoaAddress: TEST_EOA_ADDRESS,
-          kit: mockKit,
-        })
-      );
-
-      await waitFor(() => {
-        expect(result.current.walletMode).toBe('modular');
-        expect(result.current.eip7702Info).toEqual({});
-      });
-    });
-
-    it('should check deployment across all chains', async () => {
-      setupMockGetCode({
-        eoaResponses: ['0x', '0x'],
-        counterfactualResponses: ['0x', '0x'], // Not deployed on either chain
+        counterfactualResponses: ['0x1234', '0x'],
       });
 
       mockGetBalance.mockResolvedValue(BigInt(0));
@@ -374,8 +327,56 @@ describe('useWalletModeVerification', () => {
         expect(result.current.walletMode).toBe('delegatedEoa');
       });
 
-      expect(mockGetCode).toHaveBeenCalledTimes(4);
-      expect(mockGetBalance).toHaveBeenCalledTimes(2);
+      expect(mockGetCode).toHaveBeenCalledTimes(2);
+      expect(mockGetBalance).not.toHaveBeenCalled();
+      expect(mockKit.getWalletAddress).not.toHaveBeenCalled();
+    });
+
+    it('should not force modular mode when the EOA has balance on any chain', async () => {
+      setupMockGetCode({
+        eoaResponses: ['0x', '0x'],
+        counterfactualResponses: ['0x', '0x'],
+      });
+
+      mockGetBalance
+        .mockResolvedValueOnce(BigInt(1000000000000000000)) // Chain 1: has balance
+        .mockResolvedValueOnce(BigInt(0)); // Chain 137: no balance
+
+      const { result } = renderHook(() =>
+        useWalletModeVerification({
+          eoaAddress: TEST_EOA_ADDRESS,
+          kit: mockKit,
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.walletMode).toBe('delegatedEoa');
+      });
+
+      expect(mockGetBalance).not.toHaveBeenCalled();
+    });
+
+    it('should check EOA code across all visible chains', async () => {
+      setupMockGetCode({
+        eoaResponses: ['0x', '0x'],
+        counterfactualResponses: ['0x', '0x'],
+      });
+
+      mockGetBalance.mockResolvedValue(BigInt(0));
+
+      const { result } = renderHook(() =>
+        useWalletModeVerification({
+          eoaAddress: TEST_EOA_ADDRESS,
+          kit: mockKit,
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.walletMode).toBe('delegatedEoa');
+      });
+
+      expect(mockGetCode).toHaveBeenCalledTimes(2);
+      expect(mockGetBalance).not.toHaveBeenCalled();
     });
   });
 
@@ -584,7 +585,7 @@ describe('useWalletModeVerification', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle getWalletAddress() error after validation', async () => {
+    it('should not call getWalletAddress during EOA wallet mode verification', async () => {
       setupMockGetCode({
         eoaResponses: ['0x', '0x'],
       });
@@ -601,26 +602,21 @@ describe('useWalletModeVerification', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.error).toBeTruthy();
-        expect(result.current.walletMode).toBe('modular');
+        expect(result.current.error).toBeNull();
+        expect(result.current.walletMode).toBe('delegatedEoa');
       });
+
+      expect(mockKit.getWalletAddress).not.toHaveBeenCalled();
     });
 
-    it('should handle error in deployment checks', async () => {
-      // Setup EOA checks to succeed, but counterfactual check to fail
+    it('should not run removed deployment checks after EOA validation', async () => {
       let callCount = 0;
       mockGetCode.mockImplementation(() => {
         callCount++;
         if (callCount <= 2) {
-          // EOA checks succeed
           return Promise.resolve('0x');
         }
-        if (callCount === 3) {
-          // First counterfactual check fails
-          return Promise.reject(new Error('Network error'));
-        }
-        // Remaining calls succeed
-        return Promise.resolve('0x');
+        return Promise.reject(new Error('Unexpected deployment check'));
       });
       mockGetBalance.mockResolvedValue(BigInt(0));
 
@@ -632,9 +628,12 @@ describe('useWalletModeVerification', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.error).toBeTruthy();
-        expect(result.current.walletMode).toBe('modular');
+        expect(result.current.error).toBeNull();
+        expect(result.current.walletMode).toBe('delegatedEoa');
       });
+
+      expect(callCount).toBe(2);
+      expect(mockGetBalance).not.toHaveBeenCalled();
     });
 
     it('should handle error in EOA address checks', async () => {
