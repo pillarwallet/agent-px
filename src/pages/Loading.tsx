@@ -33,6 +33,16 @@ const Loading = ({ type }: LoadingProps) => {
   });
 
   useEffect(() => {
+    document.documentElement.classList.add('pillarx-no-page-scroll');
+    document.body.classList.add('pillarx-no-page-scroll');
+
+    return () => {
+      document.documentElement.classList.remove('pillarx-no-page-scroll');
+      document.body.classList.remove('pillarx-no-page-scroll');
+    };
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => setShow(false), 1500);
 
     return () => clearTimeout(timer);
@@ -104,7 +114,8 @@ const Wrapper = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 `;
 
 export default Loading;

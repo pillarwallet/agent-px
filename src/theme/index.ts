@@ -226,11 +226,57 @@ export const animation = {
 };
 
 export const GlobalStyle = createGlobalStyle`
+  html {
+    scrollbar-color: rgba(255, 255, 255, 0.72) transparent;
+    scrollbar-width: thin;
+  }
+
+  html.pillarx-no-page-scroll,
+  html.pillarx-no-page-scroll body,
+  html.pillarx-no-page-scroll #root {
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  html.pillarx-no-page-scroll::-webkit-scrollbar,
+  html.pillarx-no-page-scroll body::-webkit-scrollbar,
+  html.pillarx-no-page-scroll #root::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
   body {
     font-family: ${({ theme }) => theme.font.primary.family};
     background: ${({ theme }) => theme.color.background.body};
     color: ${({ theme }) => theme.color.text.body};
     font-weight: ${({ theme }) => theme.font.primary.weight};
+    overflow-x: hidden;
+  }
+
+  * {
+    scrollbar-color: rgba(255, 255, 255, 0.72) transparent;
+    scrollbar-width: thin;
+  }
+
+  *::-webkit-scrollbar {
+    width: 1px;
+    height: 1px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.72);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
   
   input, textarea, button, select {

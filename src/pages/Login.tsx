@@ -751,6 +751,16 @@ const Login = () => {
   });
 
   useEffect(() => {
+    document.documentElement.classList.add('pillarx-no-page-scroll');
+    document.body.classList.add('pillarx-no-page-scroll');
+
+    return () => {
+      document.documentElement.classList.remove('pillarx-no-page-scroll');
+      document.body.classList.remove('pillarx-no-page-scroll');
+    };
+  }, []);
+
+  useEffect(() => {
     localStorage.removeItem(PHONE_OTP_VERIFICATION_SID_KEY);
 
     const hasVault = hasPhoneOtpEncryptedVault();
@@ -766,7 +776,7 @@ const Login = () => {
 
   useEffect(() => {
     const storedPhoneNumber = localStorage.getItem(PHONE_OTP_PHONE_NUMBER_KEY);
-    if (getCountryCodeFromPhoneNumber(storedPhoneNumber)) return;
+    if (getCountryCodeFromPhoneNumber(storedPhoneNumber)) return undefined;
 
     let isCancelled = false;
 
@@ -1079,13 +1089,19 @@ const Login = () => {
         (option) => option.label.toLowerCase() === trimmedQuery.toLowerCase()
       );
 
-    const nextOption =
-      exactMatch ||
-      (allowFallbackMatch
-        ? filteredCountryOptions[0]
-        : filteredCountryOptions.length === 1
-          ? filteredCountryOptions[0]
-          : undefined);
+    let nextOption = exactMatch;
+
+    if (!nextOption && allowFallbackMatch) {
+      [nextOption] = filteredCountryOptions;
+    }
+
+    if (
+      !nextOption &&
+      !allowFallbackMatch &&
+      filteredCountryOptions.length === 1
+    ) {
+      [nextOption] = filteredCountryOptions;
+    }
 
     if (nextOption) {
       selectCountryOption(nextOption);
@@ -1265,8 +1281,10 @@ const Login = () => {
     }
   };
 
+  const shouldAllowPageScroll = step !== 'phone' || isCountryPickerOpen;
+
   return (
-    <Wrapper>
+    <Wrapper $allowScroll={shouldAllowPageScroll}>
       {logoTransitions(
         (styles, item) =>
           item && (
@@ -1714,22 +1732,25 @@ const Login = () => {
   );
 };
 
-const Wrapper = styled.div`
-  min-height: 100vh;
-  padding: 50px 20px;
+const Wrapper = styled.div<{ $allowScroll: boolean }>`
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 32px 20px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   max-width: 500px;
   margin: 0 auto;
+  overflow-x: hidden;
+  overflow-y: ${({ $allowScroll }) => ($allowScroll ? 'auto' : 'hidden')};
 `;
 
 const FormCard = styled.div`
   width: 100%;
   display: flex;
   flex-direction: column;
-  margin-top: 40px;
+  margin-top: 28px;
   gap: 14px;
 `;
 

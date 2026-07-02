@@ -47,15 +47,7 @@ const Wrapper = styled.div`
   width: 100%;
   min-height: 30vh;
   max-height: 100%;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-
-  overflow-y: scroll;
-
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  overflow-y: auto;
 `;
 
 const DetailsRow = styled.div<{ $noBorder?: boolean }>`
