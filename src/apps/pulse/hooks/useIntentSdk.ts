@@ -1,7 +1,6 @@
 import { IntentSdk, Options } from '@etherspot/intent-sdk';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useCallback, useEffect, useState } from 'react';
-import { Hex, createWalletClient, custom } from 'viem';
+import { Hex, createWalletClient, custom, WalletClient } from 'viem';
 import { useAccount, useConnect } from 'wagmi';
 
 // hooks
@@ -23,17 +22,13 @@ interface Transactions {
 
 export default function useIntentSdk(props: IntentProps) {
   const { payingTokens } = props;
-  const { walletAddress: accountAddress, kit } = useTransactionKit();
-  const { ready, authenticated, user } = usePrivy();
-  const { wallets } = useWallets();
+  const {
+    walletAddress: accountAddress,
+    kit,
+    walletProvider: transactionWalletProvider,
+  } = useTransactionKit();
   const { isConnected: isWagmiConnected } = useAccount();
   const { connectors } = useConnect();
-
-  const privyWalletAddress = user?.wallet?.address;
-
-  const walletProvider = wallets.find(
-    (wallet) => wallet.address === privyWalletAddress
-  );
   const [intentSdk, setIntentSdk] = useState<IntentSdk | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [areModulesInstalled, setAreModulesInstalled] =
@@ -84,13 +79,16 @@ export default function useIntentSdk(props: IntentProps) {
       };
 
       try {
-        // 1: Check if connected via Privy wallet
-        if (ready && authenticated && walletProvider) {
-          const provider = await walletProvider.getEthereumProvider();
-          const walletClient = createWalletClient({
-            account: walletProvider.address as Hex,
-            transport: custom(provider),
-          });
+        if (transactionWalletProvider) {
+          const walletClientCandidate =
+            transactionWalletProvider as WalletClient;
+          const walletClient =
+            typeof walletClientCandidate.signMessage === 'function'
+              ? walletClientCandidate
+              : createWalletClient({
+                  account: accountAddress as Hex,
+                  transport: custom(transactionWalletProvider),
+                });
           /* eslint-disable @typescript-eslint/no-explicit-any */
           const sdk = new IntentSdk(walletClient as any, options);
           setIntentSdk(sdk);
@@ -98,9 +96,7 @@ export default function useIntentSdk(props: IntentProps) {
           return;
         }
 
-        // 2: Check if connected via WalletConnect (only if no Privy wallet)
-        const hasWallets = walletProvider !== undefined;
-        if (isWagmiConnected && !hasWallets) {
+        if (isWagmiConnected) {
           const walletConnectConnector = connectors.find(
             ({ id }) => id === 'walletConnect'
           );
@@ -140,14 +136,7 @@ export default function useIntentSdk(props: IntentProps) {
     };
 
     initializeSdk();
-  }, [
-    accountAddress,
-    ready,
-    authenticated,
-    walletProvider,
-    isWagmiConnected,
-    connectors,
-  ]);
+  }, [accountAddress, transactionWalletProvider, isWagmiConnected, connectors]);
 
   const [moduleCheckError, setModuleCheckError] = useState<boolean>(false);
 

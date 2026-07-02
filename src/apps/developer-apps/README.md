@@ -255,13 +255,12 @@ The app is styled entirely with Tailwind CSS utility classes. Custom styles are 
 
 ## Wallet Integration
 
-The app uses Privy for wallet authentication:
+The app uses the shared PillarX auth account for wallet identity:
 
 ```typescript
-import { useWallets } from '@privy-io/react-auth';
+import { useAuthAccount } from '../../../hooks/useAuthAccount';
 
-const { wallets } = useWallets();
-const eoaAddress = wallets[0]?.address;
+const { walletAddress: eoaAddress } = useAuthAccount();
 ```
 
 ### Ownership Verification
@@ -337,7 +336,7 @@ The app provides comprehensive error handling:
 ### Prerequisites
 
 - Node.js 20+
-- Privy wallet integration set up
+- PillarX auth account integration set up
 - Firebase Functions backend deployed
 - Redux store configured
 

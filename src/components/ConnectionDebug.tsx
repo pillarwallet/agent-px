@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import Button from './Button';
 
 export interface DebugInfo {
-  privy?: {
+  auth?: {
     authenticated?: boolean;
     ready?: boolean;
     user?: {
@@ -72,25 +72,25 @@ const ConnectionDebug: React.FC<ConnectionDebugProps> = ({
   return (
     <DebugContainer>
       <DebugSection>
-        <DebugSubtitle>Privy Status:</DebugSubtitle>
+        <DebugSubtitle>Auth Status:</DebugSubtitle>
         <DebugItem>
           <strong>Authenticated:</strong>{' '}
-          {debugInfo.privy?.authenticated ? '✅ Yes' : '❌ No'}
+          {debugInfo.auth?.authenticated ? '✅ Yes' : '❌ No'}
         </DebugItem>
         <DebugItem>
-          <strong>Ready:</strong> {debugInfo.privy?.ready ? '✅ Yes' : '❌ No'}
+          <strong>Ready:</strong> {debugInfo.auth?.ready ? '✅ Yes' : '❌ No'}
         </DebugItem>
-        {debugInfo.privy?.user && (
+        {debugInfo.auth?.user && (
           <>
             <DebugItem>
-              <strong>User ID:</strong> {debugInfo.privy.user.id}
+              <strong>User ID:</strong> {debugInfo.auth.user.id}
             </DebugItem>
             <DebugItem>
-              <strong>Email:</strong> {debugInfo.privy.user.email || 'N/A'}
+              <strong>Email:</strong> {debugInfo.auth.user.email || 'N/A'}
             </DebugItem>
             <DebugItem>
               <strong>Wallet Address:</strong>{' '}
-              {debugInfo.privy.user.wallet || 'N/A'}
+              {debugInfo.auth.user.wallet || 'N/A'}
             </DebugItem>
           </>
         )}
@@ -157,7 +157,7 @@ const ConnectionDebug: React.FC<ConnectionDebugProps> = ({
       </DebugSection>
 
       {/* Disconnect button for testing */}
-      {(debugInfo.wagmi?.isConnected || debugInfo.privy?.authenticated) &&
+      {(debugInfo.wagmi?.isConnected || debugInfo.auth?.authenticated) &&
         onDisconnect && (
           <DebugSection>
             <DebugSubtitle>Actions:</DebugSubtitle>

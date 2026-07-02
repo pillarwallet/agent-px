@@ -240,6 +240,7 @@ const SendAssetModal = ({
 
     const authorization =
       (await getEIP7702AuthorizationIfNeeded(kit, asset.chainId)) || undefined;
+    console.log('Authorization for EIP-7702:', authorization);
 
     const estimated = await kit.estimate({ authorization });
     if (estimated.errorMessage) {

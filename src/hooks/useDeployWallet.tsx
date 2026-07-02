@@ -1,6 +1,6 @@
-import { BundlerConfig } from '@etherspot/transaction-kit';
 import axios from 'axios';
 import { formatEther } from 'viem';
+import { getEtherspotBundlerUrl } from '../utils/bundler';
 
 const useDeployWallet = () => {
   // This is to easily get the right localStorage key to retrieve
@@ -61,7 +61,7 @@ const useDeployWallet = () => {
       return undefined;
     }
 
-    const { url } = new BundlerConfig(chainId, apiKey);
+    const url = getEtherspotBundlerUrl({ chainId, apiKey });
 
     try {
       const response = await axios.post(
@@ -137,7 +137,7 @@ const useDeployWallet = () => {
     }
 
     // If wallet has not deployed, then we will check on chain
-    const { url } = new BundlerConfig(chainId, apiKey);
+    const url = getEtherspotBundlerUrl({ chainId, apiKey });
 
     try {
       const response = await axios.post(

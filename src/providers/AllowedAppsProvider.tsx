@@ -1,10 +1,10 @@
 /* eslint-disable react/jsx-no-constructed-context-values */
 import axios from 'axios';
 import React, { createContext, useEffect, useMemo } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
 
 // utils
 import { CompatibleChains, isTestnet } from '../utils/blockchain';
+import { useAuthAccount } from '../hooks/useAuthAccount';
 
 export interface AllowedAppsContextProps {
   data: {
@@ -45,7 +45,7 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [isAnimated, setIsAnimated] = React.useState<boolean>(false);
   const [allowed, setAllowed] = React.useState<ApiAllowedApp[]>([]);
-  const { user } = usePrivy();
+  const { walletAddress } = useAuthAccount();
 
   useEffect(() => {
     let expired = false;
@@ -57,8 +57,8 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
           : CompatibleChains.map((chain) => chain.chainId);
         const chainIdsQuery = chainIds.map((id) => `chainIds=${id}`).join('&');
 
-        // Get EOA address from user
-        const eoaAddress = user?.wallet?.address;
+        // Get EOA address from the active account source.
+        const eoaAddress = walletAddress;
 
         // Build query parameters
         const queryParams = new URLSearchParams();
@@ -121,7 +121,7 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
     return () => {
       expired = true;
     };
-  }, [user?.wallet?.address]);
+  }, [walletAddress]);
 
   const contextData = useMemo(
     () => ({

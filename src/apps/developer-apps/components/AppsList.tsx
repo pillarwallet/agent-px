@@ -1,9 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWallets } from '@privy-io/react-auth';
 
 // api
 import { useGetAllDeveloperAppsQuery, useDeleteDeveloperAppMutation, useUpdateDeveloperAppMutation } from '../api/developerAppsApi';
+import { useAuthAccount } from '../../../hooks/useAuthAccount';
 
 // components
 import AppCard from './AppCard';
@@ -15,8 +15,7 @@ import CubeIcon from '../assets/icons/cube.svg?react';
 
 const AppsList: React.FC = () => {
   const navigate = useNavigate();
-  const { wallets } = useWallets();
-  const eoaAddress = wallets?.[0]?.address;
+  const { walletAddress: eoaAddress } = useAuthAccount();
 
   const { data, isLoading, error } = useGetAllDeveloperAppsQuery({ eoaAddress });
   const [deleteApp, { isLoading: isDeleting }] = useDeleteDeveloperAppMutation();
@@ -182,4 +181,3 @@ const AppsList: React.FC = () => {
 };
 
 export default AppsList;
-

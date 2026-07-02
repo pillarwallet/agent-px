@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { setWalletAddresses } from '@hypelab/sdk-react';
-import { useWallets } from '@privy-io/react-auth';
 import { Setting2 } from 'iconsax-react';
 import {
   createRef,
@@ -19,6 +18,7 @@ import { ApiLayout, Projection } from '../../types/api';
 
 // hooks
 import { useEIP7702Upgrade } from '../../hooks/useEIP7702Upgrade';
+import { useAuthAccount } from '../../hooks/useAuthAccount';
 import useTransactionKit from '../../hooks/useTransactionKit';
 import { useRecordPresenceMutation } from '../../services/pillarXApiPresence';
 import { useGetTilesInfoQuery, useRecordProfileMutation } from './api/homeFeed';
@@ -57,7 +57,7 @@ const App = () => {
 
   // Import wallets
   const { walletAddress } = useTransactionKit();
-  const { wallets: privyWallets } = useWallets();
+  const { walletAddress: ownerWalletAddress } = useAuthAccount();
 
   // hooks
   const { checkOnLogin } = useEIP7702Upgrade();
@@ -100,18 +100,13 @@ const App = () => {
   useEffect(() => {
     // This is a "fire and forget" call to the profile API
 
-    // Did we have a truthy wallet address and truthy privyWallets?
-    if (walletAddress && privyWallets) {
-      // If we have a privyWallets array, we want to record the profile
-      if (privyWallets.length > 0) {
-        // We want to record the profile with the first wallet in the array
-        recordProfile({
-          owner: privyWallets[0]?.address,
-          account: walletAddress,
-        });
-      }
+    if (walletAddress && ownerWalletAddress) {
+      recordProfile({
+        owner: ownerWalletAddress,
+        account: walletAddress,
+      });
     }
-  }, [walletAddress, privyWallets, recordProfile]);
+  }, [walletAddress, ownerWalletAddress, recordProfile]);
 
   useEffect(() => {
     if (!isHomeFeedSuccess && walletAddress) {

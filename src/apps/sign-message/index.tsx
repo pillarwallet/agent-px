@@ -1,10 +1,12 @@
-import { useWallets } from '@privy-io/react-auth';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import type { WalletClient } from 'viem';
 
 // components
 import { PrimaryTitle } from '../../components/Text/Title';
+import useTransactionKit from '../../hooks/useTransactionKit';
+import type { Eip1193LikeProvider } from '../../types/walletProvider';
 
 const Alert = ({
   level = 'info',
@@ -40,7 +42,7 @@ export const App = () => {
   const [signedMessage, setSignedMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
   const [isSigning, setIsSigning] = React.useState<boolean>(false);
-  const { wallets } = useWallets();
+  const { walletProvider } = useTransactionKit();
 
   const signMessage = async () => {
     if (isSigning) return;
@@ -50,7 +52,40 @@ export const App = () => {
     setSignedMessage('');
 
     try {
-      const newSignedMessage = await wallets[0].sign(message);
+      if (!walletProvider) {
+        throw new Error('Wallet provider is not available');
+      }
+
+      const walletClient = walletProvider as WalletClient;
+      let newSignedMessage: string;
+
+      if (typeof walletClient.signMessage === 'function') {
+        newSignedMessage = await walletClient.signMessage({
+          account: walletClient.account,
+          message,
+        });
+      } else if (
+        'request' in walletProvider &&
+        typeof (walletProvider as Eip1193LikeProvider).request === 'function'
+      ) {
+        const eip1193Provider = walletProvider as Eip1193LikeProvider;
+        const accounts = await eip1193Provider.request<string[]>({
+          method: 'eth_accounts',
+        });
+        const account = accounts?.[0];
+
+        if (!account) {
+          throw new Error('No connected account available');
+        }
+
+        newSignedMessage = await eip1193Provider.request<string>({
+          method: 'personal_sign',
+          params: [message, account],
+        });
+      } else {
+        throw new Error('Current wallet provider cannot sign messages');
+      }
+
       setSignedMessage(newSignedMessage);
     } catch (e) {
       const newErrorMessage =

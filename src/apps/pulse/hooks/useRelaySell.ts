@@ -1,4 +1,3 @@
-import { EtherspotUtils } from '@etherspot/transaction-kit';
 import { Execute, getClient } from '@relayprotocol/relay-sdk';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -23,6 +22,7 @@ import { SelectedToken } from '../types/tokens';
 
 // utils
 import { Token } from '../../../services/tokensData';
+import { EtherspotUtils } from '../../../utils/nativeTransactionKit';
 import { getNetworkViem } from '../../deposit/utils/blockchain';
 import {
   getNativeBalanceFromPortfolio,

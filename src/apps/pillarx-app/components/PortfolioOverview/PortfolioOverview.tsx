@@ -1,4 +1,3 @@
-import { usePrivy } from '@privy-io/react-auth';
 import { useTranslation } from 'react-i18next';
 import { useAccount } from 'wagmi';
 
@@ -34,22 +33,10 @@ type PortfolioOverviewProps = {
 const PortfolioOverview = ({ data, isDataLoading }: PortfolioOverviewProps) => {
   const [t] = useTranslation();
   const { walletAddress: accountAddress } = useTransactionKit();
-  const { user } = usePrivy();
   const { isConnected } = useAccount();
 
-  // Check if Privy user is connected via WalletConnect using linkedAccounts
-  const isPrivyConnectedViaWalletConnect = user?.linkedAccounts?.some(
-    (account) =>
-      account.type === 'wallet' &&
-      (account.connectorType === 'wallet_connect' ||
-        account.connectorType === 'wallet_connect_v1' ||
-        account.connectorType === 'wallet_connect_v2')
-  );
-
-  // Don't show WalletConnectDropdown if user is connected via Wagmi
-  // or if user is connected via Privy with WalletConnect
-  const shouldShowWalletConnectDropdown =
-    !isConnected && !isPrivyConnectedViaWalletConnect;
+  // Don't show WalletConnectDropdown if user is already connected via Wagmi.
+  const shouldShowWalletConnectDropdown = !isConnected;
 
   const { data: dataPortlioOverview } = data || {};
   const dataWallet = dataPortlioOverview as WalletPortfolioData | undefined;

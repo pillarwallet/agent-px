@@ -135,30 +135,17 @@ vi.mock('../hooks/useGlobalTransactionsBatch', () => ({
 
 vi.mock('axios');
 vi.mock('@etherspot/data-utils');
-vi.mock('@etherspot/modular-sdk');
 
-// Mock the problematic @etherspot/modular-sdk more thoroughly
-vi.mock('@etherspot/modular-sdk', () => ({
-  default: {
-    EtherspotSDK: vi.fn().mockImplementation(() => ({
-      init: vi.fn().mockResolvedValue(true),
-      getAccount: vi.fn().mockResolvedValue({
-        address: '0x7F30B1960D5556929B03a0339814fE903c55a347',
-      }),
-    })),
-    ERC4337Utils: {
-      getAccountAddress: vi
-        .fn()
-        .mockResolvedValue('0x7F30B1960D5556929B03a0339814fE903c55a347'),
-    },
-  },
-}));
-
-vi.mock('@privy-io/react-auth', () => ({
-  PrivyProvider: ({ children }: { children: React.ReactNode }) => children,
-  usePrivy: vi.fn(() => ({ authenticated: false })),
-  useWallets: vi.fn(() => ({ wallets: [] })),
-  useLogout: vi.fn(() => ({ logout: vi.fn() })),
+vi.mock('../hooks/useAuthAccount', () => ({
+  useAuthAccount: vi.fn(() => ({
+    ready: true,
+    authenticated: false,
+    user: null,
+    walletAddress: undefined,
+    address: undefined,
+    chainId: undefined,
+    source: undefined,
+  })),
 }));
 
 export const etherspotTestAssets = [
@@ -246,40 +233,6 @@ vi.mock('wagmi', () => ({
 vi.mock('wagmi/connectors', () => ({
   walletConnect: vi.fn(),
 }));
-
-vi.mock('@etherspot/transaction-kit', () => {
-  class MockEtherspotTransactionKit {
-    getWalletAddress = vi
-      .fn()
-      .mockResolvedValue('0x7F30B1960D5556929B03a0339814fE903c55a347');
-    transaction = vi.fn().mockReturnThis();
-    name = vi.fn().mockReturnThis();
-    batch = vi.fn().mockReturnThis();
-    estimate = vi.fn().mockResolvedValue({ isEstimatedSuccessfully: true });
-    send = vi.fn().mockResolvedValue({ isSentSuccessfully: true });
-    getTransactionHash = vi.fn().mockResolvedValue('0x123');
-    getState = vi.fn().mockReturnValue({});
-    setDebugMode = vi.fn();
-    getProvider = vi.fn();
-    getEtherspotProvider = vi.fn();
-    getSdk = vi.fn();
-    reset = vi.fn();
-  }
-
-  class MockEtherspotUtils {
-    static checksumAddress = vi.fn((address) => address);
-    static verifyEip1271Message = vi.fn().mockResolvedValue(false);
-    static toBigNumber = vi.fn(() => BigInt(1));
-    static parseBigNumber = vi.fn(() => '1');
-    static isZeroAddress = vi.fn(() => false);
-    static addressesEqual = vi.fn(() => true);
-  }
-
-  return {
-    EtherspotTransactionKit: MockEtherspotTransactionKit,
-    EtherspotUtils: MockEtherspotUtils,
-  };
-});
 
 // Mock useTransactionKit hook globally
 vi.mock(

@@ -5,20 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PillarX</title>
     <style>
-      html,
-      body {
+      html {
         margin: 0;
-        width: 504px;
-        min-height: 768px;
+        width: 409px;
+        min-width: 409px;
+        min-height: 1014px;
         background: #000;
+        overflow-x: hidden;
+        overflow-y: auto;
       }
 
       body {
+        margin: 0;
+        width: 409px;
+        min-width: 409px;
+        min-height: 1014px;
+        background: #000;
         overflow-x: hidden;
+        overflow-y: hidden;
       }
 
       #root {
-        min-height: 768px;
+        width: 409px;
+        min-width: 409px;
+        min-height: 1014px;
+        background: #000;
+        overflow-x: hidden;
+        overflow-y: hidden;
+      }
+
+      body,
+      #root {
+        scrollbar-width: none;
+      }
+
+      body::-webkit-scrollbar,
+      #root::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
       }
     </style>
   </head>

@@ -1,9 +1,4 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import {
-  EtherspotTransactionKit,
-  EtherspotTransactionKitConfig,
-} from '@etherspot/transaction-kit';
-import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import styled from 'styled-components';
@@ -17,6 +12,7 @@ import DebugPanel from '../components/DebugPanel';
 import Loading from '../pages/Loading';
 
 // hooks
+import { useAuthAccount } from '../hooks/useAuthAccount';
 import { useWalletModeVerification } from '../hooks/useWalletModeVerification';
 
 // providers
@@ -28,6 +24,10 @@ import GlobalTransactionBatchesProvider from '../providers/GlobalTransactionsBat
 import SelectedChainsHistoryProvider from '../providers/SelectedChainsHistoryProvider';
 import { WalletConnectModalProvider } from '../providers/WalletConnectModalProvider';
 import { WalletConnectToastProvider } from '../providers/WalletConnectToastProvider';
+import {
+  EtherspotTransactionKit,
+  type EtherspotTransactionKitConfig,
+} from '../utils/nativeTransactionKit';
 
 /**
  * @name Authorized
@@ -41,21 +41,18 @@ export default function Authorized({
   privateKey,
   eoaAddress,
   customAccount,
-  forceModularWalletMode,
 }: {
   provider: WalletClient;
   chainId: number;
   privateKey?: string;
   eoaAddress?: string;
   customAccount?: Account;
-  forceModularWalletMode?: boolean;
 }) {
   const [showAnimation, setShowAnimation] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<DebugInfo>({});
   const [tempKit, setTempKit] = useState<EtherspotTransactionKit | null>(null);
 
   // Get hooks for debug info
-  const { authenticated, ready, user } = usePrivy();
+  const { authenticated, ready, user } = useAuthAccount();
   const { connectors, isPending, error } = useConnect();
   const { address, isConnected, isConnecting } = useAccount();
 
@@ -63,6 +60,12 @@ export default function Authorized({
   const walletConnectConnector = connectors.find(
     ({ id }) => id === 'walletConnect'
   );
+  const authUserId = user?.id;
+  const authUserEmailAddress = user?.email?.address;
+  const authUserWalletAddress = user?.wallet?.address;
+  const walletConnectConnectorId = walletConnectConnector?.id;
+  const walletConnectConnectorName = walletConnectConnector?.name;
+  const walletConnectConnectorReady = walletConnectConnector?.ready;
 
   // Create temporary kit for wallet mode verification
   // Only recreate when provider or privateKey changes
@@ -94,7 +97,7 @@ export default function Authorized({
     kit: tempKit,
   });
 
-  const effectiveWalletMode = forceModularWalletMode ? 'modular' : walletMode;
+  const effectiveWalletMode = walletMode;
 
   useEffect(() => {
     // Check if we're coming from token-atlas
@@ -114,28 +117,27 @@ export default function Authorized({
     return () => clearTimeout(timer);
   }, []);
 
-  // Update debug info
-  useEffect(() => {
-    const resolvedPrivyUser = user
+  const debugInfo = useMemo<DebugInfo>(() => {
+    const resolvedAuthUser = authUserId
       ? {
-          id: user.id,
-          email: user.email?.address,
-          wallet: user.wallet?.address,
+          id: authUserId,
+          email: authUserEmailAddress,
+          wallet: authUserWalletAddress,
         }
       : null;
-    const resolvedWalletConnectConnector = walletConnectConnector
+    const resolvedWalletConnectConnector = walletConnectConnectorId
       ? {
-          id: walletConnectConnector.id,
-          name: walletConnectConnector.name,
-          ready: Boolean(walletConnectConnector.ready),
+          id: walletConnectConnectorId,
+          name: walletConnectConnectorName,
+          ready: Boolean(walletConnectConnectorReady),
         }
       : null;
 
-    setDebugInfo({
-      privy: {
+    return {
+      auth: {
         authenticated,
         ready,
-        user: resolvedPrivyUser,
+        user: resolvedAuthUser,
       },
       wagmi: {
         address,
@@ -147,18 +149,22 @@ export default function Authorized({
         connectorIds: connectors.map((c) => c.id),
         walletConnectConnector: resolvedWalletConnectConnector,
       },
-    });
+    };
   }, [
     authenticated,
     ready,
-    user,
+    authUserId,
+    authUserEmailAddress,
+    authUserWalletAddress,
     address,
     isConnected,
     isConnecting,
     isPending,
-    error,
+    error?.message,
     connectors,
-    walletConnectConnector,
+    walletConnectConnectorId,
+    walletConnectConnectorName,
+    walletConnectConnectorReady,
   ]);
 
   // Memoize the config to prevent unnecessary kit recreation
@@ -195,7 +201,7 @@ export default function Authorized({
     } as EtherspotTransactionKitConfig;
   }, [provider, chainId, privateKey, customAccount, effectiveWalletMode]);
 
-  if (showAnimation || (!forceModularWalletMode && isVerifyingWalletMode)) {
+  if (showAnimation || isVerifyingWalletMode) {
     return <Loading type="enter" />;
   }
 

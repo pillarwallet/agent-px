@@ -1,4 +1,3 @@
-import { EtherspotUtils } from '@etherspot/transaction-kit';
 import { useNavigate } from 'react-router-dom';
 
 // types
@@ -7,6 +6,7 @@ import { TokenData } from '../../../../types/api';
 // utils
 import { chainNameFromViemToMobula } from '../../../../services/tokensData';
 import { CompatibleChains } from '../../../../utils/blockchain';
+import { EtherspotUtils } from '../../../../utils/nativeTransactionKit';
 
 // components
 import HorizontalToken from '../HorizontalToken/HorizontalToken';

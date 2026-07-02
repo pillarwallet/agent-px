@@ -1,4 +1,3 @@
-import { EtherspotUtils } from '@etherspot/transaction-kit';
 import { sub } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +15,7 @@ import {
 // utils
 import { chainIdToChainNameTokensData } from '../../../../services/tokensData';
 import { convertDateToUnixTimestamp } from '../../../../utils/common';
+import { EtherspotUtils } from '../../../../utils/nativeTransactionKit';
 import { limitDigits } from '../../utils/converters';
 
 // types

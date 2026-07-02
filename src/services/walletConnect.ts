@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
-import { usePrivy } from '@privy-io/react-auth';
 import Client, { WalletKit, WalletKitTypes } from '@reown/walletkit';
 import * as Sentry from '@sentry/react';
 import { Core } from '@walletconnect/core';
@@ -19,7 +18,6 @@ import {
   formatUnits,
   hexToBigInt,
   http,
-  isAddressEqual,
   toHex,
 } from 'viem';
 import { useAccount } from 'wagmi';
@@ -42,13 +40,11 @@ import {
   WALLET_GET_CALLS_STATUS,
   WALLET_GET_CAPABILITIES,
   WALLET_SEND_CALLS,
-  getWalletAddressesFromSession,
 } from '../utils/walletConnect';
 
 // utils
 import { getNetworkViem } from '../apps/deposit/utils/blockchain';
 import { serializeBigInts } from '../utils/common';
-import { useComprehensiveLogout } from '../utils/logout';
 import { getUserOperationStatus } from './userOpStatus';
 import {
   ARC_TESTNET_CHAIN_ID,
@@ -267,10 +263,8 @@ export const useWalletConnect = () => {
   } = useBottomMenuModal();
   const { showToast } = useWalletConnectToast();
   const { showModal, hideModal } = useWalletConnectModal();
-  const { user } = usePrivy();
   const { isConnected } = useAccount();
 
-  const { logout: comprehensiveLogout } = useComprehensiveLogout();
   const { walletConnectTxHash, setWalletConnectTxHash } =
     useGlobalTransactionsBatch();
   const [isLoadingDisconnectAll, setIsLoadingDisconnectAll] =
@@ -295,7 +289,6 @@ export const useWalletConnect = () => {
       isLoadingConnect,
       isLoadingDisconnect,
       isLoadingDisconnectAll,
-      hasUser: !!user,
       isConnected,
       hasWalletConnectTxHash: !!walletConnectTxHash,
       hasWalletConnectPayload: !!walletConnectPayload,
@@ -309,124 +302,10 @@ export const useWalletConnect = () => {
     isLoadingConnect,
     isLoadingDisconnect,
     isLoadingDisconnectAll,
-    user,
     isConnected,
     walletConnectTxHash,
     walletConnectPayload,
   ]);
-
-  const handleLogout = async () => {
-    const logoutId = `walletconnect_logout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Start Sentry transaction for logout
-    Sentry.setContext('walletconnect_logout', {
-      logoutId,
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent,
-      hasUser: !!user,
-      isConnected,
-      activeSessionsCount: Object.keys(activeSessions || {}).length,
-    });
-
-    Sentry.addBreadcrumb({
-      category: 'walletconnect',
-      message: 'WalletConnect logout initiated',
-      level: 'info',
-      data: {
-        logoutId,
-        hasUser: !!user,
-        isConnected,
-        activeSessionsCount: Object.keys(activeSessions || {}).length,
-      },
-    });
-
-    let logoutError: Error | null = null;
-
-    try {
-      // Use comprehensive logout for both Privy and WAGMI
-      await comprehensiveLogout();
-
-      Sentry.addBreadcrumb({
-        category: 'walletconnect',
-        message: 'Comprehensive logout completed',
-        level: 'info',
-        data: { logoutId },
-      });
-
-      Sentry.captureMessage('WalletConnect logout completed successfully', {
-        level: 'info',
-        tags: {
-          component: 'walletconnect',
-          action: 'logout_success',
-          logoutId,
-        },
-        contexts: {
-          walletconnect_logout_success: {
-            logoutId,
-            hasUser: !!user,
-            isConnected,
-            activeSessionsCount: Object.keys(activeSessions || {}).length,
-          },
-        },
-      });
-
-      // Reload the page to ensure clean state
-      window.location.reload();
-    } catch (error) {
-      logoutError = error instanceof Error ? error : new Error(String(error));
-
-      Sentry.captureException(error, {
-        tags: {
-          component: 'walletconnect',
-          action: 'logout_error',
-          logoutId,
-        },
-        contexts: {
-          walletconnect_logout_error: {
-            logoutId,
-            error: logoutError.message,
-            hasUser: !!user,
-            isConnected,
-          },
-        },
-      });
-
-      // Still reload the page even if logout fails
-      window.location.reload();
-    }
-  };
-
-  // useCallback to check if one of the walletConnect session
-  // has been initialised by Privy login
-  const isAddressInSessionViaPrivy = useCallback(
-    (session: SessionTypes.Struct): boolean => {
-      const addresses = getWalletAddressesFromSession(session);
-      return addresses.some((addr) =>
-        isAddressEqual(
-          addr as `0x${string}`,
-          user?.wallet?.address as `0x${string}`
-        )
-      );
-    },
-    [user?.wallet?.address]
-  );
-
-  // This is to logout if session was initialised by Privy
-  const checkAndLogoutIfPrivySession = useCallback(
-    (session: SessionTypes.Struct | undefined) => {
-      if (!session) return false;
-
-      const wasPrivyLinked = isAddressInSessionViaPrivy(session);
-
-      if (wasPrivyLinked && user?.wallet?.address) {
-        handleLogout();
-        return true;
-      }
-      return false;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isAddressInSessionViaPrivy, user?.wallet?.address]
-  );
 
   // WalletConnect initialisation
   const initWalletKit = useCallback(async () => {
@@ -440,7 +319,6 @@ export const useWalletConnect = () => {
         userAgent: navigator.userAgent,
         projectId: import.meta.env.VITE_REOWN_PROJECT_ID ? 'SET' : 'NOT_SET',
         hasWallet: !!wallet,
-        hasUser: !!user,
       });
     });
 
@@ -526,7 +404,7 @@ export const useWalletConnect = () => {
       });
       throw error;
     }
-  }, [wallet, user]);
+  }, [wallet]);
 
   useEffect(() => {
     if (walletKit) return;
@@ -740,7 +618,6 @@ export const useWalletConnect = () => {
           userAgent: navigator.userAgent,
           hasWalletKit: !!walletKit,
           hasWallet: !!wallet,
-          hasUser: !!user,
           uriLength: copiedUri.length,
           uriStartsWith: copiedUri.substring(0, 20),
         });
@@ -928,7 +805,7 @@ export const useWalletConnect = () => {
         setIsLoadingConnect(false);
       }
     },
-    [walletKit, initWalletKit, showToast, getSessionFromTopic, wallet, user]
+    [walletKit, initWalletKit, showToast, getSessionFromTopic, wallet]
   );
 
   const disconnectSession = useCallback(
@@ -943,7 +820,6 @@ export const useWalletConnect = () => {
           userAgent: navigator.userAgent,
           topic,
           hasWalletKit: !!walletKit,
-          hasUser: !!user,
         });
       });
 
@@ -1044,8 +920,6 @@ export const useWalletConnect = () => {
         const updatedSessions = walletKit?.getActiveSessions();
         setActiveSessions(updatedSessions);
 
-        checkAndLogoutIfPrivySession(sessionData);
-
         Sentry.captureMessage(
           'WalletConnect session disconnection successful',
           {
@@ -1096,7 +970,7 @@ export const useWalletConnect = () => {
     },
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletKit, getSessionFromTopic, initWalletKit, showToast, user]
+    [walletKit, getSessionFromTopic, initWalletKit, showToast]
   );
 
   const disconnectAllSessions = useCallback(async () => {
@@ -1113,13 +987,7 @@ export const useWalletConnect = () => {
     }
 
     const currentSessions = walletKit?.getActiveSessions() ?? {};
-    const sessionTopics = Object.keys(currentSessions);
-
-    // Filter out any Privy session
-    const topicsToDisconnect = sessionTopics.filter((topic) => {
-      const session = currentSessions[topic];
-      return !isAddressInSessionViaPrivy(session);
-    });
+    const topicsToDisconnect = Object.keys(currentSessions);
 
     for (const topic of topicsToDisconnect) {
       try {
@@ -1267,25 +1135,16 @@ export const useWalletConnect = () => {
     [showModal, showToast, wallet, walletKit, kit]
   );
 
-  const onSessionDelete = useCallback(
-    (event: { topic: string }) => {
-      const deletedTopic = event.topic;
+  const onSessionDelete = useCallback(() => {
+    // Update activeSessions after dApp disconnecting
+    const updatedSessions = walletKit?.getActiveSessions();
+    setActiveSessions(updatedSessions);
 
-      const deletedSession = prevSessionsRef.current[deletedTopic];
-
-      checkAndLogoutIfPrivySession(deletedSession);
-
-      // Update activeSessions after dApp disconnecting
-      const updatedSessions = walletKit?.getActiveSessions();
-      setActiveSessions(updatedSessions);
-
-      showToast({
-        title: 'WalletConnect',
-        subtitle: 'A connection ended from the dApp.',
-      });
-    },
-    [showToast, walletKit, checkAndLogoutIfPrivySession]
-  );
+    showToast({
+      title: 'WalletConnect',
+      subtitle: 'A connection ended from the dApp.',
+    });
+  }, [showToast, walletKit]);
 
   const onSessionRequest = useCallback(
     async (requestEvent: WalletKitTypes.SessionRequest) => {

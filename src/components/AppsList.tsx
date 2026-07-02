@@ -5,8 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 
-// components
-import { useWallets } from '@privy-io/react-auth';
 import AppIcon from './AppIcon';
 import Label from './Form/Label';
 import SkeletonLoader from './SkeletonLoader';
@@ -15,6 +13,7 @@ import SkeletonLoader from './SkeletonLoader';
 import { AppManifest } from '../types';
 
 // hooks
+import { useAuthAccount } from '../hooks/useAuthAccount';
 import useAllowedApps from '../hooks/useAllowedApps';
 import useBottomMenuModal from '../hooks/useBottomMenuModal';
 import useTransactionKit from '../hooks/useTransactionKit';
@@ -37,8 +36,7 @@ const AppsList = ({ hideTitle = false }: { hideTitle?: boolean }) => {
   const { isLoading: isLoadingAllowedApps, allowed } = useAllowedApps();
   const [t] = useTranslation();
   const { walletAddress: accountAddress } = useTransactionKit();
-  const { wallets } = useWallets();
-  const ownerEoaAddress = wallets?.[0]?.address;
+  const { walletAddress: ownerEoaAddress } = useAuthAccount();
 
   // Use RTK Query for developer apps
   const { data: developerAppsData, isLoading: isLoadingDeveloperApps } =

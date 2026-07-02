@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { Settings } from 'lucide-react';
 
 // Styles
@@ -23,6 +22,7 @@ import { useTradingSignals } from './hooks/useTradingSignals';
 import { useSparklineData } from './hooks/useSparklineData';
 import { useLogoMap } from './hooks/useLogoMap';
 import { useSubscriptionStatus } from './hooks/useSubscriptionStatus';
+import { useAuthAccount } from '../../hooks/useAuthAccount';
 import { isTestnet } from '../../utils/blockchain';
 
 // Utils
@@ -97,16 +97,11 @@ const App = () => {
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const storedEoaAddress = useMemo(() => getStoredValue('EOA_ADDRESS'), []);
-  const { user } = usePrivy();
-  const { wallets } = useWallets();
-  const privyWalletAddress = user?.wallet?.address;
-  const privyWallets = wallets || [];
-  const fallbackWalletAddress =
-    privyWallets.length > 0 ? privyWallets[0]?.address : undefined;
+  const { walletAddress: authWalletAddress } = useAuthAccount();
 
   const eoaAddress = useMemo(() => {
-    return storedEoaAddress || privyWalletAddress || fallbackWalletAddress || null;
-  }, [storedEoaAddress, privyWalletAddress, fallbackWalletAddress]);
+    return authWalletAddress || storedEoaAddress || null;
+  }, [authWalletAddress, storedEoaAddress]);
   const devicePlatform = useMemo(() => getInitialDevicePlatform(), []);
   const isNativeApp =
     devicePlatform === 'ios' || devicePlatform === 'android';

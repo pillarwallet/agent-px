@@ -134,7 +134,7 @@ const AccountModal = ({ isContentVisible }: AccountModalProps) => {
       localStorage.removeItem('EOA_ADDRESS');
     }
 
-    // Use comprehensive logout for both Privy and WAGMI
+    // Use comprehensive logout for local auth/session and WAGMI.
     try {
       await logout();
     } catch (error) {
@@ -385,13 +385,6 @@ const Wrapper = styled.div`
   max-height: 100%;
   width: 100%;
   overflow-y: auto;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 `;
 
 const TokenTotals = styled.div`

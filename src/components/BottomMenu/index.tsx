@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { usePrivy } from '@privy-io/react-auth';
 import {
   Element as IconApps,
   Receipt1 as IconHistory,
@@ -18,6 +17,7 @@ import { useAccount } from 'wagmi';
 import { navigationRoute } from '../../navigation';
 
 // hooks
+import { useAuthAccount } from '../../hooks/useAuthAccount';
 import useBottomMenuModal from '../../hooks/useBottomMenuModal';
 import useGlobalTransactionsBatch from '../../hooks/useGlobalTransactionsBatch';
 
@@ -28,7 +28,7 @@ import BottomMenuModal from '../BottomMenuModal';
 import { animation } from '../../theme';
 
 const BottomMenu = () => {
-  const { authenticated } = usePrivy();
+  const { authenticated } = useAuthAccount();
   const { isConnected } = useAccount();
   const navLocation = useLocation();
   const navigate = useNavigate();

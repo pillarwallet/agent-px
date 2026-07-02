@@ -1,3 +1,5 @@
-window.__PILLARX_EXTENSION_VIEW__ = 'options';
+window.pillarXExtensionView = 'options';
 
-void import('../main');
+import('../main').catch((error) => {
+  console.error('Failed to load PillarX options entrypoint', error);
+});

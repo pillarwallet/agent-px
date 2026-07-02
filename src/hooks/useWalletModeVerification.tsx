@@ -1,4 +1,3 @@
-import { EtherspotTransactionKit } from '@etherspot/transaction-kit';
 import { useEffect, useState } from 'react';
 import { createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -7,8 +6,9 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { visibleChains } from '../utils/blockchain';
 import { sanitizeError } from '../utils/common';
 import { OUR_EIP7702_IMPLEMENTATION_ADDRESS } from '../utils/eip7702Authorization';
+import type { EtherspotTransactionKit } from '../utils/nativeTransactionKit';
 
-type WalletMode = 'modular' | 'delegatedEoa';
+type WalletMode = 'delegatedEoa';
 
 export interface EIP7702Info {
   [chainId: number]: {
@@ -37,7 +37,7 @@ export const useWalletModeVerification = ({
   eoaAddress,
   kit,
 }: UseWalletModeVerificationProps): WalletModeVerificationResult => {
-  const [walletMode, setWalletMode] = useState<WalletMode>('modular');
+  const [walletMode, setWalletMode] = useState<WalletMode>('delegatedEoa');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [eip7702Info, setEip7702Info] = useState<EIP7702Info>({});
@@ -49,7 +49,7 @@ export const useWalletModeVerification = ({
       // Need either privateKey or eoaAddress, and kit
       if ((!privateKey && !eoaAddress) || !kit) {
         if (cancelled) return;
-        setWalletMode('modular');
+        setWalletMode('delegatedEoa');
         setEip7702Info({});
         return;
       }
@@ -73,7 +73,7 @@ export const useWalletModeVerification = ({
         if (!resolvedAddress) {
           if (cancelled) return;
           setEip7702Info({});
-          setWalletMode('modular');
+          setWalletMode('delegatedEoa');
           setError('No address available');
           return;
         }
@@ -110,75 +110,25 @@ export const useWalletModeVerification = ({
         );
 
         if (isSmartContract) {
-          // The provided address (from eoaAddress prop or privateKey) is a smart contract, not an EOA
-          // EIP-7702 is only applicable to EOAs, so skip the check and default to modular
+          // The provided address (from eoaAddress prop or privateKey) is a smart contract, not an EOA.
+          // EIP-7702 is only applicable to EOAs, and this app no longer supports a modular fallback.
           const contractChains = eoaAddressCodeChecks
             .filter((check) => check.isSmartContract)
             .map((check) => check.chainId)
             .join(', ');
-          console.warn(
-            `Address ${resolvedAddress} is a smart contract on chain(s): ${contractChains}, not an EOA. Skipping EIP-7702 check and getWalletAddress() call.`
-          );
+          const contractAddressError = `Address ${resolvedAddress} is a smart contract on chain(s): ${contractChains}, not an EOA.`;
+          console.warn(contractAddressError);
           if (cancelled) return;
           setEip7702Info({});
-          setWalletMode('modular');
+          setWalletMode('delegatedEoa');
+          setError(contractAddressError);
           return;
         }
 
-        // At this point, resolvedAddress is confirmed to be an EOA (or has EIP-7702 designation)
-        // Get counterfactual address from kit (in modular mode)
-        const counterfactualAddress = await kit.getWalletAddress();
-
-        // Check all supported chains
-        let shouldRemainModular = false;
-
-        // Check deployment and asset status across all chains
-        const deploymentChecks = await Promise.all(
-          visibleChains.map(async (chain) => {
-            const publicClient = createPublicClient({
-              chain,
-              transport: http(),
-            });
-
-            // Check if smart account is deployed
-            const code = await publicClient.getCode({
-              address: counterfactualAddress as `0x${string}`,
-            });
-
-            const isDeployed = code && code !== '0x';
-
-            if (isDeployed) {
-              return { shouldRemainModular: true, chainId: chain.id };
-            }
-
-            // Smart account not deployed, check if it has assets
-            const balance = await publicClient.getBalance({
-              address: counterfactualAddress as `0x${string}`,
-            });
-
-            if (balance > BigInt(0)) {
-              return { shouldRemainModular: true, chainId: chain.id };
-            }
-
-            return { shouldRemainModular: false, chainId: chain.id };
-          })
-        );
-        if (cancelled) return;
-
-        // Check if any chain indicates we should remain modular
-        shouldRemainModular = deploymentChecks.some(
-          (result) => result.shouldRemainModular
-        );
-
-        if (shouldRemainModular) {
-          if (cancelled) return;
-          setEip7702Info({});
-          setWalletMode('modular');
-          return;
-        }
-
-        // If we reach here, smart account is not deployed and has no assets
-        // Check for EIP-7702 implementation on EOA
+        // At this point, resolvedAddress is confirmed to be an EOA or an
+        // EIP-7702-designated EOA. The native viem transaction kit uses the EOA
+        // itself as the account address, so an EOA balance must not force
+        // a different account mode.
         const eip7702Checks = eoaAddressCodeChecks.map((check) => {
           const senderCode = check.code;
 
@@ -229,8 +179,8 @@ export const useWalletModeVerification = ({
         if (cancelled) return;
         setEip7702Info(perChainData);
 
-        // Since we reached this point, smart account is not deployed and has no assets
-        // Therefore, we always use delegatedEoa mode regardless of EIP-7702 status
+        // Use the EIP-7702 route for EOAs. If a chain is not delegated yet,
+        // the send flow can request an authorization for that chain.
         setWalletMode('delegatedEoa');
       } catch (err) {
         if (cancelled) return;
@@ -238,7 +188,7 @@ export const useWalletModeVerification = ({
         console.error('Wallet mode verification failed:', sanitizedError);
         setEip7702Info({});
         setError(sanitizedError);
-        setWalletMode('modular'); // Default to modular on error
+        setWalletMode('delegatedEoa');
       } finally {
         if (!cancelled) {
           setIsLoading(false);
