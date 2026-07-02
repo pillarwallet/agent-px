@@ -1300,7 +1300,7 @@ const Login = () => {
       <FormCard>
         {step === 'phone' && (
           <>
-            <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,3fr)] gap-2">
+            <div className="grid w-full grid-cols-[minmax(0,1.20fr)_minmax(0,2.80fr)] gap-2">
               <div ref={countryPickerRef} className="relative">
                 <div
                   className={`flex h-[58px] items-center gap-1.5 rounded-2xl border px-2 transition ${

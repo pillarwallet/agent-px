@@ -38,11 +38,14 @@ const extensionManifest = {
     page: 'extension/options.html',
     open_in_tab: true,
   },
+  side_panel: {
+    default_path: 'extension/sidepanel.html',
+  },
   background: {
     service_worker: 'assets/background.js',
     type: 'module',
   },
-  permissions: ['storage'],
+  permissions: ['storage', 'sidePanel'],
   host_permissions: ['<all_urls>'],
 } satisfies Record<string, unknown>;
 
@@ -67,6 +70,7 @@ export default defineConfig({
       input: {
         popup: path.resolve(__dirname, 'extension/popup.html'),
         options: path.resolve(__dirname, 'extension/options.html'),
+        sidepanel: path.resolve(__dirname, 'extension/sidepanel.html'),
         background: path.resolve(__dirname, 'src/extension/background.ts'),
       },
       external: ['/functions/**'],

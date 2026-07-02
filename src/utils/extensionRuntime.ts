@@ -1,4 +1,8 @@
-export type ExtensionViewContext = 'popup' | 'options' | undefined;
+export type ExtensionViewContext =
+  | 'popup'
+  | 'options'
+  | 'sidePanel'
+  | undefined;
 
 declare global {
   interface Window {
@@ -27,4 +31,5 @@ export const getExtensionViewContext = (): ExtensionViewContext => {
 };
 
 export const isExtensionPopupView = () =>
-  isExtensionRuntime() && getExtensionViewContext() === 'popup';
+  isExtensionRuntime() &&
+  ['popup', 'sidePanel'].includes(getExtensionViewContext() ?? '');

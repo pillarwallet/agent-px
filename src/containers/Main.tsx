@@ -982,7 +982,8 @@ const AuthLayout = () => {
   // Determine if this is a root page, we'll need it later
   const isExtensionEntryPage =
     window.location.pathname === '/popup.html' ||
-    window.location.pathname === '/options.html';
+    window.location.pathname === '/options.html' ||
+    window.location.pathname === '/sidepanel.html';
   const isRootPage =
     window.location.pathname === '/' ||
     window.location.pathname === '/waitlist' ||

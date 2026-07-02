@@ -23,6 +23,7 @@ import useGlobalTransactionsBatch from '../../hooks/useGlobalTransactionsBatch';
 
 // components
 import BottomMenuModal from '../BottomMenuModal';
+import ChevronModal from '../BottomMenuModal/ChevronModal';
 
 // theme
 import { animation } from '../../theme';
@@ -167,6 +168,7 @@ const BottomMenu = () => {
               </MenuItem>
             );
           })}
+          <ChevronModal />
         </MainMenuItems>
       </Wrapper>
       <Transition nodeRef={overlayRef} in={!!active} timeout={100}>
