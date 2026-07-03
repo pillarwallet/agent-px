@@ -13,13 +13,6 @@ vi.mock('../../../hooks/useIntentSdk', () => ({
   })),
 }));
 
-vi.mock('../../../../../hooks/useEIP7702Upgrade', () => ({
-  useEIP7702Upgrade: vi.fn(() => ({
-    isEligible: false,
-    handleUpgradeClick: vi.fn(),
-  })),
-}));
-
 vi.mock('../../../hooks/useTopUp', () => ({
   default: vi.fn(() => ({
     executeTopUp: vi.fn(),

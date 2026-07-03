@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import { useAccount } from 'wagmi';
 
 // utils
 import { getAllUniqueBlockchains } from '../../utils/blockchain';
@@ -23,7 +22,6 @@ import TokensPercentage from '../TokensPercentage/TokensPercentage';
 import Body from '../Typography/Body';
 import H1 from '../Typography/H1';
 import WalletAddressOverview from '../WalletAdddressOverview/WalletAddressOverview';
-import WalletConnectDropdown from '../WalletConnectDropdown/WalletConnectDropdown';
 
 type PortfolioOverviewProps = {
   data: WalletData | undefined;
@@ -33,10 +31,6 @@ type PortfolioOverviewProps = {
 const PortfolioOverview = ({ data, isDataLoading }: PortfolioOverviewProps) => {
   const [t] = useTranslation();
   const { walletAddress: accountAddress } = useTransactionKit();
-  const { isConnected } = useAccount();
-
-  // Don't show WalletConnectDropdown if user is already connected via Wagmi.
-  const shouldShowWalletConnectDropdown = !isConnected;
 
   const { data: dataPortlioOverview } = data || {};
   const dataWallet = dataPortlioOverview as WalletPortfolioData | undefined;
@@ -88,7 +82,6 @@ const PortfolioOverview = ({ data, isDataLoading }: PortfolioOverviewProps) => {
     >
       <div className="flex flex-col justify-between">
         <WalletAddressOverview address={accountAddress ?? ''} />
-        {shouldShowWalletConnectDropdown && <WalletConnectDropdown />}
         <div className="mobile:border mobile:border-medium_grey mobile:rounded-[10px] mobile:p-4 mobile:w-full">
           <Body className="text-purple_light mb-2">{t`title.totalBalance`}</Body>
           <div className="flex gap-4 items-end" id="wallet-portfolio-balance">

@@ -32,9 +32,6 @@ export type WalletPortfolioState = {
   selectedBalanceOrPnl: 'balance' | 'pnl';
   isRefreshAll: boolean;
   isReceiveModalOpen: boolean;
-  isUpgradeWalletModalOpen: boolean;
-  isEIP7702Eligible: boolean;
-  hasCompletedEIP7702Upgrade: boolean;
 };
 
 const initialState: WalletPortfolioState = {
@@ -59,9 +56,6 @@ const initialState: WalletPortfolioState = {
   selectedBalanceOrPnl: 'balance',
   isRefreshAll: false,
   isReceiveModalOpen: false,
-  isUpgradeWalletModalOpen: false,
-  isEIP7702Eligible: false,
-  hasCompletedEIP7702Upgrade: false,
 };
 
 const walletPortfolioSlice = createSlice({
@@ -134,15 +128,6 @@ const walletPortfolioSlice = createSlice({
     setIsReceiveModalOpen(state, action: PayloadAction<boolean>) {
       state.isReceiveModalOpen = action.payload;
     },
-    setIsUpgradeWalletModalOpen(state, action: PayloadAction<boolean>) {
-      state.isUpgradeWalletModalOpen = action.payload;
-    },
-    setIsEIP7702Eligible(state, action: PayloadAction<boolean>) {
-      state.isEIP7702Eligible = action.payload;
-    },
-    setHasCompletedEIP7702Upgrade(state, action: PayloadAction<boolean>) {
-      state.hasCompletedEIP7702Upgrade = action.payload;
-    },
   },
 });
 
@@ -165,9 +150,6 @@ export const {
   setSelectedBalanceOrPnl,
   setIsRefreshAll,
   setIsReceiveModalOpen,
-  setIsUpgradeWalletModalOpen,
-  setIsEIP7702Eligible,
-  setHasCompletedEIP7702Upgrade,
 } = walletPortfolioSlice.actions;
 
 export default walletPortfolioSlice;

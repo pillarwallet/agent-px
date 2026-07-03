@@ -1,14 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { setWalletAddresses } from '@hypelab/sdk-react';
 import { Setting2 } from 'iconsax-react';
-import {
-  createRef,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { createRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import './styles/tailwindPillarX.css';
@@ -17,22 +10,16 @@ import './styles/tailwindPillarX.css';
 import { ApiLayout, Projection } from '../../types/api';
 
 // hooks
-import { useEIP7702Upgrade } from '../../hooks/useEIP7702Upgrade';
 import { useAuthAccount } from '../../hooks/useAuthAccount';
 import useTransactionKit from '../../hooks/useTransactionKit';
 import { useRecordPresenceMutation } from '../../services/pillarXApiPresence';
 import { useGetTilesInfoQuery, useRecordProfileMutation } from './api/homeFeed';
-import { useAppDispatch, useAppSelector } from './hooks/useReducerHooks';
 import useRefDimensions from './hooks/useRefDimensions';
-
-// reducer
-import { setIsUpgradeWalletModalOpen } from './reducer/WalletPortfolioSlice';
 
 // utils
 import { componentMap } from './utils/configComponent';
 
 // components
-import EIP7702UpgradeModal from '../../components/EIP7702UpgradeModal/EIP7702UpgradeModal';
 import AnimatedTile from './components/AnimatedTile/AnimatedTitle';
 import SkeletonTiles from './components/SkeletonTile/SkeletonTile';
 import Body from './components/Typography/Body';
@@ -51,17 +38,12 @@ const App = () => {
   const [page, setPage] = useState(1);
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false);
   const [pageData, setPageData] = useState<Projection[]>([]);
-  const isUpgradeWalletModalOpen = useAppSelector(
-    (state) => state.walletPortfolio.isUpgradeWalletModalOpen as boolean
-  );
 
   // Import wallets
   const { walletAddress } = useTransactionKit();
   const { walletAddress: ownerWalletAddress } = useAuthAccount();
 
   // hooks
-  const { checkOnLogin } = useEIP7702Upgrade();
-  const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
   // Check if we're in React Native app (check localStorage which is set in Main.tsx)
@@ -274,21 +256,6 @@ const App = () => {
     }
   }, [walletAddress]);
 
-  // Check if user is eligible for EIP-7702 upgrade (when walletAddress loads on login)
-  const handleCheckEligibility = useCallback(() => {
-    if (walletAddress) {
-      checkOnLogin();
-    }
-  }, [walletAddress, checkOnLogin]);
-
-  useEffect(() => {
-    handleCheckEligibility();
-  }, [handleCheckEligibility]);
-
-  const handleCloseModal = () => {
-    dispatch(setIsUpgradeWalletModalOpen(false));
-  };
-
   // useMemo here to reload all components and create a smoother scrolling experience
   const DisplayHomeFeedTiles = useMemo(() => {
     const allTileComponents = [];
@@ -393,10 +360,6 @@ const App = () => {
           <Body className="text-center mb-12">That&apos;s all for now</Body>
         )}
       </div>
-      <EIP7702UpgradeModal
-        isOpen={isUpgradeWalletModalOpen}
-        onClose={handleCloseModal}
-      />
     </Wrapper>
   );
 };

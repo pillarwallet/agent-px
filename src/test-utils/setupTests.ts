@@ -124,8 +124,6 @@ vi.mock('../hooks/useRemoteConfig', () => ({
 // Mock the useGlobalTransactionsBatch hook
 vi.mock('../hooks/useGlobalTransactionsBatch', () => ({
   default: vi.fn(() => ({
-    walletConnectTxHash: undefined,
-    setWalletConnectTxHash: vi.fn(),
     transactionMeta: {},
     setTransactionMetaForName: vi.fn(),
     batchCount: 0,
@@ -245,42 +243,6 @@ vi.mock(
   '../providers/EtherspotTransactionKitProvider',
   () => import('../../__mocks__/EtherspotTransactionKitProvider')
 );
-
-// Mock WalletConnectToastProvider
-vi.mock('../providers/WalletConnectToastProvider', () => ({
-  WalletConnectToastProvider: ({ children }: { children: React.ReactNode }) =>
-    children,
-  WalletConnectToastContext: {
-    Provider: ({ children }: { children: React.ReactNode }) => children,
-  },
-}));
-
-// Mock useWalletConnectToast hook
-vi.mock('../hooks/useWalletConnectToast', () => ({
-  default: vi.fn(() => ({
-    showToast: vi.fn(),
-    hideToast: vi.fn(),
-    isToastVisible: false,
-  })),
-}));
-
-// Mock WalletConnectModalProvider
-vi.mock('../providers/WalletConnectModalProvider', () => ({
-  WalletConnectModalProvider: ({ children }: { children: React.ReactNode }) =>
-    children,
-  WalletConnectModalContext: {
-    Provider: ({ children }: { children: React.ReactNode }) => children,
-  },
-}));
-
-// Mock useWalletConnectModal hook
-vi.mock('../hooks/useWalletConnectModal', () => ({
-  default: vi.fn(() => ({
-    showModal: vi.fn(),
-    hideModal: vi.fn(),
-    isModalVisible: false,
-  })),
-}));
 
 // Mock chart.js to prevent chart context errors
 vi.mock('chart.js', () => ({

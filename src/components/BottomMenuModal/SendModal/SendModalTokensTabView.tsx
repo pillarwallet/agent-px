@@ -182,15 +182,9 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   const [isDeploymentCostLoading, setIsDeploymentCostLoading] =
     React.useState(true);
   const { walletAddress: accountAddress } = useTransactionKit();
-  const { setWalletConnectTxHash } = useGlobalTransactionsBatch();
   const [pasteClicked, setPasteClicked] = React.useState<boolean>(false);
-  const {
-    hide,
-    showHistory,
-    showBatchSendModal,
-    setShowBatchSendModal,
-    setWalletConnectPayload,
-  } = useBottomMenuModal();
+  const { hide, showHistory, showBatchSendModal, setShowBatchSendModal } =
+    useBottomMenuModal();
   const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
   const [isPaymaster, setIsPaymaster] = React.useState<boolean>(false);
   const [paymasterContext, setPaymasterContext] = React.useState<{
@@ -1338,7 +1332,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           },
         });
 
-        // For each sent batch, handle userOpHash, WalletConnect, polling
+        // For each sent batch, handle userOpHash and polling
         const allUserOpHashes: string[] = [];
         for (let batchIdx = 0; batchIdx < batchNames.length; batchIdx++) {
           const batchName = batchNames[batchIdx];
@@ -1360,29 +1354,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
               level: 'info',
               data: { sendId, userOpHash },
             });
-
-            // WalletConnect: set transaction hash if needed
-            if (
-              payload?.title === 'WalletConnect Approval Request' ||
-              payload?.title === 'WalletConnect Transaction Request'
-            ) {
-              Sentry.addBreadcrumb({
-                category: 'send_flow',
-                message: 'Processing WalletConnect transaction',
-                level: 'info',
-                data: { sendId, payloadTitle: payload?.title },
-              });
-
-              const txHash = await kit.getTransactionHash(
-                userOpHash,
-                chainIdForTxHash
-              );
-              if (!txHash) {
-                setWalletConnectTxHash(undefined);
-              } else {
-                setWalletConnectTxHash(txHash);
-              }
-            }
 
             startUserOpPolling({
               userOpHash,
@@ -1632,28 +1603,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           data: { sendId, userOpHash: newUserOpHash },
         });
 
-        // WalletConnect: set transaction hash if needed
-        if (
-          payload?.title === 'WalletConnect Approval Request' ||
-          payload?.title === 'WalletConnect Transaction Request'
-        ) {
-          Sentry.addBreadcrumb({
-            category: 'send_flow',
-            message: 'Processing WalletConnect transaction',
-            level: 'info',
-            data: { sendId, payloadTitle: payload?.title },
-          });
-
-          const txHash = await kit.getTransactionHash(
-            newUserOpHash,
-            chainIdForTxHash
-          );
-          if (!txHash) {
-            setWalletConnectTxHash(undefined);
-          } else {
-            setWalletConnectTxHash(txHash);
-          }
-        }
         if (payload?.onSent && sent) {
           payload.onSent([sent.userOpHash || '']);
         }
@@ -2291,12 +2240,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       setErrorMessage(t`error.batchingNotSupportedForPayloadBatches`);
       return;
     }
-    // Prevent batching for WalletConnect flows
-    if (payload?.title?.includes('WalletConnect')) {
-      setErrorMessage(t`error.batchingNotSupportedForWalletConnect`);
-      return;
-    }
-
     let txData: ITransaction;
     let chainId: number | undefined;
     let description = '';
@@ -2396,7 +2339,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setIsSending(false);
 
     if (payload) {
-      setWalletConnectPayload(undefined);
       hide();
     }
   };
@@ -2610,12 +2552,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
         isSending={isSending}
         errorMessage={errorMessage}
         estimatedCostFormatted={estimatedCostFormatted}
-        onAddToBatch={
-          payload?.title?.includes('WalletConnect') ? undefined : onAddToBatch
-        }
-        onCancel={
-          payload?.title?.includes('WalletConnect') ? onCancel : undefined
-        }
+        onAddToBatch={onAddToBatch}
+        onCancel={payload ? onCancel : undefined}
       />
     </>
   );

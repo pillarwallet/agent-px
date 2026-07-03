@@ -3,7 +3,6 @@ import { TailSpin } from 'react-loader-spinner';
 
 // hooks
 import useIntentSdk from '../../hooks/useIntentSdk';
-import { useEIP7702Upgrade } from '../../../../hooks/useEIP7702Upgrade';
 import useTopUp from '../../hooks/useTopUp';
 import useGasEstimationTopUp from '../../hooks/useGasEstimationTopUp';
 
@@ -31,7 +30,6 @@ import { getUserOperationStatus } from '../../../../services/userOpStatus';
 // assets
 import BackArrow from '../../assets/back-arrow.svg';
 import ArrowDownOnboarding from '../../assets/arrow-down-onboarding.svg';
-import Install7702Icon from '../../assets/install-7702-icon.svg';
 import OnboardingInstallModulesIcon from '../../assets/onboarding-install-modules-icon.svg';
 import OnboardingSwapIcon from '../../assets/onboarding-swap-icon.svg';
 import OnboardingGasTankIcon from '../../assets/onboarding-gas-tank-icon.svg';
@@ -168,8 +166,6 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     useIntentSdk({
       payingTokens,
     });
-  const { isEligible: isEIP7702Eligible, handleUpgradeClick } =
-    useEIP7702Upgrade();
   const { executeTopUp, error: topUpError, clearError } = useTopUp();
 
   // Gas estimation - only run when selectedToken is available
@@ -222,22 +218,10 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
     setIsLoading(true);
 
     try {
-      // Step 1: Handle EIP-7702 upgrade if eligible
-      if (isEIP7702Eligible) {
-        try {
-          await handleUpgradeClick();
-        } catch (upgradeErr) {
-          console.error('EIP-7702 upgrade failed:', upgradeErr);
-          setSetupError('Failed to upgrade wallet. Please try again.');
-          setIsWaitingForSignature(false);
-          setIsLoading(false);
-          return;
-        }
-      }
-
       let additionalTransactions: Transactions[] = [];
-      // Step 2: Install modules if not installed and not EIP-7702 eligible
-      if (!areModulesInstalled && !isEIP7702Eligible) {
+      // Install modules if not installed. EIP-7702 delegation is handled by the
+      // transaction flow when needed.
+      if (!areModulesInstalled) {
         try {
           additionalTransactions = await getEnablePulseTradingTransactions();
         } catch (moduleErr) {
@@ -249,7 +233,7 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
         }
       }
 
-      // Step 3: Execute the top-up transaction
+      // Execute the top-up transaction
       const result = await executeTopUp({
         selectedToken,
         amount,
@@ -585,20 +569,7 @@ export default function PreviewTopUp(props: PreviewTopUpProps) {
   const getSteps = () => {
     const steps = [];
 
-    // Step 1: Enable 7702 (only if eligible for 7702 upgrade)
-    if (isEIP7702Eligible) {
-      steps.push({
-        icon: (
-          <img src={Install7702Icon} alt="Enable 7702" className="w-9 h-9" />
-        ),
-        title: 'Enable 7702',
-        description: 'Upgrade wallet for smart actions',
-        bgColor: 'bg-[rgba(92,255,147,0.1)]',
-      });
-    }
-
-    // Step 2: Install modules (if modules not installed and not 7702 eligible)
-    if (!areModulesInstalled && !isEIP7702Eligible) {
+    if (!areModulesInstalled) {
       steps.push({
         icon: (
           <img

@@ -97,7 +97,7 @@ const AuthLayout = () => {
   const [chainId, setChainId] = useState<number | undefined>(undefined);
   const [isPhoneOtpUnlockStateHydrated, setIsPhoneOtpUnlockStateHydrated] =
     useState(!isExtensionRuntimeEnabled);
-  const { isLoading: isLoadingAllowedApps, allowed } = useAllowedApps();
+  const { allowed } = useAllowedApps();
   const [, setPhoneOtpAuthStateVersion] = useState(0);
   const phoneOtpPrivateKey = getUnlockedPhoneOtpPrivateKey();
   const phoneOtpAddress = useMemo(() => {
@@ -119,9 +119,9 @@ const AuthLayout = () => {
   const previouslyAuthenticated = isExtensionRuntimeEnabled
     ? phoneOtpAuthEnabled
     : authenticated || phoneOtpAuthEnabled;
-  const isAppReady =
-    (isExtensionRuntimeEnabled ? isPhoneOtpUnlockStateHydrated : ready) &&
-    !isLoadingAllowedApps;
+  const isAppReady = isExtensionRuntimeEnabled
+    ? isPhoneOtpUnlockStateHydrated
+    : ready;
   const isAuthenticated = isExtensionRuntimeEnabled
     ? phoneOtpAuthEnabled && !!phoneOtpPrivateKey
     : authenticated ||
@@ -880,7 +880,6 @@ const AuthLayout = () => {
           <Authorized
             chainId={chainId}
             provider={provider}
-            eoaAddress={eoaAddress}
             customAccount={customAccount}
           />
         ),
@@ -940,8 +939,7 @@ const AuthLayout = () => {
     });
 
     /**
-     * Add the external apps to the route definition.
-     * We need to load the allowed apps
+     * Add external app routes as allowed apps load in the background.
      */
     const externalApps = allowed.filter((app) => app.type === 'app-external');
     externalApps.forEach((app) => {

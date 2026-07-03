@@ -15,10 +15,6 @@ export type IGlobalBatchTransaction = {
 
 export interface IGlobalTransactionsBatchContext {
   data: {
-    walletConnectTxHash: string | undefined;
-    setWalletConnectTxHash: React.Dispatch<
-      React.SetStateAction<string | undefined>
-    >;
     transactionMeta: Record<string, { title: string; description?: string }>;
     setTransactionMetaForName: (
       transactionName: string,
@@ -37,9 +33,6 @@ const GlobalTransactionsBatchProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const [walletConnectTxHash, setWalletConnectTxHash] = React.useState<
-    string | undefined
-  >(undefined);
   const [transactionMeta, setTransactionMeta] = React.useState<
     Record<string, { title: string; description?: string }>
   >({});
@@ -97,14 +90,12 @@ const GlobalTransactionsBatchProvider = ({
 
   const contextData = useMemo(
     () => ({
-      walletConnectTxHash,
-      setWalletConnectTxHash,
       transactionMeta,
       setTransactionMetaForName,
       batchCount,
       setBatchCount,
     }),
-    [walletConnectTxHash, transactionMeta, batchCount]
+    [transactionMeta, batchCount]
   );
 
   return (

@@ -14,10 +14,6 @@ export interface BottomMenuModalContext {
     hide: () => void;
     active: BottomMenuItem | null;
     activeIndex: number | null;
-    walletConnectPayload: SendModalData | undefined;
-    setWalletConnectPayload: Dispatch<
-      SetStateAction<SendModalData | undefined>
-    >;
     showBatchSendModal: boolean;
     setShowBatchSendModal: Dispatch<SetStateAction<boolean>>;
   };
@@ -43,9 +39,6 @@ const BottomMenuModalProvider = ({ children }: React.PropsWithChildren) => {
     React.useState<BottomMenuItem | null>(null);
   const [showBatchSendModal, setShowBatchSendModal] =
     React.useState<boolean>(false);
-  const [walletConnectPayload, setWalletConnectPayload] = React.useState<
-    SendModalData | undefined
-  >(undefined);
 
   if (showBatchSendModal && activeMenuItem?.type !== 'send') {
     setShowBatchSendModal(false);
@@ -63,10 +56,7 @@ const BottomMenuModalProvider = ({ children }: React.PropsWithChildren) => {
     () => ({
       showTransactionConfirmation: (payload?: SendModalData) =>
         setActiveMenuItem({ type: 'send', payload }),
-      showSend: () =>
-        walletConnectPayload
-          ? setActiveMenuItem({ type: 'send', payload: walletConnectPayload })
-          : setActiveMenuItem({ type: 'send' }),
+      showSend: () => setActiveMenuItem({ type: 'send' }),
       showHistory: () => setActiveMenuItem({ type: 'history' }),
       showAccount: () => setActiveMenuItem({ type: 'account' }),
       showApps: () => setActiveMenuItem({ type: 'apps' }),
@@ -75,10 +65,8 @@ const BottomMenuModalProvider = ({ children }: React.PropsWithChildren) => {
       active: activeMenuItem,
       activeIndex,
       showBatchSendModal,
-      walletConnectPayload,
-      setWalletConnectPayload,
     }),
-    [activeMenuItem, activeIndex, showBatchSendModal, walletConnectPayload]
+    [activeMenuItem, activeIndex, showBatchSendModal]
   );
 
   return (

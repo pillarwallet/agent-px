@@ -29,25 +29,6 @@ describe('GlobalTransactionsBatchProvider', () => {
     expect(result.current.transactionMeta).toEqual({});
   });
 
-  it('initializes with undefined wallet connect transaction hash', () => {
-    const { result } = renderHook(() => useGlobalTransactionsBatch(), {
-      wrapper,
-    });
-    expect(result.current.walletConnectTxHash).toBeUndefined();
-  });
-
-  it('sets wallet connect transaction hash correctly', () => {
-    const { result } = renderHook(() => useGlobalTransactionsBatch(), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.setWalletConnectTxHash('0x1234567890abcdef');
-    });
-
-    expect(result.current.walletConnectTxHash).toBe('0x1234567890abcdef');
-  });
-
   it('sets transaction metadata for name correctly', () => {
     const { result } = renderHook(() => useGlobalTransactionsBatch(), {
       wrapper,

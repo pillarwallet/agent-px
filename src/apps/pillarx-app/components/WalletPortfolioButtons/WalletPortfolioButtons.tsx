@@ -2,10 +2,7 @@ import { useState } from 'react';
 import { RiArrowDownLine } from 'react-icons/ri';
 import { TailSpin } from 'react-loader-spinner';
 import { isAddress } from 'viem';
-import { useAccount } from 'wagmi';
 
-// hooks
-import { useEIP7702Upgrade } from '../../../../hooks/useEIP7702Upgrade';
 import useTransactionKit from '../../../../hooks/useTransactionKit';
 
 // utils
@@ -18,20 +15,14 @@ import { setIsReceiveModalOpen } from '../../reducer/WalletPortfolioSlice';
 // components
 import ReceiveModal from '../ReceiveModal/ReceiveModal';
 import BodySmall from '../Typography/BodySmall';
-import WalletConnectDropdown from '../WalletConnectDropdown/WalletConnectDropdown';
 
 // icons
 import FrameIcon from '../../images/Frame.svg';
 
 const WalletPortfolioButtons = () => {
   const dispatch = useAppDispatch();
-  const { isConnected } = useAccount();
-  const { isEligible, handleUpgradeClick } = useEIP7702Upgrade();
   const { walletAddress: accountAddress } = useTransactionKit();
   const [isAddCashLoading, setIsAddCashLoading] = useState(false);
-
-  // Don't show WalletConnectDropdown if user is already connected via Wagmi.
-  const shouldShowWalletConnectDropdown = !isConnected;
 
   const handleAddCash = async () => {
     if (isAddCashLoading) return;
@@ -164,7 +155,7 @@ const WalletPortfolioButtons = () => {
   };
 
   return (
-    <div className="flex flex-wrap w-full gap-2.5">
+    <div className="flex w-full items-center justify-between gap-2.5">
       <ReceiveModal />
       <button
         type="button"
@@ -176,7 +167,6 @@ const WalletPortfolioButtons = () => {
           <RiArrowDownLine size={16} color="white" />
         </div>
       </button>
-      {shouldShowWalletConnectDropdown && <WalletConnectDropdown />}
       <button
         type="button"
         className="flex py-[9px] px-3 w-fit h-[44px] items-center justify-center border-x-2 border-t-2 border-b-4 rounded-[10px] border-[#121116] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -195,18 +185,6 @@ const WalletPortfolioButtons = () => {
           )}
         </div>
       </button>
-      {isEligible && (
-        <button
-          type="button"
-          className="flex py-[9px] px-3 w-fit h-[44px] items-center justify-center border-x-2 border-t-2 border-b-4 rounded-[10px] border-[#121116] cursor-pointer"
-          onClick={handleUpgradeClick}
-        >
-          <div className="flex gap-2 items-center justify-center rounded-lg cursor-pointer">
-            <BodySmall>Upgrade</BodySmall>
-            <RiArrowDownLine size={16} color="white" className="rotate-180" />
-          </div>
-        </button>
-      )}
     </div>
   );
 };

@@ -13,21 +13,14 @@ import Loading from '../pages/Loading';
 
 // hooks
 import { useAuthAccount } from '../hooks/useAuthAccount';
-import { useWalletModeVerification } from '../hooks/useWalletModeVerification';
 
 // providers
 import AccountTransactionHistoryProvider from '../providers/AccountTransactionHistoryProvider';
 import BottomMenuModalProvider from '../providers/BottomMenuModalProvider';
-import { EIP7702Provider } from '../providers/EIP7702Provider';
 import { EtherspotTransactionKitProvider } from '../providers/EtherspotTransactionKitProvider';
 import GlobalTransactionBatchesProvider from '../providers/GlobalTransactionsBatchProvider';
 import SelectedChainsHistoryProvider from '../providers/SelectedChainsHistoryProvider';
-import { WalletConnectModalProvider } from '../providers/WalletConnectModalProvider';
-import { WalletConnectToastProvider } from '../providers/WalletConnectToastProvider';
-import {
-  EtherspotTransactionKit,
-  type EtherspotTransactionKitConfig,
-} from '../utils/nativeTransactionKit';
+import type { EtherspotTransactionKitConfig } from '../utils/nativeTransactionKit';
 
 /**
  * @name Authorized
@@ -38,18 +31,13 @@ import {
 export default function Authorized({
   provider,
   chainId,
-  privateKey,
-  eoaAddress,
   customAccount,
 }: {
   provider: WalletClient;
   chainId: number;
-  privateKey?: string;
-  eoaAddress?: string;
   customAccount?: Account;
 }) {
   const [showAnimation, setShowAnimation] = useState(true);
-  const [tempKit, setTempKit] = useState<EtherspotTransactionKit | null>(null);
 
   // Get hooks for debug info
   const { authenticated, ready, user } = useAuthAccount();
@@ -66,38 +54,6 @@ export default function Authorized({
   const walletConnectConnectorId = walletConnectConnector?.id;
   const walletConnectConnectorName = walletConnectConnector?.name;
   const walletConnectConnectorReady = walletConnectConnector?.ready;
-
-  // Create temporary kit for wallet mode verification
-  // Only recreate when provider or privateKey changes
-  useEffect(() => {
-    if (provider && chainId) {
-      const tempKitConfig = {
-        provider,
-        chainId,
-        privateKey,
-        bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
-        walletMode: 'modular' as const, // Always start with modular for verification
-      } as unknown as EtherspotTransactionKitConfig;
-
-      const kit = new EtherspotTransactionKit(tempKitConfig);
-      setTempKit(kit);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, privateKey, chainId]);
-
-  // Use wallet mode verification hook
-  const {
-    walletMode,
-    isLoading: isVerifyingWalletMode,
-    error: walletModeError,
-    eip7702Info,
-  } = useWalletModeVerification({
-    privateKey,
-    eoaAddress,
-    kit: tempKit,
-  });
-
-  const effectiveWalletMode = walletMode;
 
   useEffect(() => {
     // Check if we're coming from token-atlas
@@ -168,7 +124,7 @@ export default function Authorized({
   ]);
 
   // Memoize the config to prevent unnecessary kit recreation
-  // Etherspot delegated EOA mode accepts either privateKey or viemLocalAccount, not both.
+  // Etherspot delegated EOA mode uses the active viem account.
   const kitConfig = useMemo(() => {
     const providerAccount =
       typeof provider.account === 'object' && provider.account !== null
@@ -177,72 +133,50 @@ export default function Authorized({
 
     const resolvedViemAccount = customAccount ?? providerAccount;
 
-    let accountConfig:
-      | { privateKey: string }
-      | { viemLocalAccount: Account }
-      | Record<string, never> = {};
-
-    if (effectiveWalletMode === 'delegatedEoa') {
-      accountConfig = resolvedViemAccount
-        ? { viemLocalAccount: resolvedViemAccount }
-        : {};
-    } else if (privateKey) {
-      accountConfig = { privateKey };
-    } else if (resolvedViemAccount) {
-      accountConfig = { viemLocalAccount: resolvedViemAccount };
-    }
+    const accountConfig = resolvedViemAccount
+      ? { viemLocalAccount: resolvedViemAccount }
+      : {};
 
     return {
       provider,
       chainId,
       ...accountConfig,
       bundlerApiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
-      walletMode: effectiveWalletMode,
+      walletMode: 'delegatedEoa',
     } as EtherspotTransactionKitConfig;
-  }, [provider, chainId, privateKey, customAccount, effectiveWalletMode]);
+  }, [provider, chainId, customAccount]);
 
-  if (showAnimation || isVerifyingWalletMode) {
+  if (showAnimation) {
     return <Loading type="enter" />;
-  }
-
-  // Show error if wallet mode verification failed
-  if (walletModeError) {
-    console.error('Wallet mode verification error:', walletModeError);
   }
 
   return (
     <EtherspotTransactionKitProvider config={kitConfig}>
-      <EIP7702Provider eip7702Info={eip7702Info}>
-        <AccountTransactionHistoryProvider>
-          <GlobalTransactionBatchesProvider>
-            <BottomMenuModalProvider>
-              <SelectedChainsHistoryProvider>
-                <WalletConnectToastProvider>
-                  <WalletConnectModalProvider>
-                    <AuthContentWrapper>
-                      <Outlet />
-                    </AuthContentWrapper>
-                    <BottomMenu />
+      <AccountTransactionHistoryProvider>
+        <GlobalTransactionBatchesProvider>
+          <BottomMenuModalProvider>
+            <SelectedChainsHistoryProvider>
+              <AuthContentWrapper>
+                <Outlet />
+              </AuthContentWrapper>
+              <BottomMenu />
 
-                    {/* Debug Panel - shown when debug_connections is enabled */}
-                    {localStorage.getItem('debug_connections') === 'true' && (
-                      <DebugPanel title="Connection Debug">
-                        <ConnectionDebug
-                          debugInfo={debugInfo}
-                          onDisconnect={() => {
-                            // This will be handled by the comprehensive logout utility
-                            // when the user logs out through the normal flow
-                          }}
-                        />
-                      </DebugPanel>
-                    )}
-                  </WalletConnectModalProvider>
-                </WalletConnectToastProvider>
-              </SelectedChainsHistoryProvider>
-            </BottomMenuModalProvider>
-          </GlobalTransactionBatchesProvider>
-        </AccountTransactionHistoryProvider>
-      </EIP7702Provider>
+              {/* Debug Panel - shown when debug_connections is enabled */}
+              {localStorage.getItem('debug_connections') === 'true' && (
+                <DebugPanel title="Connection Debug">
+                  <ConnectionDebug
+                    debugInfo={debugInfo}
+                    onDisconnect={() => {
+                      // This will be handled by the comprehensive logout utility
+                      // when the user logs out through the normal flow
+                    }}
+                  />
+                </DebugPanel>
+              )}
+            </SelectedChainsHistoryProvider>
+          </BottomMenuModalProvider>
+        </GlobalTransactionBatchesProvider>
+      </AccountTransactionHistoryProvider>
     </EtherspotTransactionKitProvider>
   );
 }
