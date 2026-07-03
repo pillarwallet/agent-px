@@ -40,6 +40,9 @@ const TopTokens = () => {
   const isTopTokenUnrealizedPnLErroring = useAppSelector(
     (state) => state.walletPortfolio.isTopTokenUnrealizedPnLErroring as boolean
   );
+  const isRefreshAll = useAppSelector(
+    (state) => state.walletPortfolio.isRefreshAll as boolean
+  );
 
   const topTokens = useMemo(() => {
     if (!walletPortfolio) return undefined;
@@ -52,7 +55,7 @@ const TopTokens = () => {
 
   const isTopTokensEmpty = !topTokens || topTokens.length === 0;
   const isLoading =
-    (isWalletPortfolioLoading || isTopTokenUnrealizedPnLLoading) &&
+    (isRefreshAll || (isWalletPortfolioLoading && !walletPortfolio)) &&
     !isWalletPortfolioErroring &&
     !isTopTokenUnrealizedPnLErroring;
 

@@ -1,12 +1,16 @@
 import { sub } from 'date-fns';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 
 // services
 import { useGetWalletHistoryQuery } from '../../../../services/pillarXApiWalletHistory';
 import { useGetWalletPortfolioQuery } from '../../../../services/pillarXApiWalletPortfolio';
 
 // types
-import { TokenPriceGraphPeriod } from '../../../../types/api';
+import {
+  PortfolioData,
+  TokenPriceGraphPeriod,
+  WalletHistory,
+} from '../../../../types/api';
 
 // utils
 import { convertDateToUnixTimestamp } from '../../../../utils/common';
@@ -14,6 +18,8 @@ import {
   PeriodFilterBalance,
   getGraphResolutionBalance,
 } from '../../utils/portfolio';
+import { readCachedWalletHistory } from '../../../../utils/walletHistoryCache';
+import { readCachedWalletPortfolio } from '../../../../utils/walletPortfolioCache';
 
 // hooks
 import useTransactionKit from '../../../../hooks/useTransactionKit';
@@ -62,6 +68,22 @@ const WalletPortfolioTile = () => {
   const isRefreshAll = useAppSelector(
     (state) => state.walletPortfolio.isRefreshAll as boolean
   );
+  const walletPortfolio = useAppSelector(
+    (state) =>
+      state.walletPortfolio.walletPortfolio as PortfolioData | undefined
+  );
+  const walletPortfolioWithPnl = useAppSelector(
+    (state) =>
+      state.walletPortfolio.walletPortfolioWithPnl as PortfolioData | undefined
+  );
+  const walletHistoryGraph = useAppSelector(
+    (state) =>
+      state.walletPortfolio.walletHistoryGraph as WalletHistory | undefined
+  );
+  const topTokenUnrealizedPnL = useAppSelector(
+    (state) =>
+      state.walletPortfolio.topTokenUnrealizedPnL as WalletHistory | undefined
+  );
 
   // Query parameters
   const topTokenUnrealizedPnLQueryArgs = useMemo(
@@ -91,6 +113,37 @@ const WalletPortfolioTile = () => {
   );
 
   const shouldFetchPnl = !!accountAddress && selectedBalanceOrPnl === 'pnl';
+  const shouldShowManualRefreshLoading = isRefreshAll;
+
+  const cachedPortfolio = useMemo(() => {
+    if (!accountAddress) return undefined;
+
+    return readCachedWalletPortfolio({
+      wallet: accountAddress,
+      isPnl: false,
+    });
+  }, [accountAddress]);
+
+  const cachedPortfolioWithPnl = useMemo(() => {
+    if (!accountAddress || !shouldFetchPnl) return undefined;
+
+    return readCachedWalletPortfolio({
+      wallet: accountAddress,
+      isPnl: true,
+    });
+  }, [accountAddress, shouldFetchPnl]);
+
+  const cachedWalletHistoryGraph = useMemo(() => {
+    if (!accountAddress) return undefined;
+
+    return readCachedWalletHistory(walletHistoryDataQueryArgs);
+  }, [accountAddress, walletHistoryDataQueryArgs]);
+
+  const cachedTopTokenUnrealizedPnL = useMemo(() => {
+    if (!accountAddress) return undefined;
+
+    return readCachedWalletHistory(topTokenUnrealizedPnLQueryArgs);
+  }, [accountAddress, topTokenUnrealizedPnLQueryArgs]);
 
   // API Queries
   const {
@@ -138,73 +191,183 @@ const WalletPortfolioTile = () => {
     skip: !accountAddress,
   });
 
+  useLayoutEffect(() => {
+    if (!accountAddress) {
+      dispatch(setWalletPortfolio(undefined));
+      return;
+    }
+
+    dispatch(setWalletPortfolio(cachedPortfolio?.data));
+
+    if (cachedPortfolio) {
+      dispatch(setIsWalletPortfolioLoading(false));
+      dispatch(setIsWalletPortfolioErroring(false));
+    }
+  }, [accountAddress, cachedPortfolio, dispatch]);
+
+  useLayoutEffect(() => {
+    if (!accountAddress) {
+      dispatch(setWalletPortfolioWithPnl(undefined));
+      return;
+    }
+
+    if (!shouldFetchPnl) return;
+
+    dispatch(setWalletPortfolioWithPnl(cachedPortfolioWithPnl?.data));
+
+    if (cachedPortfolioWithPnl) {
+      dispatch(setIsWalletPortfolioWithPnlLoading(false));
+      dispatch(setIsWalletPortfolioWithPnlErroring(false));
+    }
+  }, [accountAddress, cachedPortfolioWithPnl, dispatch, shouldFetchPnl]);
+
+  useLayoutEffect(() => {
+    if (!accountAddress) {
+      dispatch(setWalletHistoryGraph(undefined));
+      return;
+    }
+
+    dispatch(setWalletHistoryGraph(cachedWalletHistoryGraph?.data));
+
+    if (cachedWalletHistoryGraph) {
+      dispatch(setIsWalletHistoryGraphLoading(false));
+      dispatch(setIsWalletHistoryGraphErroring(false));
+    }
+  }, [accountAddress, cachedWalletHistoryGraph, dispatch]);
+
+  useLayoutEffect(() => {
+    if (!accountAddress) {
+      dispatch(setTopTokenUnrealizedPnL(undefined));
+      return;
+    }
+
+    dispatch(setTopTokenUnrealizedPnL(cachedTopTokenUnrealizedPnL?.data));
+
+    if (cachedTopTokenUnrealizedPnL) {
+      dispatch(setIsTopTokenUnrealizedPnLLoading(false));
+      dispatch(setIsTopTokenUnrealizedPnLErroring(false));
+    }
+  }, [accountAddress, cachedTopTokenUnrealizedPnL, dispatch]);
+
   useDataFetchingState(
     walletPortfolioData?.result?.data,
-    isWalletPortfolioDataLoading,
-    isWalletPortfolioDataFetching,
+    shouldShowManualRefreshLoading ||
+      (isWalletPortfolioDataLoading &&
+        !walletPortfolio &&
+        !cachedPortfolio?.data),
+    shouldShowManualRefreshLoading ||
+      (isWalletPortfolioDataFetching &&
+        !walletPortfolio &&
+        !cachedPortfolio?.data),
     isWalletPortfolioDataSuccess,
     walletPortfolioDataError,
     setWalletPortfolio,
     setIsWalletPortfolioLoading,
-    setIsWalletPortfolioErroring
+    setIsWalletPortfolioErroring,
+    { preserveDataOnError: true }
   );
 
   useDataFetchingState(
     walletPortfolioWithPnlData?.result?.data,
-    isWalletPortfolioDataWithPnlLoading,
-    isWalletPortfolioDataWithPnlFetching,
+    (shouldShowManualRefreshLoading && shouldFetchPnl) ||
+      (isWalletPortfolioDataWithPnlLoading &&
+        !walletPortfolioWithPnl &&
+        !cachedPortfolioWithPnl?.data),
+    (shouldShowManualRefreshLoading && shouldFetchPnl) ||
+      (isWalletPortfolioDataWithPnlFetching &&
+        !walletPortfolioWithPnl &&
+        !cachedPortfolioWithPnl?.data),
     isWalletPortfolioDataWithPnlSuccess,
     walletPortfolioDataWithPnlError,
     setWalletPortfolioWithPnl,
     setIsWalletPortfolioWithPnlLoading,
-    setIsWalletPortfolioWithPnlErroring
+    setIsWalletPortfolioWithPnlErroring,
+    { preserveDataOnError: true }
   );
 
   useDataFetchingState(
     walletHistoryData?.result?.data,
-    isWalletHistoryDataLoading,
-    isWalletHistoryDataFetching,
+    shouldShowManualRefreshLoading ||
+      (isWalletHistoryDataLoading &&
+        !walletHistoryGraph &&
+        !cachedWalletHistoryGraph?.data),
+    shouldShowManualRefreshLoading ||
+      (isWalletHistoryDataFetching &&
+        !walletHistoryGraph &&
+        !cachedWalletHistoryGraph?.data),
     isWalletHistoryDataSuccess,
     walletHistoryDataError,
     setWalletHistoryGraph,
     setIsWalletHistoryGraphLoading,
-    setIsWalletHistoryGraphErroring
+    setIsWalletHistoryGraphErroring,
+    { preserveDataOnError: true }
   );
 
   useDataFetchingState(
     topTokenUnrealizedPnLData?.result?.data,
-    isTopTokenUnrealizedPnLDataLoading,
-    isTopTokenUnrealizedPnLDataFetching,
+    shouldShowManualRefreshLoading ||
+      (isTopTokenUnrealizedPnLDataLoading &&
+        !topTokenUnrealizedPnL &&
+        !cachedTopTokenUnrealizedPnL?.data),
+    shouldShowManualRefreshLoading ||
+      (isTopTokenUnrealizedPnLDataFetching &&
+        !topTokenUnrealizedPnL &&
+        !cachedTopTokenUnrealizedPnL?.data),
     isTopTokenUnrealizedPnLDataSuccess,
     topTokenUnrealizedPnLDataError,
     setTopTokenUnrealizedPnL,
     setIsTopTokenUnrealizedPnLLoading,
-    setIsTopTokenUnrealizedPnLErroring
+    setIsTopTokenUnrealizedPnLErroring,
+    { preserveDataOnError: true }
   );
 
-  // eslint-disable-next-line consistent-return
   useEffect(() => {
-    if (isRefreshAll) {
-      // Only refetch if accountAddress exists
-      if (accountAddress) {
-        refetchWalletPortfolioData();
-        refetchWalletHistoryData();
-        refetchTopTokenUnrealizedPnLData();
+    if (!isRefreshAll) return undefined;
 
-        // Only refetch PnL data if it should be fetched
-        if (shouldFetchPnl) {
-          refetchWalletPortfolioWithPnlData();
-        }
+    let isCancelled = false;
+
+    const refetchData = async () => {
+      if (!accountAddress) {
+        dispatch(setIsRefreshAll(false));
+        return;
       }
 
-      const timeout = setTimeout(() => {
-        dispatch(setIsRefreshAll(false));
-      }, 5000);
+      const refreshRequests = [
+        refetchWalletPortfolioData().unwrap(),
+        refetchWalletHistoryData().unwrap(),
+        refetchTopTokenUnrealizedPnLData().unwrap(),
+      ];
 
-      return () => clearTimeout(timeout);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRefreshAll, accountAddress, shouldFetchPnl]);
+      if (shouldFetchPnl) {
+        refreshRequests.push(refetchWalletPortfolioWithPnlData().unwrap());
+      }
+
+      await Promise.allSettled(refreshRequests);
+
+      if (!isCancelled) {
+        dispatch(setIsRefreshAll(false));
+      }
+    };
+
+    refetchData().catch(() => {
+      if (!isCancelled) {
+        dispatch(setIsRefreshAll(false));
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    accountAddress,
+    dispatch,
+    isRefreshAll,
+    refetchTopTokenUnrealizedPnLData,
+    refetchWalletHistoryData,
+    refetchWalletPortfolioData,
+    refetchWalletPortfolioWithPnlData,
+    shouldFetchPnl,
+  ]);
 
   return (
     <TileContainer

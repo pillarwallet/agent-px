@@ -12,9 +12,11 @@ export const useDataFetchingState = <T>(
   error: any,
   setData: (data: T | undefined) => any,
   setIsLoading: (isLoading: boolean) => any,
-  setIsErroring?: (isErroring: boolean) => any
+  setIsErroring?: (isErroring: boolean) => any,
+  options: { preserveDataOnError?: boolean } = {}
 ) => {
   const dispatch = useAppDispatch();
+  const { preserveDataOnError = false } = options;
 
   // Update loading state
   useEffect(() => {
@@ -31,7 +33,10 @@ export const useDataFetchingState = <T>(
         dispatch(setIsErroring(false));
       }
     } else if (isError) {
-      dispatch(setData(undefined));
+      if (!preserveDataOnError) {
+        dispatch(setData(undefined));
+      }
+
       if (setIsErroring) {
         dispatch(setIsErroring(true));
       }
@@ -45,5 +50,6 @@ export const useDataFetchingState = <T>(
     isFetching,
     setData,
     setIsErroring,
+    preserveDataOnError,
   ]);
 };

@@ -178,30 +178,34 @@ export const getTopNonPrimeAssetsAcrossChains = (
     )
     // Flat map to recreate an array of assets with their balances
     .flatMap((assetData) =>
-      assetData.contracts_balances.map((contract) => {
-        const usdBalance = contract.balance * assetData.price;
-        const priceChangePercent = assetData.price_change_24h ?? 0;
+      assetData.contracts_balances
+        .filter((contract) => contract.balance > 0)
+        .map((contract) => {
+          const usdBalance = contract.balance * assetData.price;
+          const priceChangePercent = assetData.price_change_24h ?? 0;
 
-        const previousBalance =
-          priceChangePercent === -100
-            ? 0
-            : usdBalance / (1 + priceChangePercent / 100);
+          const previousBalance =
+            priceChangePercent === -100
+              ? 0
+              : usdBalance / (1 + priceChangePercent / 100);
 
-        const unrealizedPnLUsd = usdBalance - previousBalance;
+          const unrealizedPnLUsd = usdBalance - previousBalance;
 
-        const unrealizedPnLPercentage =
-          previousBalance > 0 ? (unrealizedPnLUsd / previousBalance) * 100 : 0;
+          const unrealizedPnLPercentage =
+            previousBalance > 0
+              ? (unrealizedPnLUsd / previousBalance) * 100
+              : 0;
 
-        return {
-          asset: assetData.asset,
-          usdBalance,
-          tokenBalance: contract.balance,
-          unrealizedPnLUsd,
-          unrealizedPnLPercentage,
-          contract,
-          price: assetData.price,
-        };
-      })
+          return {
+            asset: assetData.asset,
+            usdBalance,
+            tokenBalance: contract.balance,
+            unrealizedPnLUsd,
+            unrealizedPnLPercentage,
+            contract,
+            price: assetData.price,
+          };
+        })
     );
 
   const topThree = nonPrimeAssetBalances

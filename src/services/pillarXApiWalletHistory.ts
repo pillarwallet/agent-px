@@ -8,6 +8,14 @@ import { addMiddleware } from '../store';
 
 // utils
 import { CompatibleChains, isTestnet } from '../utils/blockchain';
+import { writeCachedWalletHistory } from '../utils/walletHistoryCache';
+
+type WalletHistoryQueryArgs = {
+  wallet: string;
+  period: string;
+  from: number;
+  to?: number;
+};
 
 const fetchBaseQueryWithRetry = retry(
   fetchBaseQuery({
@@ -27,7 +35,7 @@ export const pillarXApiWalletHistory = createApi({
   endpoints: (builder) => ({
     getWalletHistory: builder.query<
       WalletHistoryMobulaResponse,
-      { wallet: string; period: string; from: number; to?: number }
+      WalletHistoryQueryArgs
     >({
       query: ({ wallet, period, from, to }) => {
         const chainIds = isTestnet
@@ -53,6 +61,25 @@ export const pillarXApiWalletHistory = createApi({
             },
           },
         };
+      },
+      transformResponse: (
+        response: WalletHistoryMobulaResponse,
+        _meta,
+        { wallet, period, from, to }
+      ) => {
+        const walletHistory = response?.result?.data;
+
+        if (walletHistory) {
+          writeCachedWalletHistory({
+            wallet,
+            period,
+            from,
+            to,
+            data: walletHistory,
+          });
+        }
+
+        return response;
       },
     }),
   }),
