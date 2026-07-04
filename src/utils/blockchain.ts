@@ -342,7 +342,7 @@ export const getChainName = (chain: number) => {
   }
 };
 
-const allCompatibleChains = [
+export const allCompatibleChains = [
   {
     chainId: 1,
     chainName: 'Ethereum',
