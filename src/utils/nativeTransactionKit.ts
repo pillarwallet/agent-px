@@ -7,6 +7,7 @@ import {
   checksumAddress,
   createPublicClient,
   createWalletClient,
+  custom,
   formatUnits,
   getAddress,
   http,
@@ -94,6 +95,16 @@ export interface TransactionSendResult extends TransactionEstimateResult {
   userOpHash?: string;
   errorType?: 'ESTIMATION_ERROR' | 'SEND_ERROR' | 'VALIDATION_ERROR';
   isSentSuccessfully: boolean;
+}
+
+export interface EoaTransactionEstimateResult
+  extends TransactionEstimateResult {
+  gas?: bigint;
+  feePerGas?: bigint;
+}
+
+export interface EoaTransactionSendResult extends TransactionSendResult {
+  transactionHash?: Hex;
 }
 
 export interface BatchEstimateResult {
@@ -613,6 +624,83 @@ export class PillarTransactionProvider {
     }
 
     return this.walletClientPerChain[chainId];
+  }
+
+  async getDirectPublicClient(
+    chainId = this.config.chainId
+  ): Promise<PublicClient> {
+    transactionDebugLog('[TransactionKit] creating direct public client', {
+      chainId,
+    });
+
+    return createPublicClient({
+      chain: getChainById(chainId),
+      transport: http(),
+    });
+  }
+
+  async getDirectWalletClient(
+    chainId = this.config.chainId
+  ): Promise<WalletClient> {
+    const chain = getChainById(chainId);
+
+    if (this.config.viemLocalAccount || this.config.privateKey) {
+      const owner = await this.getOwnerAccount();
+      transactionDebugLog(
+        '[TransactionKit] creating direct local wallet client',
+        {
+          chainId,
+          address: owner.address,
+        }
+      );
+
+      return createWalletClient({
+        account: owner,
+        chain,
+        transport: http(),
+      });
+    }
+
+    const provider = this.config.provider as WalletClient | undefined;
+    if (provider && 'sendTransaction' in provider && 'transport' in provider) {
+      const account = await getProviderAccountAddress(provider);
+      transactionDebugLog(
+        '[TransactionKit] creating direct provider wallet client',
+        {
+          chainId,
+          address: account,
+        }
+      );
+
+      return createWalletClient({
+        account,
+        chain,
+        transport: provider.transport,
+      });
+    }
+
+    if (
+      this.config.provider &&
+      'request' in this.config.provider &&
+      typeof this.config.provider.request === 'function'
+    ) {
+      const account = await getProviderAccountAddress(this.config.provider);
+      transactionDebugLog(
+        '[TransactionKit] creating direct EIP-1193 wallet client',
+        {
+          chainId,
+          address: account,
+        }
+      );
+
+      return createWalletClient({
+        account,
+        chain,
+        transport: custom(this.config.provider),
+      });
+    }
+
+    throw new Error('No direct EOA wallet provider configured');
   }
 
   async getDelegatedEoaAccount(
@@ -1328,6 +1416,153 @@ export class EtherspotTransactionKit {
       : message;
 
     return owner.signMessage({ message: messagePayload });
+  }
+
+  async estimateEoaTransaction({
+    chainId,
+    to,
+    value = '0',
+    data = '0x',
+  }: TransactionParams): Promise<EoaTransactionEstimateResult> {
+    const transaction = { chainId, to, value, data };
+    const baseResult = toBaseResult(transaction);
+
+    try {
+      if (!to || !isAddress(to)) {
+        throw new Error('Transaction is missing a valid recipient address');
+      }
+
+      const publicClient =
+        await this.etherspotProvider.getDirectPublicClient(chainId);
+      const owner = await this.etherspotProvider.getOwnerAccount();
+      const request = {
+        account: owner.address,
+        to: checksumAddress(to as Address),
+        value: parseTransactionValue(value),
+        data: toHexData(data),
+      };
+
+      transactionDebugLog(
+        '[TransactionKit] estimating direct EOA transaction',
+        {
+          chainId,
+          request: summarizeTransaction(transaction),
+        }
+      );
+
+      const gas = await publicClient.estimateGas(request);
+      let feePerGas: bigint;
+
+      try {
+        const fees = await publicClient.estimateFeesPerGas();
+        feePerGas = fees.maxFeePerGas || fees.gasPrice || BigInt(0);
+      } catch {
+        feePerGas = await publicClient.getGasPrice();
+      }
+
+      const cost = gas * feePerGas;
+
+      transactionDebugLog('[TransactionKit] direct EOA estimate resolved', {
+        chainId,
+        gas: gas.toString(),
+        feePerGas: feePerGas.toString(),
+        cost: cost.toString(),
+      });
+
+      return {
+        ...baseResult,
+        chainId,
+        cost,
+        gas,
+        feePerGas,
+        isEstimatedSuccessfully: true,
+      };
+    } catch (error) {
+      transactionDebugError('[TransactionKit] direct EOA estimate failed', {
+        chainId,
+        transaction: summarizeTransaction(transaction),
+        error: summarizeError(error),
+      });
+
+      return {
+        ...baseResult,
+        chainId,
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : 'Failed to estimate direct EOA transaction',
+        errorType: 'ESTIMATION_ERROR',
+        isEstimatedSuccessfully: false,
+      };
+    }
+  }
+
+  async sendEoaTransaction({
+    chainId,
+    to,
+    value = '0',
+    data = '0x',
+    gas,
+  }: TransactionParams & { gas?: bigint }): Promise<EoaTransactionSendResult> {
+    const transaction = { chainId, to, value, data };
+    const baseResult = toBaseResult(transaction);
+
+    try {
+      if (!to || !isAddress(to)) {
+        throw new Error('Transaction is missing a valid recipient address');
+      }
+
+      const walletClient =
+        await this.etherspotProvider.getDirectWalletClient(chainId);
+      const owner = await this.etherspotProvider.getOwnerAccount();
+      const account = walletClient.account || owner.address;
+
+      transactionDebugLog('[TransactionKit] sending direct EOA transaction', {
+        chainId,
+        transaction: summarizeTransaction(transaction),
+        hasGasEstimate: typeof gas === 'bigint',
+      });
+
+      const transactionHash = await walletClient.sendTransaction({
+        account,
+        chain: getChainById(chainId),
+        to: checksumAddress(to as Address),
+        value: parseTransactionValue(value),
+        data: toHexData(data),
+        ...(typeof gas === 'bigint' ? { gas } : {}),
+      });
+
+      transactionDebugLog('[TransactionKit] direct EOA transaction sent', {
+        chainId,
+        transactionHash,
+      });
+
+      return {
+        ...baseResult,
+        chainId,
+        transactionHash,
+        isEstimatedSuccessfully: true,
+        isSentSuccessfully: true,
+      };
+    } catch (error) {
+      transactionDebugError('[TransactionKit] direct EOA send failed', {
+        chainId,
+        transaction: summarizeTransaction(transaction),
+        error: summarizeError(error),
+      });
+
+      return {
+        ...baseResult,
+        chainId,
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : 'Failed to send direct EOA transaction',
+        errorType: 'SEND_ERROR',
+        isEstimatedSuccessfully: false,
+        isSentSuccessfully: false,
+      };
+    }
   }
 
   transaction({ chainId, to, value = '0', data = '0x' }: TransactionParams) {

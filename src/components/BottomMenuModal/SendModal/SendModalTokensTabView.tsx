@@ -611,17 +611,28 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     return +(amount || 0) / selectedAssetPrice;
   }, [amount, selectedAssetPrice]);
 
+  const shouldUseDirectEoaSend =
+    !payload && selectedFeeType === 'Native Token' && !isPaymaster;
+
   const maxAmountAvailable = useMemo(() => {
     if (selectedAsset?.type !== 'token' || !selectedAsset.balance) return 0;
 
-    const adjustedBalance = isNativeToken(selectedAsset.asset.contract)
+    const shouldReserveDeploymentCost =
+      isNativeToken(selectedAsset.asset.contract) && !shouldUseDirectEoaSend;
+    const adjustedBalance = shouldReserveDeploymentCost
       ? selectedAsset.balance - deploymentCost
       : selectedAsset.balance;
 
     return isAmountInputAsFiat
       ? selectedAssetPrice * adjustedBalance
       : adjustedBalance;
-  }, [selectedAsset, deploymentCost, isAmountInputAsFiat, selectedAssetPrice]);
+  }, [
+    selectedAsset,
+    shouldUseDirectEoaSend,
+    deploymentCost,
+    isAmountInputAsFiat,
+    selectedAssetPrice,
+  ]);
 
   useEffect(() => {
     const addressPasteActionTimeout = setTimeout(() => {
@@ -1961,6 +1972,216 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
         handleError(
           'Invalid or unsupported chain ID for selected asset. Cannot proceed with transaction.'
         );
+        return;
+      }
+
+      if (shouldUseDirectEoaSend) {
+        transactionDebugLog(
+          'Using direct EOA transaction for native fee send',
+          {
+            sendId,
+            feeChainId,
+            to: txData.to,
+            value: txData.value !== undefined ? txData.value.toString() : '0',
+            dataLength: txData.data?.length ?? 0,
+            dataPrefix: txData.data?.slice(0, 18),
+          }
+        );
+
+        const directEstimate = await kit.estimateEoaTransaction({
+          chainId: feeChainId,
+          to: txData.to,
+          value: txData.value !== undefined ? txData.value.toString() : '0',
+          data: txData.data,
+        });
+        transactionDebugLog(
+          'Direct EOA transaction estimated:',
+          directEstimate
+        );
+
+        if (
+          !directEstimate.isEstimatedSuccessfully ||
+          directEstimate.errorMessage
+        ) {
+          transactionDebugLog(
+            'Direct EOA transaction estimation error:',
+            directEstimate.errorMessage
+          );
+          Sentry.captureMessage('Direct EOA estimation error during send', {
+            level: 'error',
+            tags: {
+              component: 'send_flow',
+              action: 'direct_eoa_estimation_error',
+              sendId,
+            },
+            contexts: {
+              direct_eoa_estimation_error: {
+                sendId,
+                errorMessage: directEstimate.errorMessage,
+                selectedAsset: selectedAsset?.id,
+                amount,
+              },
+            },
+          });
+          handleError(
+            'Something went wrong while estimating the asset transfer. Please try again later. If the problem persists, contact the PillarX team for support.'
+          );
+          return;
+        }
+
+        const costAsFiat = handleEstimation(directEstimate, sendId);
+
+        if (
+          !ignoreSafetyWarning &&
+          amountInFiat &&
+          costAsFiat &&
+          costAsFiat > amountInFiat
+        ) {
+          setSafetyWarningMessage(
+            t`warning.transactionSafety.costHigherThanAmount`
+          );
+          setIsSending(false);
+          transactionDebugLog(
+            'Direct EOA transaction cost warning: estimated cost higher than amount'
+          );
+          return;
+        }
+
+        if (accountAddress) {
+          recordPresence({
+            address: accountAddress,
+            action: 'actionSendAsset',
+            value: selectedAsset?.id,
+            data: { ...selectedAsset },
+          });
+        }
+
+        setLatestUserOpInfo(
+          transactionDescription(
+            selectedAsset,
+            Number(valueToSend),
+            recipient,
+            payload
+          )
+        );
+        setLatestUserOpChainId(feeChainId);
+        setUserOpStatus('Sending');
+
+        Sentry.addBreadcrumb({
+          category: 'send_flow',
+          message: 'Sending direct EOA transaction',
+          level: 'info',
+          data: {
+            sendId,
+            chainId: feeChainId,
+            selectedAsset: selectedAsset?.id,
+          },
+        });
+
+        const sent = await kit.sendEoaTransaction({
+          chainId: feeChainId,
+          to: txData.to,
+          value: txData.value !== undefined ? txData.value.toString() : '0',
+          data: txData.data,
+          gas: directEstimate.gas,
+        });
+        transactionDebugLog('Direct EOA transaction sent:', sent);
+
+        if (!sent.isSentSuccessfully || sent.errorMessage) {
+          transactionDebugLog(
+            'Direct EOA transaction send error:',
+            sent.errorMessage
+          );
+          Sentry.captureMessage('Direct EOA sending error during send', {
+            level: 'error',
+            tags: {
+              component: 'send_flow',
+              action: 'direct_eoa_sending_error',
+              sendId,
+            },
+            contexts: {
+              direct_eoa_sending_error: {
+                sendId,
+                errorMessage: sent.errorMessage,
+                selectedAsset: selectedAsset?.id,
+                amount,
+              },
+            },
+          });
+          handleError(
+            'Something went wrong while sending the assets, please try again later. If the problem persists, contact the PillarX team for support.'
+          );
+          return;
+        }
+
+        if (!sent.transactionHash) {
+          transactionDebugLog(
+            'No transaction hash returned after direct EOA send'
+          );
+          Sentry.captureMessage('Failed to get direct EOA transaction hash', {
+            level: 'error',
+            tags: {
+              component: 'send_flow',
+              action: 'direct_eoa_no_transaction_hash',
+              sendId,
+            },
+            contexts: {
+              direct_eoa_no_transaction_hash: {
+                sendId,
+                selectedAsset: selectedAsset?.id,
+                amount,
+                recipient,
+              },
+            },
+          });
+          setErrorMessage(t`error.failedToGetTransactionHashReachSupport`);
+          setIsSending(false);
+          return;
+        }
+
+        setTransactionHash(sent.transactionHash);
+        setUserOpStatus('Sent');
+
+        Sentry.addBreadcrumb({
+          category: 'send_flow',
+          message: 'Direct EOA transaction sent successfully',
+          level: 'info',
+          data: {
+            sendId,
+            transactionHash: sent.transactionHash,
+            chainId: feeChainId,
+          },
+        });
+
+        showHistory();
+        setIsSending(false);
+
+        Sentry.captureMessage('Token send transaction completed successfully', {
+          level: 'info',
+          tags: {
+            component: 'send_flow',
+            action: 'direct_eoa_send_success',
+            sendId,
+          },
+          contexts: {
+            send_success: {
+              sendId,
+              selectedAsset: selectedAsset?.id,
+              amount: selectedAsset?.value,
+              recipient,
+              transactionHash: sent.transactionHash,
+              estimatedCost: directEstimate.cost
+                ? formatUnits(directEstimate.cost, 18)
+                : null,
+              isPaymaster,
+              paymasterContext,
+              feeType,
+              feeAssetOptions,
+              selectedFeeAsset,
+              selectedPaymasterAddress,
+            },
+          },
+        });
         return;
       }
 
