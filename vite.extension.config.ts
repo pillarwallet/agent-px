@@ -47,6 +47,19 @@ const extensionManifest = {
   },
   permissions: ['storage', 'sidePanel'],
   host_permissions: ['<all_urls>'],
+  content_scripts: [
+    {
+      matches: ['<all_urls>'],
+      js: ['assets/contentScript.js'],
+      run_at: 'document_start',
+    },
+  ],
+  web_accessible_resources: [
+    {
+      resources: ['assets/inpage.js'],
+      matches: ['<all_urls>'],
+    },
+  ],
 } satisfies Record<string, unknown>;
 
 const emitManifestPlugin = (): Plugin => ({
@@ -72,6 +85,11 @@ export default defineConfig({
         options: path.resolve(__dirname, 'extension/options.html'),
         sidepanel: path.resolve(__dirname, 'extension/sidepanel.html'),
         background: path.resolve(__dirname, 'src/extension/background.ts'),
+        contentScript: path.resolve(
+          __dirname,
+          'src/extension/contentScript.ts'
+        ),
+        inpage: path.resolve(__dirname, 'src/extension/inpage.ts'),
       },
       external: ['/functions/**'],
       output: {
