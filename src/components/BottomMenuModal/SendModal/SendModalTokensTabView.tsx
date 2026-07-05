@@ -65,7 +65,10 @@ import {
   pasteFromClipboard,
   transactionDescription,
 } from '../../../utils/common';
-import { getEIP7702AuthorizationIfNeeded } from '../../../utils/eip7702Authorization';
+import {
+  OUR_EIP7702_IMPLEMENTATION_ADDRESS,
+  getEIP7702AuthorizationIfNeeded,
+} from '../../../utils/eip7702Authorization';
 import type { TransactionEstimateResult } from '../../../utils/nativeTransactionKit';
 import { formatAmountDisplay, isValidAmount } from '../../../utils/number';
 
@@ -736,6 +739,61 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   const handleError = (message: string) => {
     setErrorMessage(message);
     setIsSending(false);
+  };
+
+  const confirmDirectEoaTransaction = async ({
+    chainId,
+    transactionHash,
+    sendId,
+  }: {
+    chainId: number;
+    transactionHash: string;
+    sendId: string;
+  }) => {
+    transactionDebugLog(
+      'Waiting for direct EOA transaction confirmation:',
+      transactionHash
+    );
+
+    const receipt = await kit.waitForEoaTransactionReceipt({
+      chainId,
+      transactionHash,
+    });
+
+    if (receipt.isConfirmed) {
+      setTransactionHash(receipt.transactionHash);
+      setUserOpStatus('Confirmed');
+
+      Sentry.captureMessage('Direct EOA transaction confirmed on chain', {
+        level: 'info',
+        tags: {
+          component: 'send_flow',
+          action: 'direct_eoa_transaction_confirmed',
+          sendId,
+        },
+        contexts: {
+          direct_eoa_transaction_confirmed: {
+            sendId,
+            chainId,
+            transactionHash: receipt.transactionHash,
+            blockHash: receipt.blockHash,
+            blockNumber: receipt.blockNumber?.toString(),
+          },
+        },
+      });
+      return;
+    }
+
+    if (receipt.status === 'reverted') {
+      setUserOpStatus('Failed');
+      setTransactionHash(receipt.transactionHash);
+      return;
+    }
+
+    transactionDebugLog(
+      'Direct EOA transaction confirmation not available yet:',
+      receipt.errorMessage
+    );
   };
 
   // Helper to poll userOp status and handle Sentry, status, etc.
@@ -1988,11 +2046,59 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           }
         );
 
+        transactionDebugLog(
+          'Requesting EIP-7702 authorization for direct EOA send if needed',
+          {
+            sendId,
+            feeChainId,
+          }
+        );
+        const directEoaAuthorization = await getEIP7702AuthorizationIfNeeded(
+          kit,
+          feeChainId,
+          { authorizationExecutor: 'self' }
+        );
+        transactionDebugLog(
+          'EIP-7702 authorization resolved for direct EOA send',
+          {
+            sendId,
+            feeChainId,
+            hasAuthorization: Boolean(directEoaAuthorization),
+            authorizationChainId: directEoaAuthorization?.chainId,
+            authorizationAddress: directEoaAuthorization?.address,
+          }
+        );
+
+        if (!directEoaAuthorization) {
+          const delegationStatus =
+            await kit.getDelegateSmartAccountToEoaStatus(feeChainId);
+          const hasPillarKernelDelegation =
+            delegationStatus.isDelegated === true &&
+            delegationStatus.delegateAddress?.toLowerCase() ===
+              OUR_EIP7702_IMPLEMENTATION_ADDRESS.toLowerCase();
+
+          if (!hasPillarKernelDelegation) {
+            transactionDebugLog(
+              'Direct EOA send blocked because EIP-7702 delegation is missing',
+              {
+                sendId,
+                feeChainId,
+                delegationStatus,
+              }
+            );
+            handleError(
+              'Unable to prepare EIP-7702 delegation for this transaction. Please try again.'
+            );
+            return;
+          }
+        }
+
         const directEstimate = await kit.estimateEoaTransaction({
           chainId: feeChainId,
           to: txData.to,
           value: txData.value !== undefined ? txData.value.toString() : '0',
           data: txData.data,
+          authorization: directEoaAuthorization || undefined,
         });
         transactionDebugLog(
           'Direct EOA transaction estimated:',
@@ -2083,6 +2189,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           to: txData.to,
           value: txData.value !== undefined ? txData.value.toString() : '0',
           data: txData.data,
+          authorization: directEoaAuthorization || undefined,
           gas: directEstimate.gas,
         });
         transactionDebugLog('Direct EOA transaction sent:', sent);
@@ -2155,6 +2262,17 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
 
         showHistory();
         setIsSending(false);
+
+        confirmDirectEoaTransaction({
+          chainId: feeChainId,
+          transactionHash: sent.transactionHash,
+          sendId,
+        }).catch((error) => {
+          transactionDebugLog(
+            'Direct EOA transaction confirmation watcher failed:',
+            error
+          );
+        });
 
         Sentry.captureMessage('Token send transaction completed successfully', {
           level: 'info',
