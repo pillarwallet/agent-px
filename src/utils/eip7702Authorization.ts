@@ -1,3 +1,4 @@
+import type { Address } from 'viem';
 import { SignAuthorizationReturnType } from 'viem/accounts';
 import type { EtherspotTransactionKit } from './nativeTransactionKit';
 import { transactionDebugError, transactionDebugLog } from './transactionDebug';
@@ -28,10 +29,14 @@ const summarizeAuthorization = (
  */
 export async function getEIP7702AuthorizationIfNeeded(
   kit: EtherspotTransactionKit,
-  chainId: number
+  chainId: number,
+  options: {
+    authorizationExecutor?: 'self' | Address;
+  } = {}
 ): Promise<SignAuthorizationReturnType | null> {
   transactionDebugLog('[EIP7702] authorization check started', {
     chainId,
+    authorizationExecutor: options.authorizationExecutor,
   });
 
   try {
@@ -99,6 +104,7 @@ export async function getEIP7702AuthorizationIfNeeded(
     const authResult = await kit.delegateSmartAccountToEoa({
       chainId,
       delegateImmediately: false, // Just get authorization, don't execute
+      authorizationExecutor: options.authorizationExecutor,
     });
     transactionDebugLog('[EIP7702] authorization result', {
       chainId,
@@ -123,6 +129,7 @@ export async function getEIP7702AuthorizationIfNeeded(
       const authResult = await kit.delegateSmartAccountToEoa({
         chainId,
         delegateImmediately: false,
+        authorizationExecutor: options.authorizationExecutor,
       });
       transactionDebugLog('[EIP7702] fallback authorization result', {
         chainId,

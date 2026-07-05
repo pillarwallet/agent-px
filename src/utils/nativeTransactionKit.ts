@@ -42,6 +42,7 @@ import type { WalletProviderLike } from '../types/walletProvider';
 import { supportedChains } from './blockchain';
 import { getEtherspotBundlerUrl } from './bundler';
 import {
+  encodePillarExecuteCall,
   createPillarSmartAccountClient,
   PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
   type PillarCall,
@@ -77,6 +78,7 @@ export interface TransactionParams {
   to: string;
   value?: bigint | string;
   data?: string;
+  authorization?: SignAuthorizationReturnType;
 }
 
 export interface TransactionEstimateResult {
@@ -105,6 +107,17 @@ export interface EoaTransactionEstimateResult
 
 export interface EoaTransactionSendResult extends TransactionSendResult {
   transactionHash?: Hex;
+}
+
+export interface EoaTransactionReceiptResult {
+  chainId: number;
+  transactionHash: Hex;
+  status?: 'success' | 'reverted';
+  blockHash?: Hex;
+  blockNumber?: bigint;
+  errorMessage?: string;
+  errorType?: 'CONFIRMATION_ERROR';
+  isConfirmed: boolean;
 }
 
 export interface BatchEstimateResult {
@@ -197,6 +210,15 @@ type EoaDelegationStatus = {
   delegateAddress?: Address;
   isDelegated: boolean | undefined;
   walletAddress?: string;
+};
+
+type AuthorizationExecutor = 'self' | Address;
+
+type PreparedDelegatedEoaTransaction = {
+  account: Address;
+  outerData: Hex;
+  outerTo: Address;
+  outerValue: bigint;
 };
 
 type UserOperationFeeEstimate = {
@@ -433,6 +455,35 @@ const toBaseResult = (
   data: transaction.data,
   chainId: transaction.chainId,
 });
+
+const toDelegatedEoaExecutionTransaction = ({
+  account,
+  data,
+  to,
+  value,
+}: {
+  account: Address;
+  to: string;
+  value?: bigint | string;
+  data?: string;
+}): PreparedDelegatedEoaTransaction => {
+  if (!to || !isAddress(to)) {
+    throw new Error('Transaction is missing a valid recipient address');
+  }
+
+  const innerCall = {
+    to: checksumAddress(to as Address),
+    value: parseTransactionValue(value),
+    data: toHexData(data),
+  };
+
+  return {
+    account: checksumAddress(account),
+    outerTo: checksumAddress(account),
+    outerValue: BigInt(0),
+    outerData: encodePillarExecuteCall(innerCall),
+  };
+};
 
 const sumUserOperationGas = (
   gas: EstimateUserOperationGasReturnType
@@ -1279,17 +1330,21 @@ export class EtherspotTransactionKit {
   async delegateSmartAccountToEoa({
     chainId = this.config.chainId,
     delegateImmediately = false,
+    authorizationExecutor,
   }: {
     chainId?: number;
     delegateImmediately?: boolean;
+    authorizationExecutor?: AuthorizationExecutor;
   } = {}) {
     transactionDebugLog('[TransactionKit] delegateSmartAccountToEoa started', {
       chainId,
       delegateImmediately,
       delegateAddress: PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
+      authorizationExecutor,
     });
     const owner = await this.etherspotProvider.getOwnerAccount();
-    const walletClient = await this.etherspotProvider.getWalletClient(chainId);
+    const walletClient =
+      await this.etherspotProvider.getDirectWalletClient(chainId);
     const eoaAddress = owner.address;
     const delegateAddress = PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS;
     const isAlreadyInstalled = Boolean(
@@ -1326,11 +1381,13 @@ export class EtherspotTransactionKit {
       authorization = await walletClient.signAuthorization({
         account: owner,
         contractAddress: delegateAddress,
+        ...(authorizationExecutor ? { executor: authorizationExecutor } : {}),
       });
       transactionDebugLog('[TransactionKit] EIP-7702 authorization signed', {
         chainId,
         eoaAddress,
         delegateAddress,
+        authorizationExecutor,
         authorization: summarizeAuthorization(authorization),
       });
     } catch (error) {
@@ -1423,6 +1480,7 @@ export class EtherspotTransactionKit {
     to,
     value = '0',
     data = '0x',
+    authorization,
   }: TransactionParams): Promise<EoaTransactionEstimateResult> {
     const transaction = { chainId, to, value, data };
     const baseResult = toBaseResult(transaction);
@@ -1435,18 +1493,33 @@ export class EtherspotTransactionKit {
       const publicClient =
         await this.etherspotProvider.getDirectPublicClient(chainId);
       const owner = await this.etherspotProvider.getOwnerAccount();
-      const request = {
+      const authorizationList = authorization ? [authorization] : undefined;
+      const delegatedTransaction = toDelegatedEoaExecutionTransaction({
         account: owner.address,
-        to: checksumAddress(to as Address),
-        value: parseTransactionValue(value),
-        data: toHexData(data),
+        to,
+        value,
+        data,
+      });
+      const request = {
+        account: delegatedTransaction.account,
+        to: delegatedTransaction.outerTo,
+        value: delegatedTransaction.outerValue,
+        data: delegatedTransaction.outerData,
+        ...(authorizationList ? { authorizationList } : {}),
       };
 
       transactionDebugLog(
         '[TransactionKit] estimating direct EOA transaction',
         {
           chainId,
-          request: summarizeTransaction(transaction),
+          innerTransaction: summarizeTransaction(transaction),
+          outerTransaction: summarizeTransaction({
+            chainId,
+            to: delegatedTransaction.outerTo,
+            value: delegatedTransaction.outerValue,
+            data: delegatedTransaction.outerData,
+          }),
+          authorization: summarizeAuthorization(authorization),
         }
       );
 
@@ -1502,6 +1575,7 @@ export class EtherspotTransactionKit {
     to,
     value = '0',
     data = '0x',
+    authorization,
     gas,
   }: TransactionParams & { gas?: bigint }): Promise<EoaTransactionSendResult> {
     const transaction = { chainId, to, value, data };
@@ -1516,26 +1590,46 @@ export class EtherspotTransactionKit {
         await this.etherspotProvider.getDirectWalletClient(chainId);
       const owner = await this.etherspotProvider.getOwnerAccount();
       const account = walletClient.account || owner.address;
+      const authorizationList = authorization ? [authorization] : undefined;
+      const delegatedTransaction = toDelegatedEoaExecutionTransaction({
+        account: owner.address,
+        to,
+        value,
+        data,
+      });
 
       transactionDebugLog('[TransactionKit] sending direct EOA transaction', {
         chainId,
-        transaction: summarizeTransaction(transaction),
+        innerTransaction: summarizeTransaction(transaction),
+        outerTransaction: summarizeTransaction({
+          chainId,
+          to: delegatedTransaction.outerTo,
+          value: delegatedTransaction.outerValue,
+          data: delegatedTransaction.outerData,
+        }),
         hasGasEstimate: typeof gas === 'bigint',
+        authorization: summarizeAuthorization(authorization),
       });
 
       const transactionHash = await walletClient.sendTransaction({
         account,
         chain: getChainById(chainId),
-        to: checksumAddress(to as Address),
-        value: parseTransactionValue(value),
-        data: toHexData(data),
+        to: delegatedTransaction.outerTo,
+        value: delegatedTransaction.outerValue,
+        data: delegatedTransaction.outerData,
+        ...(authorizationList ? { authorizationList } : {}),
         ...(typeof gas === 'bigint' ? { gas } : {}),
       });
 
       transactionDebugLog('[TransactionKit] direct EOA transaction sent', {
         chainId,
         transactionHash,
+        hasAuthorization: Boolean(authorization),
       });
+
+      if (authorization) {
+        this.clearEoaDelegationStatusCache(chainId);
+      }
 
       return {
         ...baseResult,
@@ -1561,6 +1655,78 @@ export class EtherspotTransactionKit {
         errorType: 'SEND_ERROR',
         isEstimatedSuccessfully: false,
         isSentSuccessfully: false,
+      };
+    }
+  }
+
+  async waitForEoaTransactionReceipt({
+    chainId,
+    transactionHash,
+    confirmations = 1,
+    timeout = 120000,
+  }: {
+    chainId: number;
+    transactionHash: string;
+    confirmations?: number;
+    timeout?: number;
+  }): Promise<EoaTransactionReceiptResult> {
+    try {
+      const publicClient =
+        await this.etherspotProvider.getDirectPublicClient(chainId);
+
+      transactionDebugLog(
+        '[TransactionKit] waiting for direct EOA transaction receipt',
+        {
+          chainId,
+          transactionHash,
+          confirmations,
+          timeout,
+        }
+      );
+
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: transactionHash as Hex,
+        confirmations,
+        timeout,
+      });
+
+      transactionDebugLog(
+        '[TransactionKit] direct EOA transaction receipt received',
+        {
+          chainId,
+          transactionHash: receipt.transactionHash,
+          status: receipt.status,
+          blockNumber: receipt.blockNumber.toString(),
+        }
+      );
+
+      return {
+        chainId,
+        transactionHash: receipt.transactionHash,
+        status: receipt.status,
+        blockHash: receipt.blockHash,
+        blockNumber: receipt.blockNumber,
+        isConfirmed: receipt.status === 'success',
+      };
+    } catch (error) {
+      transactionDebugError(
+        '[TransactionKit] direct EOA transaction receipt wait failed',
+        {
+          chainId,
+          transactionHash,
+          error: summarizeError(error),
+        }
+      );
+
+      return {
+        chainId,
+        transactionHash: transactionHash as Hex,
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : 'Failed to confirm direct EOA transaction',
+        errorType: 'CONFIRMATION_ERROR',
+        isConfirmed: false,
       };
     }
   }
