@@ -11,9 +11,9 @@ import type {
   Chain,
   Hex,
   SignableMessage,
+  TransactionSerializable,
   TypedDataDefinition,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
 import {
   arbitrum,
   base,
@@ -37,12 +37,21 @@ import {
   ProviderRuntimeRequestMessage,
   ProviderRuntimeResponseMessage,
 } from './providerMessages';
+import {
+  PillarKeyringRequestMessage,
+  PILLARX_KEYRING_REQUEST,
+  decodePillarKeyringMessagePayload,
+  encodePillarKeyringMessagePayload,
+} from '../utils/pillarKeyringMessaging';
+import {
+  PillarKeyringController,
+  PillarUnlockedAccount,
+} from './keyring/PillarKeyringController';
 import { getEtherspotBundlerUrl } from '../utils/bundler';
 import {
   encodePillarExecuteCall,
   PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
 } from '../utils/pillarSmartAccountClient';
-import { PHONE_OTP_UNLOCKED_SESSION_KEY } from '../utils/phoneOtpAuthKeys';
 
 type ExtensionInstallReason = {
   reason?: string;
@@ -53,6 +62,7 @@ type ChromeStorageAreaLike = {
     keys: string | string[] | null,
     callback: (items: Record<string, unknown>) => void
   ) => void;
+  remove?: (keys: string | string[], callback?: () => void) => void;
   set: (items: Record<string, unknown>, callback?: () => void) => void;
 };
 
@@ -122,7 +132,14 @@ type ChromeLike = {
 };
 
 const chromeLike = (globalThis as { chrome?: ChromeLike }).chrome;
+const keyringController = new PillarKeyringController(
+  chromeLike?.storage?.local
+);
+const LEGACY_UNLOCKED_PRIVATE_KEY_SESSION_KEY =
+  'PILLARX_LOCAL_PRIVATE_KEY_UNLOCKED_SESSION_V1';
 const OPEN_SIDE_PANEL_MESSAGE_TYPE = 'PILLARX_OPEN_SIDE_PANEL';
+
+chromeLike?.storage?.session?.remove?.(LEGACY_UNLOCKED_PRIVATE_KEY_SESSION_KEY);
 const CONNECTED_DAPPS_STORAGE_KEY = 'pillarx:dapp:connected:v1';
 const SELECTED_CHAIN_STORAGE_KEY = 'pillarx:dapp:selectedChain:v1';
 const DEFAULT_MAINNET_CHAIN_ID = 1;
@@ -191,7 +208,7 @@ type ConnectedDapp = {
 
 type ConnectedDappsState = Record<string, ConnectedDapp>;
 type SelectedChainState = Record<string, number>;
-type UnlockedAccount = ReturnType<typeof privateKeyToAccount>;
+type UnlockedAccount = PillarUnlockedAccount;
 
 type DappTransactionRequest = {
   accessList?: unknown;
@@ -433,19 +450,8 @@ const chromeStorageSet = async <T>(
     }
   });
 
-const getUnlockedAccount = async (): Promise<UnlockedAccount | undefined> => {
-  const privateKey = await chromeStorageGet<string | undefined>(
-    chromeLike?.storage?.session,
-    PHONE_OTP_UNLOCKED_SESSION_KEY,
-    undefined
-  );
-
-  if (!privateKey || !/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
-    return undefined;
-  }
-
-  return privateKeyToAccount(privateKey as `0x${string}`);
-};
+const getUnlockedAccount = async (): Promise<UnlockedAccount | undefined> =>
+  keyringController.getUnlockedAccount();
 
 const getUnlockedAddress = async () => (await getUnlockedAccount())?.address;
 
@@ -1177,6 +1183,89 @@ const respondToProviderApproval = ({
   return { ok: true };
 };
 
+const handleKeyringRequest = async ({
+  method,
+  payload,
+}: PillarKeyringRequestMessage) => {
+  const decodedPayload = decodePillarKeyringMessagePayload(payload);
+  const payloadObject = isObject(decodedPayload) ? decodedPayload : {};
+
+  switch (method) {
+    case 'getStatus':
+      return keyringController.getStatus();
+
+    case 'unlock': {
+      const { passphrase } = payloadObject;
+      if (typeof passphrase !== 'string') {
+        throw providerError(-32602, 'Invalid keyring unlock payload.');
+      }
+
+      return keyringController.unlock(passphrase);
+    }
+
+    case 'unlockOrImportPrivateKey': {
+      const { passphrase, privateKey } = payloadObject;
+      if (
+        typeof passphrase !== 'string' ||
+        typeof privateKey !== 'string' ||
+        !/^0x[a-fA-F0-9]{64}$/.test(privateKey)
+      ) {
+        throw providerError(-32602, 'Invalid keyring unlock payload.');
+      }
+
+      return keyringController.unlockOrImportPrivateKey({
+        passphrase,
+        privateKey,
+      });
+    }
+
+    case 'lock':
+      keyringController.lock();
+      return keyringController.getStatus();
+
+    case 'signMessage':
+      return keyringController.signMessage({
+        address:
+          typeof payloadObject.address === 'string'
+            ? (payloadObject.address as `0x${string}`)
+            : undefined,
+        message: payloadObject.message as SignableMessage,
+      });
+
+    case 'signTransaction':
+      return keyringController.signTransaction({
+        address:
+          typeof payloadObject.address === 'string'
+            ? (payloadObject.address as `0x${string}`)
+            : undefined,
+        transaction: payloadObject.transaction as TransactionSerializable,
+      });
+
+    case 'signTypedData':
+      return keyringController.signTypedData({
+        address:
+          typeof payloadObject.address === 'string'
+            ? (payloadObject.address as `0x${string}`)
+            : undefined,
+        typedData: payloadObject.typedData as TypedDataDefinition,
+      });
+
+    case 'signAuthorization':
+      return keyringController.signAuthorization({
+        address:
+          typeof payloadObject.address === 'string'
+            ? (payloadObject.address as `0x${string}`)
+            : undefined,
+        authorization: payloadObject.authorization as Parameters<
+          PillarKeyringController['signAuthorization']
+        >[0]['authorization'],
+      });
+
+    default:
+      throw providerError(4200, 'Unsupported PillarX keyring method.');
+  }
+};
+
 const handleProviderRequest = async (
   message: ProviderRuntimeRequestMessage
 ) => {
@@ -1475,6 +1564,24 @@ chromeLike?.windows?.onRemoved?.addListener((windowId) => {
 
 chromeLike?.runtime?.onMessage?.addListener(
   (message, _sender, sendResponse) => {
+    if (isObject(message) && message.type === PILLARX_KEYRING_REQUEST) {
+      handleKeyringRequest(message as PillarKeyringRequestMessage)
+        .then((result) => {
+          sendResponse({
+            ok: true,
+            result: encodePillarKeyringMessagePayload(result),
+          });
+        })
+        .catch((error) => {
+          sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+
+      return true;
+    }
+
     if (
       isObject(message) &&
       message.type === PILLARX_PROVIDER_RPC_REQUEST &&

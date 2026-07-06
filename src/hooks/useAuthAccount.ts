@@ -2,8 +2,7 @@ import { useMemo } from 'react';
 import { useAccount } from 'wagmi';
 
 import {
-  getPhoneOtpAddressFromPrivateKey,
-  getUnlockedPhoneOtpPrivateKey,
+  getUnlockedPhoneOtpAddress,
   isPhoneOtpAuthenticated,
 } from '../utils/phoneOtpAuth';
 
@@ -58,17 +57,9 @@ export const useAuthAccount = () => {
     connector,
     isConnected,
   } = useAccount();
-  const phoneOtpPrivateKey = getUnlockedPhoneOtpPrivateKey();
-
-  const phoneOtpAddress = useMemo(() => {
-    if (!phoneOtpPrivateKey || !isPhoneOtpAuthenticated()) return undefined;
-
-    try {
-      return getPhoneOtpAddressFromPrivateKey(phoneOtpPrivateKey);
-    } catch {
-      return undefined;
-    }
-  }, [phoneOtpPrivateKey]);
+  const phoneOtpAddress = isPhoneOtpAuthenticated()
+    ? getUnlockedPhoneOtpAddress()
+    : undefined;
 
   const nativeAppAddress = isNativeAppRuntime()
     ? getStoredValue('EOA_ADDRESS')

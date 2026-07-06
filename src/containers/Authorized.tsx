@@ -20,6 +20,7 @@ import BottomMenuModalProvider from '../providers/BottomMenuModalProvider';
 import { EtherspotTransactionKitProvider } from '../providers/EtherspotTransactionKitProvider';
 import GlobalTransactionBatchesProvider from '../providers/GlobalTransactionsBatchProvider';
 import SelectedChainsHistoryProvider from '../providers/SelectedChainsHistoryProvider';
+import { getExtensionViewContext } from '../utils/extensionRuntime';
 import type { EtherspotTransactionKitConfig } from '../utils/nativeTransactionKit';
 
 /**
@@ -145,6 +146,7 @@ export default function Authorized({
       walletMode: 'delegatedEoa',
     } as EtherspotTransactionKitConfig;
   }, [provider, chainId, customAccount]);
+  const isExtensionSidePanelMode = getExtensionViewContext() === 'sidePanel';
 
   if (showAnimation) {
     return <Loading type="enter" />;
@@ -156,7 +158,9 @@ export default function Authorized({
         <GlobalTransactionBatchesProvider>
           <BottomMenuModalProvider>
             <SelectedChainsHistoryProvider>
-              <AuthContentWrapper>
+              <AuthContentWrapper
+                $isExtensionSidePanelMode={isExtensionSidePanelMode}
+              >
                 <Outlet />
               </AuthContentWrapper>
               <BottomMenu />
@@ -181,6 +185,20 @@ export default function Authorized({
   );
 }
 
-const AuthContentWrapper = styled.div`
+const AuthContentWrapper = styled.div<{
+  $isExtensionSidePanelMode?: boolean;
+}>`
   margin: 0 auto;
+
+  ${({ $isExtensionSidePanelMode }) =>
+    $isExtensionSidePanelMode &&
+    `
+      width: 100%;
+      height: 100dvh;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-bottom: 112px;
+    `}
 `;
