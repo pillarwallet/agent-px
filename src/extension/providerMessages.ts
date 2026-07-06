@@ -61,6 +61,7 @@ export type ProviderRuntimeResponseMessage = {
 };
 
 export type ProviderApprovalKind =
+  | 'eth_requestAccounts'
   | 'eth_sendTransaction'
   | 'eth_sign'
   | 'eth_signTransaction'
@@ -71,7 +72,7 @@ export type ProviderApprovalKind =
 
 export type ProviderApprovalRequestView = {
   id: string;
-  account: string;
+  account?: string;
   chainId: number;
   createdAt: number;
   estimatedFee?: {

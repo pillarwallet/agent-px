@@ -19,8 +19,11 @@ type ChromeStorageAreaLike = {
   get: (
     keys: string | string[] | null,
     callback: (items: Record<string, unknown>) => void
-  ) => void;
-  set: (items: Record<string, unknown>, callback?: () => void) => void;
+  ) => Promise<Record<string, unknown> | void> | void;
+  set: (
+    items: Record<string, unknown>,
+    callback?: () => void
+  ) => Promise<void> | void;
 };
 
 type PillarKeyringVaultPayload = {
@@ -95,16 +98,26 @@ const storageGet = <T>(
   storage: ChromeStorageAreaLike | undefined,
   key: string
 ): Promise<T | undefined> =>
-  new Promise((resolve) => {
+  new Promise((resolve, reject) => {
     if (!storage) {
       resolve(undefined);
       return;
     }
 
+    let settled = false;
+    const finish = (items: Record<string, unknown> | void) => {
+      if (settled) return;
+      settled = true;
+      resolve((items as Record<string, unknown> | undefined)?.[key] as
+        | T
+        | undefined);
+    };
+
     try {
-      storage.get([key], (items) => {
-        resolve(items?.[key] as T | undefined);
-      });
+      const result = storage.get([key], finish);
+      if (result instanceof Promise) {
+        result.then(finish).catch(reject);
+      }
     } catch {
       resolve(undefined);
     }
@@ -121,8 +134,18 @@ const storageSet = (
       return;
     }
 
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
     try {
-      storage.set({ [key]: value }, () => resolve());
+      const result = storage.set({ [key]: value }, finish);
+      if (result instanceof Promise) {
+        result.then(finish).catch(reject);
+      }
     } catch (error) {
       reject(error);
     }

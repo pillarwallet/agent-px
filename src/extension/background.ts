@@ -8,9 +8,11 @@ import {
 } from 'viem';
 import type {
   Address,
+  AuthorizationRequest,
   Chain,
   Hex,
   SignableMessage,
+  SignedAuthorization,
   TransactionSerializable,
   TypedDataDefinition,
 } from 'viem';
@@ -38,15 +40,22 @@ import {
   ProviderRuntimeResponseMessage,
 } from './providerMessages';
 import {
+  PillarKeyringHostRequestMessage,
   PillarKeyringRequestMessage,
+  PillarKeyringResponseMessage,
+  PillarKeyringStorageRequestMessage,
+  PILLARX_KEYRING_HOST_REQUEST,
   PILLARX_KEYRING_REQUEST,
+  PILLARX_KEYRING_STORAGE_REQUEST,
   decodePillarKeyringMessagePayload,
   encodePillarKeyringMessagePayload,
 } from '../utils/pillarKeyringMessaging';
 import {
   PillarKeyringController,
   PillarUnlockedAccount,
+  PILLARX_KEYRING_VAULT_STORAGE_KEY,
 } from './keyring/PillarKeyringController';
+import { PILLARX_KEEP_ALIVE_PORT } from './keepAlive';
 import { getEtherspotBundlerUrl } from '../utils/bundler';
 import {
   encodePillarExecuteCall,
@@ -71,6 +80,9 @@ type ChromeRuntimeLike = {
   onInstalled?: {
     addListener: (listener: (details: ExtensionInstallReason) => void) => void;
   };
+  onConnect?: {
+    addListener: (listener: (port: ChromePortLike) => void) => void;
+  };
   onMessage?: {
     addListener: (
       listener: (
@@ -83,6 +95,21 @@ type ChromeRuntimeLike = {
   lastError?: {
     message?: string;
   };
+  sendMessage?: (
+    message: unknown,
+    callback: (response?: unknown) => void
+  ) => void;
+};
+
+type ChromePortLike = {
+  name?: string;
+  onDisconnect?: {
+    addListener: (listener: () => void) => void;
+  };
+  onMessage?: {
+    addListener: (listener: (message: unknown) => void) => void;
+  };
+  postMessage?: (message: unknown) => void;
 };
 
 type ChromeWindow = {
@@ -105,6 +132,14 @@ type ChromeWindowUpdateOptions = {
 type ChromeLike = {
   action?: {
     openPopup?: (options?: { windowId?: number }) => Promise<void>;
+  };
+  offscreen?: {
+    createDocument?: (parameters: {
+      justification: string;
+      reasons: string[];
+      url: string;
+    }) => Promise<void>;
+    hasDocument?: () => Promise<boolean>;
   };
   runtime?: ChromeRuntimeLike;
   sidePanel?: {
@@ -137,7 +172,10 @@ const keyringController = new PillarKeyringController(
 );
 const LEGACY_UNLOCKED_PRIVATE_KEY_SESSION_KEY =
   'PILLARX_LOCAL_PRIVATE_KEY_UNLOCKED_SESSION_V1';
+const KEYRING_HOST_DOCUMENT_PATH = 'extension/keyring.html';
 const OPEN_SIDE_PANEL_MESSAGE_TYPE = 'PILLARX_OPEN_SIDE_PANEL';
+const keepAlivePorts = new Set<ChromePortLike>();
+let keyringHostCreationPromise: Promise<void> | undefined;
 
 chromeLike?.storage?.session?.remove?.(LEGACY_UNLOCKED_PRIVATE_KEY_SESSION_KEY);
 const CONNECTED_DAPPS_STORAGE_KEY = 'pillarx:dapp:connected:v1';
@@ -450,8 +488,107 @@ const chromeStorageSet = async <T>(
     }
   });
 
-const getUnlockedAccount = async (): Promise<UnlockedAccount | undefined> =>
-  keyringController.getUnlockedAccount();
+const getKeyringStorageValue = async (key: string): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const area = chromeLike?.storage?.local;
+    if (!area) {
+      reject(new Error('Extension storage is not available.'));
+      return;
+    }
+
+    try {
+      area.get([key], (items) => {
+        resolve(items?.[key]);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+const setKeyringStorageValue = async (
+  key: string,
+  value: unknown
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const area = chromeLike?.storage?.local;
+    if (!area) {
+      reject(new Error('Extension storage is not available.'));
+      return;
+    }
+
+    try {
+      area.set({ [key]: value }, () => resolve());
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+const forwardKeyringRequest = (message: PillarKeyringRequestMessage) => {
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  return handleKeyringRequest(message);
+};
+
+const createUnlockedAccountProxy = (address: `0x${string}`): UnlockedAccount =>
+  ({
+    address,
+    type: 'local',
+    async sign({ hash }: { hash: Hex }) {
+      return forwardKeyringRequest({
+        type: PILLARX_KEYRING_REQUEST,
+        method: 'signMessage',
+        payload: encodePillarKeyringMessagePayload({
+          address,
+          message: { raw: hash },
+        }),
+      }) as Promise<Hex>;
+    },
+    async signMessage({ message }: { message: SignableMessage }) {
+      return forwardKeyringRequest({
+        type: PILLARX_KEYRING_REQUEST,
+        method: 'signMessage',
+        payload: encodePillarKeyringMessagePayload({ address, message }),
+      }) as Promise<Hex>;
+    },
+    async signTransaction(transaction: TransactionSerializable) {
+      return forwardKeyringRequest({
+        type: PILLARX_KEYRING_REQUEST,
+        method: 'signTransaction',
+        payload: encodePillarKeyringMessagePayload({
+          address,
+          transaction,
+        }),
+      }) as Promise<Hex>;
+    },
+    async signTypedData(typedData: TypedDataDefinition) {
+      return forwardKeyringRequest({
+        type: PILLARX_KEYRING_REQUEST,
+        method: 'signTypedData',
+        payload: encodePillarKeyringMessagePayload({ address, typedData }),
+      }) as Promise<Hex>;
+    },
+    async signAuthorization(
+      authorization: AuthorizationRequest
+    ): Promise<SignedAuthorization> {
+      return forwardKeyringRequest({
+        type: PILLARX_KEYRING_REQUEST,
+        method: 'signAuthorization',
+        payload: encodePillarKeyringMessagePayload({
+          address,
+          authorization,
+        }),
+      }) as Promise<SignedAuthorization>;
+    },
+  }) as UnlockedAccount;
+
+const getUnlockedAccount = async (): Promise<UnlockedAccount | undefined> => {
+  const status = (await forwardKeyringRequest({
+    type: PILLARX_KEYRING_REQUEST,
+    method: 'getStatus',
+  })) as { accounts?: `0x${string}`[]; isUnlocked?: boolean };
+  const address = status.isUnlocked ? status.accounts?.[0] : undefined;
+
+  return address ? createUnlockedAccountProxy(address) : undefined;
+};
 
 const getUnlockedAddress = async () => (await getUnlockedAccount())?.address;
 
@@ -1103,13 +1240,15 @@ const getConnectedAccount = async (
 
 const requestProviderApproval = async ({
   account,
+  accountAddress,
   chainId,
   estimatedFee,
   message,
   method,
   simulation,
 }: {
-  account: UnlockedAccount;
+  account?: UnlockedAccount;
+  accountAddress?: string;
   chainId: number;
   estimatedFee?: TransactionFeeEstimateView;
   message: ProviderRuntimeRequestMessage;
@@ -1131,7 +1270,7 @@ const requestProviderApproval = async ({
       timeoutId,
       view: {
         id: message.id,
-        account: account.address,
+        account: account?.address ?? accountAddress,
         chainId,
         createdAt: Date.now(),
         estimatedFee,
@@ -1183,7 +1322,106 @@ const respondToProviderApproval = ({
   return { ok: true };
 };
 
-const handleKeyringRequest = async ({
+const wait = (milliseconds: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+
+const ensureKeyringHostDocument = async () => {
+  if (!chromeLike?.offscreen?.createDocument || !chromeLike.runtime?.getURL) {
+    return false;
+  }
+
+  if (await chromeLike.offscreen.hasDocument?.()) {
+    return true;
+  }
+
+  if (!keyringHostCreationPromise) {
+    keyringHostCreationPromise = chromeLike.offscreen
+      .createDocument({
+        url: chromeLike.runtime.getURL(KEYRING_HOST_DOCUMENT_PATH),
+        reasons: ['WORKERS'],
+        justification:
+          'Keep the PillarX keyring unlocked in extension memory for the current browser session.',
+      })
+      .finally(() => {
+        keyringHostCreationPromise = undefined;
+      });
+  }
+
+  await keyringHostCreationPromise;
+  return true;
+};
+
+const sendKeyringHostRequest = async <T>({
+  method,
+  payload,
+}: PillarKeyringHostRequestMessage): Promise<T> => {
+  if (!chromeLike?.runtime?.sendMessage) {
+    throw new Error('PillarX keyring runtime is not available.');
+  }
+
+  const hasHost = await ensureKeyringHostDocument();
+  if (!hasHost) {
+    throw new Error('PillarX keyring host is not available.');
+  }
+
+  const message: PillarKeyringHostRequestMessage = {
+    type: PILLARX_KEYRING_HOST_REQUEST,
+    method,
+    payload,
+  };
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await new Promise<T>((resolve, reject) => {
+        chromeLike.runtime?.sendMessage?.(message, (response) => {
+          const runtimeError = chromeLike.runtime?.lastError?.message;
+          if (runtimeError) {
+            reject(new Error(runtimeError));
+            return;
+          }
+
+          const keyringResponse = response as
+            | PillarKeyringResponseMessage
+            | undefined;
+          if (!keyringResponse) {
+            reject(new Error('PillarX keyring host did not respond.'));
+            return;
+          }
+
+          if (!keyringResponse.ok) {
+            reject(new Error(keyringResponse.error));
+            return;
+          }
+
+          resolve(
+            decodePillarKeyringMessagePayload(keyringResponse.result) as T
+          );
+        });
+      });
+    } catch (error) {
+      lastError = error;
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes('Receiving end does not exist')
+      ) {
+        throw error;
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      await wait(100);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('PillarX keyring host did not respond.');
+};
+
+const handleLocalKeyringRequest = async ({
   method,
   payload,
 }: PillarKeyringRequestMessage) => {
@@ -1220,7 +1458,7 @@ const handleKeyringRequest = async ({
     }
 
     case 'lock':
-      keyringController.lock();
+      await keyringController.lock();
       return keyringController.getStatus();
 
     case 'signMessage':
@@ -1266,6 +1504,42 @@ const handleKeyringRequest = async ({
   }
 };
 
+async function handleKeyringRequest(
+  message: PillarKeyringRequestMessage
+): Promise<unknown> {
+  if (chromeLike?.offscreen?.createDocument) {
+    return sendKeyringHostRequest({
+      type: PILLARX_KEYRING_HOST_REQUEST,
+      method: message.method,
+      payload: message.payload,
+    });
+  }
+
+  return handleLocalKeyringRequest(message);
+}
+
+async function handleKeyringStorageRequest(
+  message: PillarKeyringStorageRequestMessage
+): Promise<unknown> {
+  if (message.key !== PILLARX_KEYRING_VAULT_STORAGE_KEY) {
+    throw providerError(-32602, 'Unsupported PillarX keyring storage key.');
+  }
+
+  if (message.action === 'get') {
+    return getKeyringStorageValue(message.key);
+  }
+
+  if (message.action === 'set') {
+    await setKeyringStorageValue(
+      message.key,
+      decodePillarKeyringMessagePayload(message.value)
+    );
+    return true;
+  }
+
+  throw providerError(-32602, 'Unsupported PillarX keyring storage action.');
+}
+
 const handleProviderRequest = async (
   message: ProviderRuntimeRequestMessage
 ) => {
@@ -1289,9 +1563,20 @@ const handleProviderRequest = async (
     }
 
     case 'eth_requestAccounts': {
+      const currentAddress = await getUnlockedAddress();
+      if (currentAddress && (await isOriginConnected(origin, currentAddress))) {
+        return [currentAddress];
+      }
+
+      await requestProviderApproval({
+        accountAddress: currentAddress,
+        chainId,
+        message,
+        method,
+      });
+
       const address = await getUnlockedAddress();
       if (!address) {
-        openWalletSurface().catch(() => undefined);
         throw providerError(4100, 'Unlock PillarX to connect this site.');
       }
 
@@ -1555,6 +1840,25 @@ chromeLike?.runtime?.onInstalled?.addListener((details) => {
   console.info('PillarX extension installed/updated', details.reason);
 });
 
+chromeLike?.runtime?.onConnect?.addListener((port) => {
+  if (port.name !== PILLARX_KEEP_ALIVE_PORT) return;
+
+  keepAlivePorts.add(port);
+
+  port.onMessage?.addListener((message) => {
+    if (!isObject(message) || message.type !== 'PILLARX_KEEP_ALIVE') return;
+
+    port.postMessage?.({
+      ok: true,
+      type: 'PILLARX_KEEP_ALIVE_ACK',
+    });
+  });
+
+  port.onDisconnect?.addListener(() => {
+    keepAlivePorts.delete(port);
+  });
+});
+
 chromeLike?.windows?.onRemoved?.addListener((windowId) => {
   if (windowId !== approvalWindowId) return;
 
@@ -1564,6 +1868,24 @@ chromeLike?.windows?.onRemoved?.addListener((windowId) => {
 
 chromeLike?.runtime?.onMessage?.addListener(
   (message, _sender, sendResponse) => {
+    if (isObject(message) && message.type === PILLARX_KEYRING_STORAGE_REQUEST) {
+      handleKeyringStorageRequest(message as PillarKeyringStorageRequestMessage)
+        .then((result) => {
+          sendResponse({
+            ok: true,
+            result: encodePillarKeyringMessagePayload(result),
+          });
+        })
+        .catch((error) => {
+          sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+
+      return true;
+    }
+
     if (isObject(message) && message.type === PILLARX_KEYRING_REQUEST) {
       handleKeyringRequest(message as PillarKeyringRequestMessage)
         .then((result) => {
