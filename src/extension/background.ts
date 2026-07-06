@@ -1,13 +1,47 @@
+import {
+  createPublicClient,
+  createWalletClient,
+  formatEther,
+  getAddress,
+  http,
+  isAddress,
+} from 'viem';
+import type {
+  Address,
+  Chain,
+  Hex,
+  SignableMessage,
+  TypedDataDefinition,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import {
+  arbitrum,
+  base,
+  bsc,
+  gnosis,
+  mainnet,
+  optimism,
+  polygon,
+  sepolia,
+} from 'viem/chains';
 
 import {
+  PILLARX_PROVIDER_APPROVAL_GET_PENDING,
+  PILLARX_PROVIDER_APPROVAL_RESPOND,
   PILLARX_PROVIDER_RPC_REQUEST,
+  ProviderApprovalKind,
+  ProviderApprovalRequestView,
+  ProviderApprovalRespondMessage,
   ProviderRequestArguments,
   ProviderRpcErrorPayload,
   ProviderRuntimeRequestMessage,
   ProviderRuntimeResponseMessage,
 } from './providerMessages';
 import { getEtherspotBundlerUrl } from '../utils/bundler';
+import {
+  encodePillarExecuteCall,
+  PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
+} from '../utils/pillarSmartAccountClient';
 import { PHONE_OTP_UNLOCKED_SESSION_KEY } from '../utils/phoneOtpAuthKeys';
 
 type ExtensionInstallReason = {
@@ -23,6 +57,7 @@ type ChromeStorageAreaLike = {
 };
 
 type ChromeRuntimeLike = {
+  getURL?: (path: string) => string;
   onInstalled?: {
     addListener: (listener: (details: ExtensionInstallReason) => void) => void;
   };
@@ -44,13 +79,41 @@ type ChromeWindow = {
   id?: number;
 };
 
+type ChromeWindowCreateOptions = {
+  focused?: boolean;
+  height?: number;
+  type?: 'normal' | 'popup' | 'panel' | 'app' | 'devtools';
+  url: string;
+  width?: number;
+};
+
+type ChromeWindowUpdateOptions = {
+  drawAttention?: boolean;
+  focused?: boolean;
+};
+
 type ChromeLike = {
+  action?: {
+    openPopup?: (options?: { windowId?: number }) => Promise<void>;
+  };
   runtime?: ChromeRuntimeLike;
   sidePanel?: {
     open?: (options: { windowId: number }) => Promise<void>;
   };
   windows?: {
+    create?: (
+      options: ChromeWindowCreateOptions,
+      callback?: (window?: ChromeWindow) => void
+    ) => void;
     getLastFocused?: (callback: (window: ChromeWindow) => void) => void;
+    onRemoved?: {
+      addListener: (listener: (windowId: number) => void) => void;
+    };
+    update?: (
+      windowId: number,
+      options: ChromeWindowUpdateOptions,
+      callback?: (window?: ChromeWindow) => void
+    ) => void;
   };
   storage?: {
     local?: ChromeStorageAreaLike;
@@ -64,10 +127,33 @@ const CONNECTED_DAPPS_STORAGE_KEY = 'pillarx:dapp:connected:v1';
 const SELECTED_CHAIN_STORAGE_KEY = 'pillarx:dapp:selectedChain:v1';
 const DEFAULT_MAINNET_CHAIN_ID = 1;
 const DEFAULT_TESTNET_CHAIN_ID = 11155111;
+const APPROVAL_WINDOW_WIDTH = 430;
+const APPROVAL_WINDOW_HEIGHT = 620;
+const alchemyNetworkByChainId: Record<number, string> = {
+  [mainnet.id]: 'eth-mainnet',
+  [polygon.id]: 'polygon-mainnet',
+  [base.id]: 'base-mainnet',
+  [bsc.id]: 'bnb-mainnet',
+  [optimism.id]: 'opt-mainnet',
+  [arbitrum.id]: 'arb-mainnet',
+  [sepolia.id]: 'eth-sepolia',
+  [gnosis.id]: 'gnosis-mainnet',
+};
+const chainNativeSymbols: Record<number, string> = {
+  [mainnet.id]: 'ETH',
+  [polygon.id]: 'POL',
+  [base.id]: 'ETH',
+  [bsc.id]: 'BNB',
+  [optimism.id]: 'ETH',
+  [arbitrum.id]: 'ETH',
+  [sepolia.id]: 'ETH',
+  [gnosis.id]: 'XDAI',
+};
 const defaultChainId =
   import.meta.env.VITE_USE_TESTNETS === 'true'
     ? DEFAULT_TESTNET_CHAIN_ID
     : DEFAULT_MAINNET_CHAIN_ID;
+const alchemyApiKey = import.meta.env.VITE_ALCHEMY_API_KEY?.trim();
 const bundlerApiKey = import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY;
 
 const supportedChainIds = new Set(
@@ -84,6 +170,17 @@ const supportedChainIds = new Set(
       ]
 );
 
+const chainById: Record<number, Chain> = {
+  [mainnet.id]: mainnet,
+  [polygon.id]: polygon,
+  [base.id]: base,
+  [bsc.id]: bsc,
+  [optimism.id]: optimism,
+  [arbitrum.id]: arbitrum,
+  [sepolia.id]: sepolia,
+  [gnosis.id]: gnosis,
+};
+
 type ConnectedDapp = {
   origin: string;
   address: string;
@@ -94,6 +191,48 @@ type ConnectedDapp = {
 
 type ConnectedDappsState = Record<string, ConnectedDapp>;
 type SelectedChainState = Record<string, number>;
+type UnlockedAccount = ReturnType<typeof privateKeyToAccount>;
+
+type DappTransactionRequest = {
+  accessList?: unknown;
+  chainId?: unknown;
+  data?: unknown;
+  from?: unknown;
+  gas?: unknown;
+  gasLimit?: unknown;
+  gasPrice?: unknown;
+  maxFeePerGas?: unknown;
+  maxPriorityFeePerGas?: unknown;
+  nonce?: unknown;
+  to?: unknown;
+  type?: unknown;
+  value?: unknown;
+};
+
+type TransactionFeeEstimateView = ProviderApprovalRequestView['estimatedFee'];
+type TransactionSimulationView = ProviderApprovalRequestView['simulation'];
+
+type AlchemyAssetChange = {
+  amount?: string;
+  assetType?: string;
+  changeType?: string;
+  contractAddress?: string;
+  decimals?: number;
+  from?: string;
+  logo?: string;
+  name?: string;
+  rawAmount?: string;
+  symbol?: string;
+  to?: string;
+  tokenId?: string | null;
+};
+
+type PendingProviderApproval = {
+  reject: (error: ProviderRpcError) => void;
+  resolve: () => void;
+  timeoutId: ReturnType<typeof setTimeout>;
+  view: ProviderApprovalRequestView;
+};
 
 class ProviderRpcError extends Error {
   code: number;
@@ -151,6 +290,111 @@ const parseChainId = (chainId: unknown): number | undefined => {
   return undefined;
 };
 
+const getChainById = (chainId: number): Chain => {
+  const chain = chainById[chainId];
+  if (!chain || !supportedChainIds.has(chainId)) {
+    throw providerError(4901, `PillarX is not connected to chain ${chainId}.`);
+  }
+
+  return chain;
+};
+
+const isHex = (value: unknown): value is Hex =>
+  typeof value === 'string' && /^0x[0-9a-fA-F]*$/.test(value);
+
+const normalizeHexData = (value: unknown): Hex => {
+  if (value === undefined || value === null || value === '') {
+    return '0x';
+  }
+
+  if (!isHex(value)) {
+    throw providerError(-32602, 'Expected hex data.');
+  }
+
+  return value;
+};
+
+const parseQuantity = (value: unknown): bigint | undefined => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (typeof value === 'bigint') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value < 0) {
+      throw providerError(-32602, 'Invalid numeric transaction quantity.');
+    }
+
+    return BigInt(Math.trunc(value));
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return BigInt(value);
+    } catch {
+      throw providerError(-32602, 'Invalid transaction quantity.');
+    }
+  }
+
+  throw providerError(-32602, 'Invalid transaction quantity.');
+};
+
+const parseNonce = (value: unknown): number | undefined => {
+  const parsed = parseQuantity(value);
+  if (parsed === undefined) return undefined;
+
+  const nonce = Number(parsed);
+  if (!Number.isSafeInteger(nonce)) {
+    throw providerError(-32602, 'Invalid transaction nonce.');
+  }
+
+  return nonce;
+};
+
+const formatNativeFee = (wei: bigint, chainId: number) => {
+  const symbol = chainNativeSymbols[chainId] ?? 'native';
+  const formatted = formatEther(wei);
+  const [integer, decimal = ''] = formatted.split('.');
+
+  if (wei === 0n || !decimal) return `${integer} ${symbol}`;
+  if (integer !== '0') {
+    const visibleDecimal = decimal.slice(0, 6).replace(/0+$/, '');
+    return `${integer}${visibleDecimal ? `.${visibleDecimal}` : ''} ${symbol}`;
+  }
+
+  const firstNonZeroDecimalIndex = decimal.search(/[1-9]/);
+  if (firstNonZeroDecimalIndex > 5) return `<0.000001 ${symbol}`;
+
+  const precision = Math.max(firstNonZeroDecimalIndex + 4, 6);
+  return `0.${decimal.slice(0, precision).replace(/0+$/, '')} ${symbol}`;
+};
+
+const quantityToHex = (value: bigint) => `0x${value.toString(16)}`;
+
+const getAlchemyRpcUrl = (chainId: number) => {
+  if (!alchemyApiKey) return undefined;
+
+  const network = alchemyNetworkByChainId[chainId];
+  if (!network) return undefined;
+
+  return `https://${network}.g.alchemy.com/v2/${alchemyApiKey}`;
+};
+
+const normalizeSignableMessage = (message: unknown): SignableMessage => {
+  if (isHex(message)) {
+    return { raw: message };
+  }
+
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  return JSON.stringify(message);
+};
+
 const chromeStorageGet = async <T>(
   area: ChromeStorageAreaLike | undefined,
   key: string,
@@ -189,7 +433,7 @@ const chromeStorageSet = async <T>(
     }
   });
 
-const getUnlockedAddress = async () => {
+const getUnlockedAccount = async (): Promise<UnlockedAccount | undefined> => {
   const privateKey = await chromeStorageGet<string | undefined>(
     chromeLike?.storage?.session,
     PHONE_OTP_UNLOCKED_SESSION_KEY,
@@ -200,8 +444,10 @@ const getUnlockedAddress = async () => {
     return undefined;
   }
 
-  return privateKeyToAccount(privateKey as `0x${string}`).address;
+  return privateKeyToAccount(privateKey as `0x${string}`);
 };
+
+const getUnlockedAddress = async () => (await getUnlockedAccount())?.address;
 
 const getConnectedDapps = () =>
   chromeStorageGet<ConnectedDappsState>(
@@ -301,11 +547,347 @@ const requestFirstParam = (
   return isObject(firstParam) ? firstParam : undefined;
 };
 
+const requestParamsArray = (
+  params: ProviderRequestArguments['params']
+): readonly unknown[] => (Array.isArray(params) ? params : []);
+
+const assertRequestedAccount = (
+  requestedAddress: unknown,
+  accountAddress: Address
+) => {
+  if (
+    typeof requestedAddress !== 'string' ||
+    !isAddress(requestedAddress) ||
+    getAddress(requestedAddress) !== getAddress(accountAddress)
+  ) {
+    throw providerError(
+      4100,
+      'Requested account does not match the connected PillarX account.'
+    );
+  }
+};
+
+const parseAddressAndTypedData = (
+  params: ProviderRequestArguments['params']
+): {
+  address: string;
+  typedData: TypedDataDefinition;
+} => {
+  const values = requestParamsArray(params);
+
+  if (values.length < 2) {
+    throw providerError(-32602, 'Missing typed data signing parameters.');
+  }
+
+  const [first, second] = values;
+  const address =
+    typeof first === 'string' && isAddress(first) ? first : second;
+  const payload = address === first ? second : first;
+
+  if (typeof address !== 'string' || !isAddress(address)) {
+    throw providerError(-32602, 'Missing typed data signing account.');
+  }
+
+  const typedData = typeof payload === 'string' ? JSON.parse(payload) : payload;
+
+  if (!isObject(typedData)) {
+    throw providerError(-32602, 'Invalid typed data payload.');
+  }
+
+  return {
+    address,
+    typedData: typedData as TypedDataDefinition,
+  };
+};
+
 const getRpcUrl = (chainId: number) =>
   getEtherspotBundlerUrl({
     chainId,
     apiKey: bundlerApiKey,
   });
+
+const getDelegationAuthorization = async ({
+  account,
+  chain,
+}: {
+  account: UnlockedAccount;
+  chain: Chain;
+}) => {
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(getRpcUrl(chain.id)),
+  });
+
+  const code = await publicClient.getCode({
+    address: account.address,
+  });
+  const delegatedAddressMatch = code?.match(/^0xef0100(.{40})$/);
+  const delegatedAddress = delegatedAddressMatch
+    ? getAddress(`0x${delegatedAddressMatch[1]}`)
+    : undefined;
+
+  if (
+    delegatedAddress?.toLowerCase() ===
+    PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS.toLowerCase()
+  ) {
+    return undefined;
+  }
+
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(getRpcUrl(chain.id)),
+  });
+
+  return walletClient.signAuthorization({
+    account,
+    contractAddress: PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
+    executor: 'self',
+  });
+};
+
+const buildDappTransactionRequest = async ({
+  account,
+  chainId,
+  transaction,
+}: {
+  account: UnlockedAccount;
+  chainId: number;
+  transaction: DappTransactionRequest;
+}) => {
+  const chain = getChainById(chainId);
+  const requestedChainId = parseChainId(transaction.chainId);
+
+  if (requestedChainId && requestedChainId !== chainId) {
+    throw providerError(
+      4901,
+      `Transaction chain ${requestedChainId} does not match selected chain ${chainId}.`
+    );
+  }
+
+  assertRequestedAccount(transaction.from ?? account.address, account.address);
+
+  if (typeof transaction.to !== 'string' || !isAddress(transaction.to)) {
+    throw providerError(
+      4200,
+      'PillarX does not support dapp contract deployment transactions yet.'
+    );
+  }
+
+  const authorization = await getDelegationAuthorization({
+    account,
+    chain,
+  });
+  const gas = parseQuantity(transaction.gas ?? transaction.gasLimit);
+  const innerCall = {
+    to: getAddress(transaction.to),
+    value: parseQuantity(transaction.value) ?? BigInt(0),
+    data: normalizeHexData(transaction.data),
+  };
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(getRpcUrl(chainId)),
+  });
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(getRpcUrl(chainId)),
+  });
+
+  return {
+    chainId,
+    request: {
+      account,
+      chain,
+      to: account.address,
+      value: BigInt(0),
+      data: encodePillarExecuteCall(innerCall),
+      ...(authorization ? { authorizationList: [authorization] } : {}),
+      ...(gas !== undefined ? { gas } : {}),
+      ...(transaction.gasPrice !== undefined
+        ? { gasPrice: parseQuantity(transaction.gasPrice) }
+        : {}),
+      ...(transaction.maxFeePerGas !== undefined
+        ? { maxFeePerGas: parseQuantity(transaction.maxFeePerGas) }
+        : {}),
+      ...(transaction.maxPriorityFeePerGas !== undefined
+        ? {
+            maxPriorityFeePerGas: parseQuantity(
+              transaction.maxPriorityFeePerGas
+            ),
+          }
+        : {}),
+      ...(transaction.nonce !== undefined
+        ? { nonce: parseNonce(transaction.nonce) }
+        : {}),
+    },
+    publicClient,
+    walletClient,
+  };
+};
+
+const getDappTransactionFeeEstimate = async ({
+  chainId,
+  publicClient,
+  request,
+}: Awaited<
+  ReturnType<typeof buildDappTransactionRequest>
+>): Promise<TransactionFeeEstimateView> => {
+  const gas =
+    request.gas ??
+    (await publicClient.estimateGas({
+      ...request,
+    }));
+  const feePerGas = await (async () => {
+    if (request.gasPrice !== undefined) return request.gasPrice;
+    if (request.maxFeePerGas !== undefined) return request.maxFeePerGas;
+
+    try {
+      const fees = await publicClient.estimateFeesPerGas({
+        type: 'eip1559',
+      });
+      if ('maxFeePerGas' in fees) return fees.maxFeePerGas;
+    } catch {
+      // Fall back to legacy gas price below.
+    }
+
+    return publicClient.getGasPrice();
+  })();
+  const totalWei = gas * feePerGas;
+
+  return {
+    feePerGas: feePerGas.toString(),
+    formatted: formatNativeFee(totalWei, chainId),
+    gas: gas.toString(),
+    totalWei: totalWei.toString(),
+  };
+};
+
+const getDappTransactionSimulation = async ({
+  account,
+  chainId,
+  estimatedFee,
+  transaction,
+}: {
+  account: UnlockedAccount;
+  chainId: number;
+  estimatedFee?: TransactionFeeEstimateView;
+  transaction: DappTransactionRequest;
+}): Promise<TransactionSimulationView | undefined> => {
+  const alchemyRpcUrl = getAlchemyRpcUrl(chainId);
+  if (!alchemyRpcUrl) return undefined;
+
+  if (typeof transaction.to !== 'string' || !isAddress(transaction.to)) {
+    return undefined;
+  }
+
+  const simulationTransaction: Record<string, string> = {
+    from: account.address,
+    to: getAddress(transaction.to),
+    data: normalizeHexData(transaction.data),
+    value: quantityToHex(parseQuantity(transaction.value) ?? 0n),
+  };
+  const gas = parseQuantity(transaction.gas ?? transaction.gasLimit);
+  const gasPrice = parseQuantity(transaction.gasPrice);
+  const maxFeePerGas = parseQuantity(transaction.maxFeePerGas);
+  const maxPriorityFeePerGas = parseQuantity(transaction.maxPriorityFeePerGas);
+
+  if (gas !== undefined) {
+    simulationTransaction.gas = quantityToHex(gas);
+  } else if (estimatedFee?.gas) {
+    simulationTransaction.gas = quantityToHex(BigInt(estimatedFee.gas));
+  }
+
+  if (gasPrice !== undefined) {
+    simulationTransaction.gasPrice = quantityToHex(gasPrice);
+  } else if (maxFeePerGas !== undefined) {
+    simulationTransaction.maxFeePerGas = quantityToHex(maxFeePerGas);
+    if (maxPriorityFeePerGas !== undefined) {
+      simulationTransaction.maxPriorityFeePerGas =
+        quantityToHex(maxPriorityFeePerGas);
+    }
+  } else if (estimatedFee?.feePerGas) {
+    simulationTransaction.gasPrice = quantityToHex(
+      BigInt(estimatedFee.feePerGas)
+    );
+  }
+
+  const response = await fetch(alchemyRpcUrl, {
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'alchemy_simulateAssetChanges',
+      params: [simulationTransaction],
+    }),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  });
+  const json = (await response.json()) as {
+    error?: { message?: string };
+    result?: {
+      changes?: AlchemyAssetChange[];
+      error?: { message?: string } | string | null;
+    };
+  };
+
+  if (!response.ok || json.error) {
+    throw new Error(
+      json.error?.message ?? 'Alchemy transaction simulation failed.'
+    );
+  }
+
+  if (json.result?.error) {
+    const simulationError = json.result.error;
+    throw new Error(
+      typeof simulationError === 'string'
+        ? simulationError
+        : (simulationError.message ?? 'Alchemy transaction simulation failed.')
+    );
+  }
+
+  const accountAddress = account.address.toLowerCase();
+  const changes = (json.result?.changes ?? [])
+    .map((change) => {
+      const from = change.from?.toLowerCase();
+      const to = change.to?.toLowerCase();
+      let direction: 'receive' | 'spend' | undefined;
+
+      if (from === accountAddress && to !== accountAddress) {
+        direction = 'spend';
+      } else if (to === accountAddress && from !== accountAddress) {
+        direction = 'receive';
+      }
+
+      if (!direction) return undefined;
+
+      return {
+        amount: change.amount,
+        assetType: change.assetType,
+        changeType: change.changeType,
+        contractAddress: change.contractAddress,
+        direction,
+        logo: change.logo,
+        name: change.name,
+        symbol: change.symbol,
+        tokenId: change.tokenId,
+      };
+    })
+    .filter(
+      (
+        change
+      ): change is NonNullable<
+        NonNullable<TransactionSimulationView>['changes'][number]
+      > => Boolean(change)
+    )
+    .sort((a, b) => {
+      if (a.direction === b.direction) return 0;
+      return a.direction === 'spend' ? -1 : 1;
+    });
+
+  return { changes };
+};
 
 const requestRpc = async ({
   chainId,
@@ -346,17 +928,11 @@ const requestRpc = async ({
 };
 
 const unsupportedMethods = new Set([
-  'eth_sendTransaction',
-  'eth_signTransaction',
-  'eth_sendRawTransaction',
-  'eth_sign',
-  'personal_sign',
-  'eth_signTypedData',
-  'eth_signTypedData_v3',
-  'eth_signTypedData_v4',
   'wallet_sendCalls',
   'wallet_getCallsStatus',
 ]);
+const pendingProviderApprovals = new Map<string, PendingProviderApproval>();
+let approvalWindowId: number | undefined;
 
 const buildPermissions = (origin: string, address: string) => [
   {
@@ -397,13 +973,208 @@ const getLastFocusedWindowId = (): Promise<number> =>
     });
   });
 
-const openSidePanel = async () => {
+async function openSidePanel() {
   if (!chromeLike?.sidePanel?.open) {
     throw new Error('Chrome side panel API is unavailable.');
   }
 
   const windowId = await getLastFocusedWindowId();
   await chromeLike.sidePanel.open({ windowId });
+}
+
+async function openWalletSurface() {
+  const windowId = await getLastFocusedWindowId();
+
+  if (chromeLike?.action?.openPopup) {
+    try {
+      await chromeLike.action.openPopup({ windowId });
+      return;
+    } catch {
+      // Fall through to the side panel fallback below.
+    }
+  }
+
+  if (chromeLike?.sidePanel?.open) {
+    await chromeLike.sidePanel.open({ windowId });
+    return;
+  }
+
+  throw new Error('No PillarX wallet surface is available.');
+}
+
+const createChromeWindow = (
+  options: ChromeWindowCreateOptions
+): Promise<ChromeWindow> =>
+  new Promise((resolve, reject) => {
+    if (!chromeLike?.windows?.create) {
+      reject(new Error('Chrome windows.create API is unavailable.'));
+      return;
+    }
+
+    chromeLike.windows.create(options, (createdWindow) => {
+      const lastErrorMessage = chromeLike.runtime?.lastError?.message;
+      if (lastErrorMessage) {
+        reject(new Error(lastErrorMessage));
+        return;
+      }
+
+      resolve(createdWindow ?? {});
+    });
+  });
+
+const focusChromeWindow = (windowId: number): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (!chromeLike?.windows?.update) {
+      resolve();
+      return;
+    }
+
+    chromeLike.windows.update(
+      windowId,
+      { drawAttention: true, focused: true },
+      () => {
+        const lastErrorMessage = chromeLike.runtime?.lastError?.message;
+        if (lastErrorMessage) {
+          reject(new Error(lastErrorMessage));
+          return;
+        }
+
+        resolve();
+      }
+    );
+  });
+
+async function openApprovalSurface() {
+  const approvalUrl = chromeLike?.runtime?.getURL?.('extension/approval.html');
+  if (!approvalUrl) {
+    throw new Error('Unable to resolve PillarX approval page URL.');
+  }
+
+  if (approvalWindowId !== undefined) {
+    try {
+      await focusChromeWindow(approvalWindowId);
+      return;
+    } catch {
+      approvalWindowId = undefined;
+    }
+  }
+
+  const createdWindow = await createChromeWindow({
+    focused: true,
+    height: APPROVAL_WINDOW_HEIGHT,
+    type: 'popup',
+    url: approvalUrl,
+    width: APPROVAL_WINDOW_WIDTH,
+  });
+
+  approvalWindowId = createdWindow.id;
+}
+
+const rejectPendingProviderApprovals = (message: string) => {
+  pendingProviderApprovals.forEach((pending) => {
+    clearTimeout(pending.timeoutId);
+    pending.reject(providerError(4001, message));
+  });
+  pendingProviderApprovals.clear();
+};
+
+const getConnectedAccount = async (
+  origin: string
+): Promise<UnlockedAccount> => {
+  const account = await getUnlockedAccount();
+  if (!account) {
+    openWalletSurface().catch(() => undefined);
+    throw providerError(4100, 'Unlock PillarX to use this site.');
+  }
+
+  const connected = await isOriginConnected(origin, account.address);
+  if (!connected) {
+    throw providerError(4100, 'Connect PillarX to this site first.');
+  }
+
+  return account;
+};
+
+const requestProviderApproval = async ({
+  account,
+  chainId,
+  estimatedFee,
+  message,
+  method,
+  simulation,
+}: {
+  account: UnlockedAccount;
+  chainId: number;
+  estimatedFee?: TransactionFeeEstimateView;
+  message: ProviderRuntimeRequestMessage;
+  method: ProviderApprovalKind;
+  simulation?: TransactionSimulationView;
+}) =>
+  new Promise<void>((resolve, reject) => {
+    const timeoutId = setTimeout(
+      () => {
+        pendingProviderApprovals.delete(message.id);
+        reject(providerError(4001, 'PillarX request approval timed out.'));
+      },
+      5 * 60 * 1000
+    );
+
+    pendingProviderApprovals.set(message.id, {
+      reject,
+      resolve,
+      timeoutId,
+      view: {
+        id: message.id,
+        account: account.address,
+        chainId,
+        createdAt: Date.now(),
+        estimatedFee,
+        favicon: message.favicon,
+        method,
+        origin: message.origin,
+        params: message.args.params,
+        simulation,
+        title: message.title,
+        url: message.url,
+      },
+    });
+
+    openApprovalSurface().catch((error) => {
+      clearTimeout(timeoutId);
+      pendingProviderApprovals.delete(message.id);
+      reject(
+        providerError(
+          4001,
+          error instanceof Error
+            ? error.message
+            : 'Unable to open PillarX approval window.'
+        )
+      );
+    });
+  });
+
+const getPendingProviderApprovalViews = () =>
+  Array.from(pendingProviderApprovals.values()).map((pending) => pending.view);
+
+const respondToProviderApproval = ({
+  approved,
+  id,
+}: ProviderApprovalRespondMessage) => {
+  const pending = pendingProviderApprovals.get(id);
+  if (!pending) {
+    throw providerError(4900, 'PillarX approval request is no longer pending.');
+  }
+
+  clearTimeout(pending.timeoutId);
+  pendingProviderApprovals.delete(id);
+
+  if (approved) {
+    pending.resolve();
+    return { ok: true };
+  }
+
+  pending.reject(providerError(4001, 'User rejected the PillarX request.'));
+  return { ok: true };
 };
 
 const handleProviderRequest = async (
@@ -431,7 +1202,7 @@ const handleProviderRequest = async (
     case 'eth_requestAccounts': {
       const address = await getUnlockedAddress();
       if (!address) {
-        openSidePanel().catch(() => undefined);
+        openWalletSurface().catch(() => undefined);
         throw providerError(4100, 'Unlock PillarX to connect this site.');
       }
 
@@ -507,6 +1278,170 @@ const handleProviderRequest = async (
       return null;
     }
 
+    case 'personal_sign': {
+      const account = await getConnectedAccount(origin);
+      const values = requestParamsArray(params);
+
+      if (values.length < 2) {
+        throw providerError(-32602, 'Missing personal_sign parameters.');
+      }
+
+      assertRequestedAccount(values[1], account.address);
+      await requestProviderApproval({
+        account,
+        chainId,
+        message,
+        method,
+      });
+
+      return account.signMessage({
+        message: normalizeSignableMessage(values[0]),
+      });
+    }
+
+    case 'eth_sign': {
+      const account = await getConnectedAccount(origin);
+      const values = requestParamsArray(params);
+
+      if (values.length < 2) {
+        throw providerError(-32602, 'Missing eth_sign parameters.');
+      }
+
+      assertRequestedAccount(values[0], account.address);
+      await requestProviderApproval({
+        account,
+        chainId,
+        message,
+        method,
+      });
+
+      return account.signMessage({
+        message: normalizeSignableMessage(values[1]),
+      });
+    }
+
+    case 'eth_signTypedData':
+    case 'eth_signTypedData_v3':
+    case 'eth_signTypedData_v4': {
+      const account = await getConnectedAccount(origin);
+      const { address, typedData } = parseAddressAndTypedData(params);
+
+      assertRequestedAccount(address, account.address);
+      await requestProviderApproval({
+        account,
+        chainId,
+        message,
+        method,
+      });
+
+      return account.signTypedData(typedData);
+    }
+
+    case 'eth_sendRawTransaction':
+      return requestRpc({
+        chainId,
+        method,
+        params,
+      });
+
+    case 'eth_signTransaction': {
+      const account = await getConnectedAccount(origin);
+      const transaction = requestFirstParam(params) as
+        | DappTransactionRequest
+        | undefined;
+
+      if (!transaction) {
+        throw providerError(-32602, 'Missing transaction request.');
+      }
+
+      const preparedTransaction = await buildDappTransactionRequest({
+        account,
+        chainId,
+        transaction,
+      });
+      const estimatedFee = await getDappTransactionFeeEstimate(
+        preparedTransaction
+      ).catch(() => undefined);
+      const simulation = await getDappTransactionSimulation({
+        account,
+        chainId,
+        estimatedFee,
+        transaction,
+      }).catch((error) =>
+        alchemyApiKey
+          ? {
+              changes: [],
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Alchemy transaction simulation failed.',
+            }
+          : undefined
+      );
+
+      await requestProviderApproval({
+        account,
+        chainId,
+        estimatedFee,
+        message,
+        method,
+        simulation,
+      });
+
+      return preparedTransaction.walletClient.signTransaction(
+        preparedTransaction.request
+      );
+    }
+
+    case 'eth_sendTransaction': {
+      const account = await getConnectedAccount(origin);
+      const transaction = requestFirstParam(params) as
+        | DappTransactionRequest
+        | undefined;
+
+      if (!transaction) {
+        throw providerError(-32602, 'Missing transaction request.');
+      }
+
+      const preparedTransaction = await buildDappTransactionRequest({
+        account,
+        chainId,
+        transaction,
+      });
+      const estimatedFee = await getDappTransactionFeeEstimate(
+        preparedTransaction
+      ).catch(() => undefined);
+      const simulation = await getDappTransactionSimulation({
+        account,
+        chainId,
+        estimatedFee,
+        transaction,
+      }).catch((error) =>
+        alchemyApiKey
+          ? {
+              changes: [],
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Alchemy transaction simulation failed.',
+            }
+          : undefined
+      );
+
+      await requestProviderApproval({
+        account,
+        chainId,
+        estimatedFee,
+        message,
+        method,
+        simulation,
+      });
+
+      return preparedTransaction.walletClient.sendTransaction(
+        preparedTransaction.request
+      );
+    }
+
     case 'wallet_getCapabilities':
       return {};
 
@@ -529,6 +1464,13 @@ const handleProviderRequest = async (
 chromeLike?.runtime?.onInstalled?.addListener((details) => {
   // eslint-disable-next-line no-console
   console.info('PillarX extension installed/updated', details.reason);
+});
+
+chromeLike?.windows?.onRemoved?.addListener((windowId) => {
+  if (windowId !== approvalWindowId) return;
+
+  approvalWindowId = undefined;
+  rejectPendingProviderApprovals('User closed the PillarX approval window.');
 });
 
 chromeLike?.runtime?.onMessage?.addListener(
@@ -558,6 +1500,34 @@ chromeLike?.runtime?.onMessage?.addListener(
           sendResponse(response);
         });
 
+      return true;
+    }
+
+    if (
+      isObject(message) &&
+      message.type === PILLARX_PROVIDER_APPROVAL_GET_PENDING
+    ) {
+      sendResponse({
+        ok: true,
+        pending: getPendingProviderApprovalViews(),
+      });
+      return true;
+    }
+
+    if (
+      isObject(message) &&
+      message.type === PILLARX_PROVIDER_APPROVAL_RESPOND
+    ) {
+      try {
+        sendResponse(
+          respondToProviderApproval(message as ProviderApprovalRespondMessage)
+        );
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: serializeProviderError(error),
+        });
+      }
       return true;
     }
 

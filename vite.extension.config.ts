@@ -81,6 +81,7 @@ export default defineConfig({
     commonjsOptions: { transformMixedEsModules: true },
     rollupOptions: {
       input: {
+        approval: path.resolve(__dirname, 'extension/approval.html'),
         popup: path.resolve(__dirname, 'extension/popup.html'),
         options: path.resolve(__dirname, 'extension/options.html'),
         sidepanel: path.resolve(__dirname, 'extension/sidepanel.html'),
