@@ -11,6 +11,10 @@ import { useSendVerificationOtpMutation } from '../services/pillarXApiVerificati
 import { useVerifyOtpCodeMutation } from '../services/pillarXApiVerificationCheck';
 import { isExtensionRuntime } from '../utils/extensionRuntime';
 import {
+  unlockOrImportPillarKeyringPrivateKey,
+  unlockPillarKeyring,
+} from '../utils/pillarKeyringMessaging';
+import {
   PHONE_OTP_PHONE_NUMBER_KEY,
   PHONE_OTP_COUNTRY_OPTION_LABEL_KEY,
   PHONE_OTP_VERIFICATION_SID_KEY,
@@ -20,7 +24,7 @@ import {
   hasPhoneOtpEncryptedVault,
   markPhoneOtpAuthenticated,
   markPhoneOtpSessionAuthenticated,
-  setUnlockedPhoneOtpPrivateKey,
+  setUnlockedPhoneOtpAddress,
   unlockPhoneOtpPrivateKey,
 } from '../utils/phoneOtpAuth';
 
@@ -859,13 +863,53 @@ const Login = () => {
     }
   };
 
-  const completeAuthenticatedLogin = (
+  const completeAuthenticatedLogin = async (
     privateKey: `0x${string}`,
+    passphrase: string,
     authenticatedPhoneNumber?: string | null
   ) => {
     const accountAddress = getPhoneOtpAddressFromPrivateKey(privateKey);
+    let unlockedAddress = accountAddress;
 
-    setUnlockedPhoneOtpPrivateKey(privateKey);
+    if (isExtensionRuntime()) {
+      const keyringStatus = await unlockOrImportPillarKeyringPrivateKey({
+        privateKey,
+        passphrase,
+      });
+      const keyringAddress = keyringStatus.accounts.find(
+        (address) => address.toLowerCase() === accountAddress.toLowerCase()
+      );
+
+      if (!keyringAddress) {
+        throw new Error(
+          'Keyring migration failed because the unlocked account did not match.'
+        );
+      }
+
+      unlockedAddress = keyringAddress;
+    }
+
+    setUnlockedPhoneOtpAddress(unlockedAddress);
+    if (authenticatedPhoneNumber) {
+      markPhoneOtpAuthenticated(
+        authenticatedPhoneNumber,
+        selectedCountryOption.label
+      );
+    } else {
+      markPhoneOtpSessionAuthenticated(selectedCountryOption.label);
+    }
+    localStorage.setItem('EOA_ADDRESS', accountAddress);
+    localStorage.removeItem(PHONE_OTP_VERIFICATION_SID_KEY);
+    sessionStorage.setItem('loginPageReloaded', 'false');
+
+    navigate('/', { replace: true });
+  };
+
+  const completeAuthenticatedAddressLogin = (
+    accountAddress: `0x${string}`,
+    authenticatedPhoneNumber?: string | null
+  ) => {
+    setUnlockedPhoneOtpAddress(accountAddress);
     if (authenticatedPhoneNumber) {
       markPhoneOtpAuthenticated(
         authenticatedPhoneNumber,
@@ -965,7 +1009,11 @@ const Login = () => {
 
     try {
       const privateKey = await createPhoneOtpPrivateKeyVault(passcode);
-      completeAuthenticatedLogin(privateKey, verifiedPhoneNumber);
+      await completeAuthenticatedLogin(
+        privateKey,
+        passcode,
+        verifiedPhoneNumber
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -993,8 +1041,29 @@ const Login = () => {
     setIsProcessingPasscode(true);
 
     try {
+      if (isExtensionRuntime()) {
+        try {
+          const keyringStatus = await unlockPillarKeyring(passcode);
+          const accountAddress = keyringStatus.accounts[0];
+
+          if (accountAddress) {
+            completeAuthenticatedAddressLogin(
+              accountAddress,
+              authenticatedPhoneNumber
+            );
+            return;
+          }
+        } catch {
+          // Fall back to the legacy encrypted vault for first-run migration.
+        }
+      }
+
       const privateKey = await unlockPhoneOtpPrivateKey(passcode);
-      completeAuthenticatedLogin(privateKey, authenticatedPhoneNumber);
+      await completeAuthenticatedLogin(
+        privateKey,
+        passcode,
+        authenticatedPhoneNumber
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error

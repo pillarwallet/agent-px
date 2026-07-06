@@ -1,7 +1,7 @@
 /* eslint-disable import/extensions */
 import * as Sentry from '@sentry/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   createBrowserRouter,
   createHashRouter,
@@ -10,7 +10,7 @@ import {
 } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import { createWalletClient, custom, http, WalletClient } from 'viem';
-import { privateKeyToAccount, toAccount } from 'viem/accounts';
+import { toAccount } from 'viem/accounts';
 import type {
   Account,
   AuthorizationRequest,
@@ -18,6 +18,7 @@ import type {
   SignedAuthorization,
   TransactionSerializable,
   TypedData,
+  TypedDataDefinition,
 } from 'viem';
 import { mainnet } from 'viem/chains';
 import { createConfig, useAccount, useConnect, WagmiProvider } from 'wagmi';
@@ -40,10 +41,15 @@ import {
   signTypedDataViaWebView,
 } from '../utils/pillarWalletMessaging';
 import {
+  signAuthorizationViaPillarKeyring,
+  signMessageViaPillarKeyring,
+  signTransactionViaPillarKeyring,
+  signTypedDataViaPillarKeyring,
+} from '../utils/pillarKeyringMessaging';
+import {
   PHONE_OTP_AUTH_STATE_EVENT,
-  getPhoneOtpAddressFromPrivateKey,
-  getUnlockedPhoneOtpPrivateKey,
-  hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession,
+  getUnlockedPhoneOtpAddress,
+  hydrateUnlockedPhoneOtpAddressFromKeyring,
   isPhoneOtpAuthenticated,
 } from '../utils/phoneOtpAuth';
 import {
@@ -99,23 +105,16 @@ const AuthLayout = () => {
     useState(!isExtensionRuntimeEnabled);
   const { allowed } = useAllowedApps();
   const [, setPhoneOtpAuthStateVersion] = useState(0);
-  const phoneOtpPrivateKey = getUnlockedPhoneOtpPrivateKey();
-  const phoneOtpAddress = useMemo(() => {
-    if (!phoneOtpPrivateKey || !isPhoneOtpAuthenticated()) return undefined;
-
-    try {
-      return getPhoneOtpAddressFromPrivateKey(phoneOtpPrivateKey);
-    } catch {
-      return undefined;
-    }
-  }, [phoneOtpPrivateKey]);
+  const phoneOtpAuthEnabled = isPhoneOtpAuthenticated();
+  const phoneOtpAddress = phoneOtpAuthEnabled
+    ? getUnlockedPhoneOtpAddress()
+    : undefined;
   const [eoaAddress, setEoaAddress] = useState<string | undefined>(
     phoneOtpAddress
   );
   const [customAccount, setCustomAccount] = useState<Account | undefined>(
     undefined
   );
-  const phoneOtpAuthEnabled = isPhoneOtpAuthenticated();
   const previouslyAuthenticated = isExtensionRuntimeEnabled
     ? phoneOtpAuthEnabled
     : authenticated || phoneOtpAuthEnabled;
@@ -123,11 +122,11 @@ const AuthLayout = () => {
     ? isPhoneOtpUnlockStateHydrated
     : ready;
   const isAuthenticated = isExtensionRuntimeEnabled
-    ? phoneOtpAuthEnabled && !!phoneOtpPrivateKey
+    ? phoneOtpAuthEnabled && !!phoneOtpAddress
     : authenticated ||
       wagmiIsConnected ||
       !!eoaAddress ||
-      (phoneOtpAuthEnabled && !!phoneOtpPrivateKey);
+      (phoneOtpAuthEnabled && !!phoneOtpAddress);
   const createRouter = isExtensionRuntimeEnabled
     ? createHashRouter
     : createBrowserRouter;
@@ -186,7 +185,7 @@ const AuthLayout = () => {
       }
 
       try {
-        await hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession();
+        await hydrateUnlockedPhoneOtpAddressFromKeyring();
       } finally {
         if (!cancelled) {
           setIsPhoneOtpUnlockStateHydrated(true);
@@ -321,34 +320,85 @@ const AuthLayout = () => {
 
     // Handle local wallets, native app accounts, and WalletConnect connections
     const updateProvider = async () => {
-      // PRIORITY 1: Phone OTP authenticated local private key wallet
-      if (phoneOtpAuthEnabled && phoneOtpPrivateKey) {
+      // PRIORITY 1: Phone OTP authenticated extension keyring wallet
+      if (phoneOtpAuthEnabled && phoneOtpAddress) {
         Sentry.addBreadcrumb({
           category: 'authentication',
-          message: 'Setting up local private key provider from phone OTP login',
+          message: 'Setting up extension keyring provider from phone OTP login',
           level: 'info',
           data: {
             providerSetupId,
           },
         });
 
-        const account = privateKeyToAccount(phoneOtpPrivateKey);
-        const normalizedAccountAddress = account.address.toLowerCase();
+        const normalizedAccountAddress = phoneOtpAddress.toLowerCase();
         const currentProviderAccountAddress =
           typeof provider?.account === 'object' && provider.account !== null
             ? provider.account.address.toLowerCase()
             : undefined;
+        const account = toAccount({
+          address: phoneOtpAddress,
+          async sign({ hash }: { hash: Hash }) {
+            return signMessageViaPillarKeyring({
+              address: phoneOtpAddress,
+              message: { raw: hash },
+            });
+          },
+          async signMessage({ message }) {
+            return signMessageViaPillarKeyring({
+              address: phoneOtpAddress,
+              message,
+            });
+          },
+          async signTransaction(transaction) {
+            return signTransactionViaPillarKeyring({
+              address: phoneOtpAddress,
+              transaction: transaction as TransactionSerializable,
+            });
+          },
+          async signTypedData(typedData) {
+            return signTypedDataViaPillarKeyring({
+              address: phoneOtpAddress,
+              typedData: typedData as unknown as TypedDataDefinition,
+            });
+          },
+          async signAuthorization(
+            parameters: AuthorizationRequest
+          ): Promise<SignedAuthorization> {
+            const address =
+              parameters.contractAddress ??
+              parameters.address ??
+              OUR_EIP7702_IMPLEMENTATION_ADDRESS;
+            const authorizationParams: AuthorizationRequest =
+              parameters.contractAddress
+                ? {
+                    contractAddress: address,
+                    chainId: parameters.chainId,
+                    nonce: parameters.nonce,
+                  }
+                : {
+                    address,
+                    chainId: parameters.chainId,
+                    nonce: parameters.nonce,
+                  };
+
+            return signAuthorizationViaPillarKeyring({
+              address: phoneOtpAddress,
+              authorization: authorizationParams,
+            });
+          },
+        });
 
         if (customAccount?.address.toLowerCase() !== normalizedAccountAddress) {
           setCustomAccount(account);
         }
 
         if (eoaAddress?.toLowerCase() !== normalizedAccountAddress) {
-          setEoaAddress(account.address);
+          setEoaAddress(phoneOtpAddress);
         }
 
-        if (localStorage.getItem('EOA_ADDRESS') !== account.address) {
-          localStorage.setItem('EOA_ADDRESS', account.address);
+        if (localStorage.getItem('EOA_ADDRESS') !== phoneOtpAddress) {
+          localStorage.setItem('EOA_ADDRESS', phoneOtpAddress);
         }
 
         const walletChainId = 1;
@@ -378,11 +428,11 @@ const AuthLayout = () => {
 
         Sentry.addBreadcrumb({
           category: 'authentication',
-          message: 'Local private key provider setup completed',
+          message: 'Extension keyring provider setup completed',
           level: 'info',
           data: {
             providerSetupId,
-            accountAddress: account.address,
+            accountAddress: phoneOtpAddress,
             walletChainId,
           },
         });
@@ -844,7 +894,7 @@ const AuthLayout = () => {
     provider,
     chainId,
     phoneOtpAuthEnabled,
-    phoneOtpPrivateKey,
+    phoneOtpAddress,
   ]);
 
   /**

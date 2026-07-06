@@ -1,6 +1,9 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { isExtensionRuntime } from './extensionRuntime';
+import {
+  getPillarKeyringStatus,
+  lockPillarKeyring,
+} from './pillarKeyringMessaging';
 import {
   PHONE_OTP_AUTH_KEY,
   PHONE_OTP_PHONE_NUMBER_KEY,
@@ -8,7 +11,6 @@ import {
   PHONE_OTP_VERIFICATION_SID_KEY,
   PHONE_OTP_PRIVATE_KEY,
   PHONE_OTP_ENCRYPTED_VAULT_KEY,
-  PHONE_OTP_UNLOCKED_SESSION_KEY,
   PHONE_OTP_AUTH_STATE_EVENT,
 } from './phoneOtpAuthKeys';
 
@@ -19,7 +21,6 @@ export {
   PHONE_OTP_VERIFICATION_SID_KEY,
   PHONE_OTP_PRIVATE_KEY,
   PHONE_OTP_ENCRYPTED_VAULT_KEY,
-  PHONE_OTP_UNLOCKED_SESSION_KEY,
   PHONE_OTP_AUTH_STATE_EVENT,
 } from './phoneOtpAuthKeys';
 
@@ -39,22 +40,7 @@ type PhoneOtpVaultPayload = {
   ciphertext: string;
 };
 
-type ChromeStorageAreaLike = {
-  get: (
-    keys: string | string[] | null,
-    callback: (items: Record<string, unknown>) => void
-  ) => void;
-  set: (items: Record<string, unknown>, callback?: () => void) => void;
-  remove: (keys: string | string[], callback?: () => void) => void;
-};
-
-type ChromeLike = {
-  storage?: {
-    session?: ChromeStorageAreaLike;
-  };
-};
-
-let unlockedPhoneOtpPrivateKey: `0x${string}` | undefined;
+let unlockedPhoneOtpAddress: `0x${string}` | undefined;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -161,63 +147,6 @@ const parseVaultPayload = (
 const notifyPhoneOtpAuthStateChanged = () => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(PHONE_OTP_AUTH_STATE_EVENT));
-};
-
-const getExtensionSessionStorage = (): ChromeStorageAreaLike | undefined => {
-  if (!isExtensionRuntime()) return undefined;
-
-  const chromeLike = (globalThis as { chrome?: ChromeLike }).chrome;
-  return chromeLike?.storage?.session;
-};
-
-const extensionSessionStorageGet = (
-  key: string
-): Promise<unknown | undefined> => {
-  const sessionStorageArea = getExtensionSessionStorage();
-  if (!sessionStorageArea) return Promise.resolve(undefined);
-
-  return new Promise((resolve) => {
-    try {
-      sessionStorageArea.get([key], (items) => {
-        resolve(items?.[key]);
-      });
-    } catch {
-      resolve(undefined);
-    }
-  });
-};
-
-const extensionSessionStorageSet = (
-  key: string,
-  value: string
-): Promise<void> => {
-  const sessionStorageArea = getExtensionSessionStorage();
-  if (!sessionStorageArea) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    try {
-      sessionStorageArea.set({ [key]: value }, () => {
-        resolve();
-      });
-    } catch {
-      resolve();
-    }
-  });
-};
-
-const extensionSessionStorageRemove = (key: string): Promise<void> => {
-  const sessionStorageArea = getExtensionSessionStorage();
-  if (!sessionStorageArea) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    try {
-      sessionStorageArea.remove(key, () => {
-        resolve();
-      });
-    } catch {
-      resolve();
-    }
-  });
 };
 
 const getLegacyStoredPrivateKey = (): `0x${string}` | undefined => {
@@ -347,21 +276,31 @@ export const unlockPhoneOtpPrivateKey = async (
   }
 };
 
-export const hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession =
-  async () => {
-    if (unlockedPhoneOtpPrivateKey) return unlockedPhoneOtpPrivateKey;
+export const hydrateUnlockedPhoneOtpAddressFromKeyring = async () => {
+  if (unlockedPhoneOtpAddress) return unlockedPhoneOtpAddress;
 
-    const storedValue = await extensionSessionStorageGet(
-      PHONE_OTP_UNLOCKED_SESSION_KEY
-    );
+  try {
+    const status = await getPillarKeyringStatus();
+    const accountAddress = status.isUnlocked ? status.accounts[0] : undefined;
+    if (!accountAddress) return undefined;
 
-    if (!storedValue || typeof storedValue !== 'string') return undefined;
-    if (!isValidPrivateKey(storedValue)) return undefined;
-
-    unlockedPhoneOtpPrivateKey = storedValue;
+    unlockedPhoneOtpAddress = accountAddress;
     notifyPhoneOtpAuthStateChanged();
-    return unlockedPhoneOtpPrivateKey;
-  };
+    return unlockedPhoneOtpAddress;
+  } catch {
+    return undefined;
+  }
+};
+
+export const hydrateUnlockedPhoneOtpPrivateKeyFromExtensionSession =
+  hydrateUnlockedPhoneOtpAddressFromKeyring;
+
+export const setUnlockedPhoneOtpAddress = (
+  address: `0x${string}` | undefined
+): void => {
+  unlockedPhoneOtpAddress = address;
+  notifyPhoneOtpAuthStateChanged();
+};
 
 export const setUnlockedPhoneOtpPrivateKey = (
   privateKey: `0x${string}`
@@ -370,16 +309,16 @@ export const setUnlockedPhoneOtpPrivateKey = (
     throw new Error('Invalid private key provided for unlock state.');
   }
 
-  unlockedPhoneOtpPrivateKey = privateKey;
-  extensionSessionStorageSet(PHONE_OTP_UNLOCKED_SESSION_KEY, privateKey);
-  notifyPhoneOtpAuthStateChanged();
+  setUnlockedPhoneOtpAddress(privateKeyToAccount(privateKey).address);
 };
 
-export const getUnlockedPhoneOtpPrivateKey = () => unlockedPhoneOtpPrivateKey;
+export const getUnlockedPhoneOtpAddress = () => unlockedPhoneOtpAddress;
+
+export const getUnlockedPhoneOtpPrivateKey = () => undefined;
 
 export const clearUnlockedPhoneOtpPrivateKey = () => {
-  unlockedPhoneOtpPrivateKey = undefined;
-  extensionSessionStorageRemove(PHONE_OTP_UNLOCKED_SESSION_KEY);
+  unlockedPhoneOtpAddress = undefined;
+  lockPillarKeyring().catch(() => undefined);
   notifyPhoneOtpAuthStateChanged();
 };
 
