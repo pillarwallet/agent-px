@@ -25,6 +25,7 @@ cp .env.example .env
 
 ```bash
 VITE_ETHERSPOT_BUNDLER_API_KEY=...
+VITE_ALCHEMY_API_KEY=...
 VITE_USE_TESTNETS=true
 VITE_REOWN_PROJECT_ID=...
 VITE_PAYMASTER_URL=...
@@ -83,6 +84,7 @@ The extension build emits:
 - The app currently targets a single account mode: EOA delegation.
 - Send flows use the native viem-based transaction client.
 - Etherspot bundler access should use `VITE_ETHERSPOT_BUNDLER_API_KEY`.
+- Dapp transaction approvals can show Alchemy asset-change simulations when `VITE_ALCHEMY_API_KEY` is configured.
 - Portfolio and graph data are cached locally and refreshed in the background. Manual refresh still shows loading UI so users can see the refresh is happening.
 
 ## Useful Commands
