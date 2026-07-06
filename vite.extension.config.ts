@@ -45,7 +45,7 @@ const extensionManifest = {
     service_worker: 'assets/background.js',
     type: 'module',
   },
-  permissions: ['storage', 'sidePanel'],
+  permissions: ['storage', 'sidePanel', 'offscreen'],
   host_permissions: ['<all_urls>'],
   content_scripts: [
     {
@@ -82,6 +82,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         approval: path.resolve(__dirname, 'extension/approval.html'),
+        keyring: path.resolve(__dirname, 'extension/keyring.html'),
         popup: path.resolve(__dirname, 'extension/popup.html'),
         options: path.resolve(__dirname, 'extension/options.html'),
         sidepanel: path.resolve(__dirname, 'extension/sidepanel.html'),

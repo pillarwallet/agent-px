@@ -10,6 +10,9 @@ import type {
 import type { PillarKeyringStatus } from '../extension/keyring/PillarKeyringController';
 
 export const PILLARX_KEYRING_REQUEST = 'PILLARX_KEYRING_REQUEST';
+export const PILLARX_KEYRING_HOST_REQUEST = 'PILLARX_KEYRING_HOST_REQUEST';
+export const PILLARX_KEYRING_STORAGE_REQUEST =
+  'PILLARX_KEYRING_STORAGE_REQUEST';
 
 export type PillarKeyringRequestMethod =
   | 'getStatus'
@@ -26,6 +29,25 @@ export type PillarKeyringRequestMessage = {
   method: PillarKeyringRequestMethod;
   payload?: unknown;
 };
+
+export type PillarKeyringHostRequestMessage = {
+  type: typeof PILLARX_KEYRING_HOST_REQUEST;
+  method: PillarKeyringRequestMethod;
+  payload?: unknown;
+};
+
+export type PillarKeyringStorageRequestMessage =
+  | {
+      type: typeof PILLARX_KEYRING_STORAGE_REQUEST;
+      action: 'get';
+      key: string;
+    }
+  | {
+      type: typeof PILLARX_KEYRING_STORAGE_REQUEST;
+      action: 'set';
+      key: string;
+      value: unknown;
+    };
 
 export type PillarKeyringResponseMessage<T = unknown> =
   | {

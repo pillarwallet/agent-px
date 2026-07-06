@@ -4,6 +4,7 @@ import {
   ChevronDown,
   FileSignature,
   Globe2,
+  KeyRound,
   Send,
   X,
 } from 'lucide-react';
@@ -15,6 +16,16 @@ import {
   PILLARX_PROVIDER_APPROVAL_RESPOND,
   ProviderApprovalRequestView,
 } from './providerMessages';
+import {
+  getPhoneOtpAddressFromPrivateKey,
+  getPhoneOtpMinimumPasscodeLength,
+  setUnlockedPhoneOtpAddress,
+  unlockPhoneOtpPrivateKey,
+} from '../utils/phoneOtpAuth';
+import {
+  unlockOrImportPillarKeyringPrivateKey,
+  unlockPillarKeyring,
+} from '../utils/pillarKeyringMessaging';
 
 type ChromeRuntimeLike = {
   lastError?: {
@@ -47,7 +58,7 @@ type ApprovalSummary = {
   icon: ReactNode;
   rows: { label: string; value: string }[];
   title: string;
-  tone: 'signature' | 'transaction';
+  tone: 'connect' | 'signature' | 'transaction';
 };
 
 type SimulationChange = NonNullable<
@@ -250,6 +261,25 @@ const getSimulationAmount = (change: SimulationChange) => {
 const getApprovalSummary = (
   request: ProviderApprovalRequestView
 ): ApprovalSummary => {
+  if (request.method === 'eth_requestAccounts') {
+    return {
+      description: request.account
+        ? 'Allow this site to view your wallet address'
+        : 'Unlock PillarX and allow this site to view your wallet address',
+      icon: <Globe2 size={22} strokeWidth={2.2} />,
+      rows: [
+        { label: 'Network', value: CHAIN_NAMES[request.chainId] ?? 'Unknown' },
+        {
+          label: 'Account',
+          value: request.account ? shortAddress(request.account) : 'Locked',
+        },
+        { label: 'Permission', value: 'View wallet address' },
+      ],
+      title: 'Connect Wallet',
+      tone: 'connect',
+    };
+  }
+
   if (
     request.method === 'eth_sendTransaction' ||
     request.method === 'eth_signTransaction'
@@ -315,6 +345,32 @@ const getApprovalSummary = (
   };
 };
 
+const unlockPillarXForConnect = async (passcode: string) => {
+  try {
+    const status = await unlockPillarKeyring(passcode);
+    const accountAddress = status.accounts[0];
+    if (accountAddress) return accountAddress;
+  } catch {
+    // Fall back to the legacy encrypted vault for first-run keyring migration.
+  }
+
+  const privateKey = await unlockPhoneOtpPrivateKey(passcode);
+  const expectedAddress = getPhoneOtpAddressFromPrivateKey(privateKey);
+  const status = await unlockOrImportPillarKeyringPrivateKey({
+    passphrase: passcode,
+    privateKey,
+  });
+  const accountAddress = status.accounts.find(
+    (address) => address.toLowerCase() === expectedAddress.toLowerCase()
+  );
+
+  if (!accountAddress) {
+    throw new Error('PillarX did not unlock the expected account.');
+  }
+
+  return accountAddress;
+};
+
 export default function ProviderApprovalOverlay({
   closeWhenSettled = false,
   standalone = false,
@@ -326,8 +382,15 @@ export default function ProviderApprovalOverlay({
   );
   const [pending, setPending] = useState<ProviderApprovalRequestView[]>([]);
   const [isResponding, setIsResponding] = useState(false);
+  const [passcode, setPasscode] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [showRawPayload, setShowRawPayload] = useState(false);
   const activeRequest = pending[0];
+  const isConnectRequest = activeRequest?.method === 'eth_requestAccounts';
+  const connectNeedsUnlock = Boolean(
+    isConnectRequest && !activeRequest.account
+  );
+  const minimumPasscodeLength = getPhoneOtpMinimumPasscodeLength();
   const paramsPreview = useMemo(
     () => stringifyParams(activeRequest?.params),
     [activeRequest?.params]
@@ -362,6 +425,8 @@ export default function ProviderApprovalOverlay({
 
   useEffect(() => {
     setShowRawPayload(false);
+    setPasscode('');
+    setErrorMessage(undefined);
   }, [activeRequest?.id]);
 
   if (!activeRequest || !approvalSummary) {
@@ -386,13 +451,33 @@ export default function ProviderApprovalOverlay({
 
   const handleResponse = async (approved: boolean) => {
     setIsResponding(true);
+    setErrorMessage(undefined);
     try {
+      if (approved && connectNeedsUnlock) {
+        if (passcode.trim().length < minimumPasscodeLength) {
+          setErrorMessage(
+            `Passcode must be at least ${minimumPasscodeLength} characters.`
+          );
+          setIsResponding(false);
+          return;
+        }
+
+        const accountAddress = await unlockPillarXForConnect(passcode);
+        setUnlockedPhoneOtpAddress(accountAddress);
+      }
+
       await respondToApproval(activeRequest.id, approved);
       const nextPending = await refreshPending();
 
       if (closeWhenSettled && nextPending.length === 0) {
         window.setTimeout(() => window.close(), 100);
       }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to respond to this request.'
+      );
     } finally {
       setIsResponding(false);
     }
@@ -455,6 +540,23 @@ export default function ProviderApprovalOverlay({
     );
   };
 
+  const getSummaryIconToneStyle = () => {
+    switch (approvalSummary.tone) {
+      case 'connect':
+        return styles.connectIcon;
+      case 'transaction':
+        return styles.transactionIcon;
+      default:
+        return styles.signatureIcon;
+    }
+  };
+
+  const getApproveButtonLabel = () => {
+    if (!isConnectRequest) return 'Approve';
+    if (connectNeedsUnlock) return 'Unlock & Connect';
+    return 'Connect';
+  };
+
   return (
     <div style={styles.backdrop}>
       <section style={styles.sheet} role="dialog" aria-modal="true">
@@ -487,9 +589,7 @@ export default function ProviderApprovalOverlay({
           <div
             style={{
               ...styles.summaryIcon,
-              ...(approvalSummary.tone === 'transaction'
-                ? styles.transactionIcon
-                : styles.signatureIcon),
+              ...getSummaryIconToneStyle(),
             }}
           >
             {approvalSummary.icon}
@@ -508,6 +608,36 @@ export default function ProviderApprovalOverlay({
               </div>
             ))}
           </div>
+
+          {connectNeedsUnlock ? (
+            <section style={styles.unlockPanel}>
+              <span style={styles.unlockLabel} id="pillarx-passcode-label">
+                Wallet passcode
+              </span>
+              <div style={styles.passcodeWrap}>
+                <KeyRound size={17} strokeWidth={2.2} />
+                <input
+                  aria-labelledby="pillarx-passcode-label"
+                  disabled={isResponding}
+                  id="pillarx-passcode"
+                  onChange={(event) => setPasscode(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      handleResponse(true);
+                    }
+                  }}
+                  placeholder="Enter passcode"
+                  style={styles.passcodeInput}
+                  type="password"
+                  value={passcode}
+                />
+              </div>
+            </section>
+          ) : null}
+
+          {errorMessage ? (
+            <p style={styles.errorMessage}>{errorMessage}</p>
+          ) : null}
 
           {activeRequest.simulation ? (
             <section style={styles.simulationPanel}>
@@ -529,7 +659,11 @@ export default function ProviderApprovalOverlay({
 
           <div style={styles.warning}>
             <AlertTriangle size={16} strokeWidth={2.1} />
-            <span>Only approve requests you expect from this site.</span>
+            <span>
+              {isConnectRequest
+                ? 'Only connect to sites you trust.'
+                : 'Only approve requests you expect from this site.'}
+            </span>
           </div>
 
           <button
@@ -560,7 +694,7 @@ export default function ProviderApprovalOverlay({
             type="button"
           >
             <X size={18} strokeWidth={2.4} />
-            Reject
+            {isConnectRequest ? 'Cancel' : 'Reject'}
           </button>
           <button
             disabled={isResponding}
@@ -569,7 +703,7 @@ export default function ProviderApprovalOverlay({
             type="button"
           >
             <Check size={18} strokeWidth={2.4} />
-            Approve
+            {getApproveButtonLabel()}
           </button>
         </footer>
       </section>
@@ -636,6 +770,10 @@ function getApprovalOverlayStyles({
       gap: 14,
       overflow: 'auto',
       padding: standalone ? '22px 24px 12px' : '18px 16px 4px',
+    },
+    connectIcon: {
+      background: 'rgba(143, 108, 255, 0.16)',
+      color: '#bba6ff',
     },
     dappIdentity: {
       alignItems: 'center',
@@ -707,6 +845,17 @@ function getApprovalOverlayStyles({
       justifyContent: 'center',
       width: 36,
     },
+    errorMessage: {
+      background: 'rgba(255, 54, 108, 0.1)',
+      border: '1px solid rgba(255, 54, 108, 0.22)',
+      borderRadius: 8,
+      color: '#ff9ab8',
+      fontSize: 12,
+      fontWeight: 700,
+      lineHeight: 1.4,
+      margin: 0,
+      padding: 10,
+    },
     header: {
       alignItems: 'center',
       borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
@@ -755,6 +904,28 @@ function getApprovalOverlayStyles({
       fontSize: 11,
       fontWeight: 800,
       padding: '5px 9px',
+    },
+    passcodeInput: {
+      background: 'transparent',
+      border: 0,
+      color: '#ffffff',
+      flex: 1,
+      fontSize: 14,
+      fontWeight: 700,
+      minWidth: 0,
+      outline: 'none',
+      padding: 0,
+    },
+    passcodeWrap: {
+      alignItems: 'center',
+      background: 'rgba(255, 255, 255, 0.06)',
+      border: '1px solid rgba(255, 255, 255, 0.12)',
+      borderRadius: 8,
+      color: '#dcd7ff',
+      display: 'flex',
+      gap: 10,
+      minHeight: 46,
+      padding: '0 12px',
     },
     rawToggle: {
       alignItems: 'center',
@@ -905,6 +1076,15 @@ function getApprovalOverlayStyles({
     transactionIcon: {
       background: 'rgba(143, 108, 255, 0.16)',
       color: '#bba6ff',
+    },
+    unlockLabel: {
+      color: 'rgba(255, 255, 255, 0.56)',
+      fontSize: 12,
+      fontWeight: 800,
+    },
+    unlockPanel: {
+      display: 'grid',
+      gap: 8,
     },
     warning: {
       alignItems: 'center',

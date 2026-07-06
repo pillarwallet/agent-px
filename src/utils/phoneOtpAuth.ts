@@ -29,6 +29,8 @@ const VAULT_KDF_ITERATIONS = 350_000;
 const VAULT_SALT_LENGTH = 16;
 const VAULT_IV_LENGTH = 12;
 const MIN_VAULT_PASSPHRASE_LENGTH = 8;
+const PHONE_OTP_UNLOCKED_ADDRESS_SESSION_KEY =
+  'PILLARX_PHONE_OTP_UNLOCKED_ADDRESS_SESSION_V1';
 
 type PhoneOtpVaultPayload = {
   version: number;
@@ -38,6 +40,21 @@ type PhoneOtpVaultPayload = {
   salt: string;
   iv: string;
   ciphertext: string;
+};
+
+type ChromeStorageAreaLike = {
+  get: (
+    keys: string | string[] | null,
+    callback: (items: Record<string, unknown>) => void
+  ) => void;
+  remove?: (keys: string | string[], callback?: () => void) => void;
+  set: (items: Record<string, unknown>, callback?: () => void) => void;
+};
+
+type ChromeLike = {
+  storage?: {
+    session?: ChromeStorageAreaLike;
+  };
 };
 
 let unlockedPhoneOtpAddress: `0x${string}` | undefined;
@@ -50,6 +67,61 @@ const AES_GCM_KEY_USAGES: KeyUsage[] = ['encrypt', 'decrypt'];
 
 const isValidPrivateKey = (value: string): value is `0x${string}` =>
   /^0x[a-fA-F0-9]{64}$/.test(value);
+
+const isValidAddress = (value: string): value is `0x${string}` =>
+  /^0x[a-fA-F0-9]{40}$/.test(value);
+
+const getChromeSessionStorage = () =>
+  (globalThis as { chrome?: ChromeLike }).chrome?.storage?.session;
+
+const getSessionAddressCache = (): Promise<`0x${string}` | undefined> =>
+  new Promise((resolve) => {
+    const storage = getChromeSessionStorage();
+    if (!storage) {
+      resolve(undefined);
+      return;
+    }
+
+    try {
+      storage.get([PHONE_OTP_UNLOCKED_ADDRESS_SESSION_KEY], (items) => {
+        const address = items?.[PHONE_OTP_UNLOCKED_ADDRESS_SESSION_KEY];
+        resolve(
+          typeof address === 'string' && isValidAddress(address)
+            ? address
+            : undefined
+        );
+      });
+    } catch {
+      resolve(undefined);
+    }
+  });
+
+const setSessionAddressCache = (
+  address: `0x${string}` | undefined
+): Promise<void> =>
+  new Promise((resolve) => {
+    const storage = getChromeSessionStorage();
+    if (!storage) {
+      resolve();
+      return;
+    }
+
+    try {
+      if (address) {
+        storage.set({ [PHONE_OTP_UNLOCKED_ADDRESS_SESSION_KEY]: address }, () =>
+          resolve()
+        );
+        return;
+      }
+
+      storage.remove?.([PHONE_OTP_UNLOCKED_ADDRESS_SESSION_KEY], () =>
+        resolve()
+      );
+      if (!storage.remove) resolve();
+    } catch {
+      resolve();
+    }
+  });
 
 const bytesToBase64 = (bytes: Uint8Array) => {
   let binary = '';
@@ -282,13 +354,22 @@ export const hydrateUnlockedPhoneOtpAddressFromKeyring = async () => {
   try {
     const status = await getPillarKeyringStatus();
     const accountAddress = status.isUnlocked ? status.accounts[0] : undefined;
-    if (!accountAddress) return undefined;
+    if (!accountAddress) {
+      await setSessionAddressCache(undefined);
+      return undefined;
+    }
 
     unlockedPhoneOtpAddress = accountAddress;
+    setSessionAddressCache(accountAddress).catch(() => undefined);
     notifyPhoneOtpAuthStateChanged();
     return unlockedPhoneOtpAddress;
   } catch {
-    return undefined;
+    const cachedAddress = await getSessionAddressCache();
+    if (!cachedAddress) return undefined;
+
+    unlockedPhoneOtpAddress = cachedAddress;
+    notifyPhoneOtpAuthStateChanged();
+    return unlockedPhoneOtpAddress;
   }
 };
 
@@ -299,6 +380,7 @@ export const setUnlockedPhoneOtpAddress = (
   address: `0x${string}` | undefined
 ): void => {
   unlockedPhoneOtpAddress = address;
+  setSessionAddressCache(address).catch(() => undefined);
   notifyPhoneOtpAuthStateChanged();
 };
 
@@ -318,6 +400,7 @@ export const getUnlockedPhoneOtpPrivateKey = () => undefined;
 
 export const clearUnlockedPhoneOtpPrivateKey = () => {
   unlockedPhoneOtpAddress = undefined;
+  setSessionAddressCache(undefined).catch(() => undefined);
   lockPillarKeyring().catch(() => undefined);
   notifyPhoneOtpAuthStateChanged();
 };
