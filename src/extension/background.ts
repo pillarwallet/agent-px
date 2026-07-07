@@ -183,7 +183,7 @@ const SELECTED_CHAIN_STORAGE_KEY = 'pillarx:dapp:selectedChain:v1';
 const DEFAULT_MAINNET_CHAIN_ID = 1;
 const DEFAULT_TESTNET_CHAIN_ID = 11155111;
 const APPROVAL_WINDOW_WIDTH = 430;
-const APPROVAL_WINDOW_HEIGHT = 620;
+const APPROVAL_WINDOW_HEIGHT = 744;
 const alchemyNetworkByChainId: Record<number, string> = {
   [mainnet.id]: 'eth-mainnet',
   [polygon.id]: 'polygon-mainnet',
