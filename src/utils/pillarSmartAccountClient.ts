@@ -43,6 +43,7 @@ export const PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS =
   '0xe629A99Fe2fAD23B1dF6Aa680BA6995cfDA885a3' as const;
 export const PILLAR_ZERO_ADDRESS =
   '0x0000000000000000000000000000000000000000' as const;
+export const PILLAR_KERNEL_EXECUTE_SELECTOR = '0xe9ae5c53' as const;
 
 const PILLAR_KERNEL_STUB_SIGNATURE =
   '0xfffffffffffffffffffffffffffffff0000000000000000000000000000000007aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1c' as const;
@@ -123,6 +124,13 @@ export type PillarHookMultiplexerConfig = {
   delegatecallHooks?: readonly Address[];
   sigHooks?: readonly PillarHookMultiplexerSigHookInit[];
   targetSigHooks?: readonly PillarHookMultiplexerSigHookInit[];
+};
+
+export type PillarValidatorInstallDataParameters = {
+  validatorData: Hex;
+  hook?: Address;
+  hookData?: Hex;
+  selectorData?: Hex;
 };
 
 export type PillarSmartAccountExtensions = {
@@ -368,6 +376,23 @@ export function encodePillarHookMultiplexerInstallData(
   });
 }
 
+export function encodePillarValidatorInstallData({
+  validatorData,
+  hook = PILLAR_ZERO_ADDRESS,
+  hookData = '0x',
+  selectorData = PILLAR_KERNEL_EXECUTE_SELECTOR,
+}: PillarValidatorInstallDataParameters): Hex {
+  return concat([
+    hook,
+    encodeAbiParameters(
+      parseAbiParameters(
+        'bytes validatorData, bytes hookData, bytes selectorData'
+      ),
+      [validatorData, hookData, selectorData]
+    ),
+  ]);
+}
+
 export function encodePillarBootstrapModuleSetupCall({
   bootstrapAddress = PILLAR_BOOTSTRAP_ADDRESS,
   multipleOwnerEcdsaValidator = PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
@@ -532,6 +557,7 @@ export const pillarSmartAccountClient = {
   encodeExecuteDelegateCall: encodePillarExecuteDelegateCall,
   encodeHookMultiplexerInstallData: encodePillarHookMultiplexerInstallData,
   encodeInstallModule: encodePillarInstallModuleCall,
+  encodeValidatorInstallData: encodePillarValidatorInstallData,
   encodeUninstallModule: encodePillarUninstallModuleCall,
   moduleType: PILLAR_MODULE_TYPE,
   toSmartAccount: toPillarSmartAccount,

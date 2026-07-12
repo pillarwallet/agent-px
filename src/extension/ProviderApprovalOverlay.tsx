@@ -14,6 +14,7 @@ import { formatEther } from 'viem';
 import {
   PILLARX_PROVIDER_APPROVAL_GET_PENDING,
   PILLARX_PROVIDER_APPROVAL_RESPOND,
+  ProviderApprovalFeePayment,
   ProviderApprovalRequestView,
 } from './providerMessages';
 import {
@@ -120,11 +121,16 @@ const fetchPendingApprovals = async () => {
   return response?.pending ?? [];
 };
 
-const respondToApproval = (id: string, approved: boolean) =>
+const respondToApproval = (
+  id: string,
+  approved: boolean,
+  feePayment?: ProviderApprovalFeePayment
+) =>
   sendRuntimeMessage({
     type: PILLARX_PROVIDER_APPROVAL_RESPOND,
     id,
     approved,
+    feePayment,
   });
 
 const stringifyParams = (
@@ -385,8 +391,11 @@ export default function ProviderApprovalOverlay({
   const [passcode, setPasscode] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [showRawPayload, setShowRawPayload] = useState(false);
+  const [selectedFeePaymentId, setSelectedFeePaymentId] =
+    useState('native-token');
   const activeRequest = pending[0];
   const isConnectRequest = activeRequest?.method === 'eth_requestAccounts';
+  const isTransactionRequest = activeRequest?.method === 'eth_sendTransaction';
   const connectNeedsUnlock = Boolean(
     isConnectRequest && !activeRequest.account
   );
@@ -402,6 +411,16 @@ export default function ProviderApprovalOverlay({
   const transactionPreview = activeRequest
     ? getTransactionPreview(activeRequest)
     : undefined;
+  const feePaymentOptions = useMemo(
+    () => activeRequest?.feePaymentOptions ?? [],
+    [activeRequest?.feePaymentOptions]
+  );
+  const showFeePaymentSelect =
+    isTransactionRequest && feePaymentOptions.length > 1;
+  const selectedFeePaymentOption =
+    feePaymentOptions.find((option) => option.id === selectedFeePaymentId) ??
+    feePaymentOptions[0];
+  const firstFeePaymentOptionId = feePaymentOptions[0]?.id ?? 'native-token';
 
   const refreshPending = async () => {
     try {
@@ -427,7 +446,19 @@ export default function ProviderApprovalOverlay({
     setShowRawPayload(false);
     setPasscode('');
     setErrorMessage(undefined);
-  }, [activeRequest?.id]);
+    setSelectedFeePaymentId(firstFeePaymentOptionId);
+  }, [activeRequest?.id, firstFeePaymentOptionId]);
+
+  useEffect(() => {
+    if (!feePaymentOptions.length) return;
+    if (
+      feePaymentOptions.some((option) => option.id === selectedFeePaymentId)
+    ) {
+      return;
+    }
+
+    setSelectedFeePaymentId(feePaymentOptions[0].id);
+  }, [feePaymentOptions, selectedFeePaymentId]);
 
   if (!activeRequest || !approvalSummary) {
     if (!standalone) return null;
@@ -466,7 +497,21 @@ export default function ProviderApprovalOverlay({
         setUnlockedPhoneOtpAddress(accountAddress);
       }
 
-      await respondToApproval(activeRequest.id, approved);
+      let feePayment: ProviderApprovalFeePayment | undefined;
+      if (approved && isTransactionRequest && selectedFeePaymentOption) {
+        if (selectedFeePaymentOption.type === 'gasless') {
+          feePayment = {
+            decimals: selectedFeePaymentOption.decimals,
+            paymasterAddress: selectedFeePaymentOption.paymasterAddress,
+            token: selectedFeePaymentOption.token,
+            type: 'gasless',
+          };
+        } else {
+          feePayment = { type: 'native' };
+        }
+      }
+
+      await respondToApproval(activeRequest.id, approved, feePayment);
       const nextPending = await refreshPending();
 
       if (closeWhenSettled && nextPending.length === 0) {
@@ -608,6 +653,29 @@ export default function ProviderApprovalOverlay({
               </div>
             ))}
           </div>
+
+          {showFeePaymentSelect ? (
+            <section style={styles.feePaymentPanel}>
+              <span style={styles.feePaymentLabel}>Pay fee in</span>
+              <select
+                disabled={isResponding}
+                id="pillarx-fee-payment"
+                onChange={(event) =>
+                  setSelectedFeePaymentId(event.target.value)
+                }
+                style={styles.feePaymentSelect}
+                value={selectedFeePaymentOption?.id ?? 'native-token'}
+              >
+                {feePaymentOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.type === 'gasless'
+                      ? `${option.title}${option.value ? ` (${option.value})` : ''}`
+                      : option.title}
+                  </option>
+                ))}
+              </select>
+            </section>
+          ) : null}
 
           {connectNeedsUnlock ? (
             <section style={styles.unlockPanel}>
@@ -844,6 +912,32 @@ function getApprovalOverlayStyles({
       height: 36,
       justifyContent: 'center',
       width: 36,
+    },
+    feePaymentLabel: {
+      color: 'rgba(255, 255, 255, 0.48)',
+      fontSize: 12,
+      fontWeight: 800,
+    },
+    feePaymentPanel: {
+      background: 'rgba(255, 255, 255, 0.04)',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      borderRadius: 8,
+      display: 'grid',
+      gap: 8,
+      padding: 12,
+    },
+    feePaymentSelect: {
+      appearance: 'none',
+      background: '#191821',
+      border: '1px solid rgba(255, 255, 255, 0.14)',
+      borderRadius: 8,
+      color: '#ffffff',
+      fontSize: 13,
+      fontWeight: 800,
+      minHeight: 42,
+      outline: 'none',
+      padding: '0 12px',
+      width: '100%',
     },
     errorMessage: {
       background: 'rgba(255, 54, 108, 0.1)',

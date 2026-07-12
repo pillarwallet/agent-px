@@ -66,6 +66,10 @@ export const arcTestnetChain = defineChain({
 });
 
 export const isTestnet = (() => {
+  if (typeof localStorage === 'undefined') {
+    return import.meta.env.VITE_USE_TESTNETS === 'true';
+  }
+
   const storedIsTestnet = localStorage.getItem('isTestnet');
   if (storedIsTestnet === null || storedIsTestnet === undefined) {
     return import.meta.env.VITE_USE_TESTNETS === 'true';
