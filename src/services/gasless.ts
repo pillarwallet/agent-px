@@ -1,14 +1,43 @@
 /* eslint-disable import/extensions */
-import { constants } from 'ethers';
-
-import { isPolygonAssetNative } from '../utils/blockchain';
-import { Token } from './tokensData';
+import type { Token } from './tokensData';
 
 export type Paymasters = {
   gasToken: string;
   chainId: number;
   epVersion: string;
   paymasterAddress: string;
+};
+
+export type SupportedGaslessToken = {
+  chainId: number;
+  tokenAddress: string;
+  paymasterAddress: string;
+};
+
+export const MULTITOKEN_PAYMASTER_ADDRESS =
+  '0x5E6ce32Bb6Fa47001cf87f2f9E07d5Fd3dE57990' as const;
+
+export const supportedGaslessTokens: SupportedGaslessToken[] = [
+  {
+    chainId: 42161,
+    tokenAddress: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
+    paymasterAddress: MULTITOKEN_PAYMASTER_ADDRESS,
+  },
+];
+
+const MIN_GASLESS_TOKEN_BALANCE = 0.01;
+
+const gaslessChainNameToChainId = (chainName: string) => {
+  const normalizedChainName = chainName.toLowerCase();
+
+  if (
+    normalizedChainName === 'arbitrum' ||
+    normalizedChainName === 'arbitrum one'
+  ) {
+    return 42161;
+  }
+
+  return undefined;
 };
 
 export const GasConsumptions = {
@@ -31,38 +60,27 @@ export const getAllGaslessPaymasters = async (
   chainId: number,
   tokens_list: Token[]
 ): Promise<Paymasters[] | null> => {
-  const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
-  if (!paymasterUrl) return null;
-
-  const safePaymasterUrl = paymasterUrl.endsWith('/')
-    ? paymasterUrl.slice(0, -1)
-    : paymasterUrl;
-
   try {
-    const res = await fetch(
-      `${safePaymasterUrl}/getAllCommonERC20PaymasterAddress`,
-      {
-        method: 'POST',
-        body: JSON.stringify({}),
-      }
+    const availableSupportedTokens = supportedGaslessTokens.filter(
+      (supportedToken) =>
+        supportedToken.chainId === chainId &&
+        tokens_list.some(
+          (token) =>
+            gaslessChainNameToChainId(token.blockchain) === chainId &&
+            token.contract.toLowerCase() ===
+              supportedToken.tokenAddress.toLowerCase() &&
+            (token.balance ?? 0) > MIN_GASLESS_TOKEN_BALANCE
+        )
     );
-    const data = await res.json();
-    if (data.message) {
-      let paymasterObject = JSON.parse(data.message);
-      paymasterObject = paymasterObject.filter(
-        (item: { epVersion: string; chainId: number; gasToken: string }) =>
-          item.epVersion === 'EPV_07' &&
-          item.chainId === chainId &&
-          tokens_list.find(
-            (token: Token) =>
-              token.contract === item.gasToken.toLowerCase() ||
-              (isPolygonAssetNative(item.gasToken, item.chainId) &&
-                token.contract === constants.AddressZero)
-          )
-      );
-      return paymasterObject;
-    }
-    return null;
+
+    if (!availableSupportedTokens.length) return null;
+
+    return availableSupportedTokens.map((supportedToken) => ({
+      gasToken: supportedToken.tokenAddress,
+      chainId: supportedToken.chainId,
+      epVersion: 'EPV_07',
+      paymasterAddress: supportedToken.paymasterAddress,
+    }));
   } catch (err) {
     console.error(err);
     return null;

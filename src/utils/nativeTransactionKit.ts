@@ -28,6 +28,7 @@ import type {
   WalletClient,
 } from 'viem';
 import {
+  createPaymasterClient,
   formatUserOperationGas,
   formatUserOperationRequest,
   type EstimateUserOperationGasReturnType,
@@ -42,9 +43,14 @@ import type { WalletProviderLike } from '../types/walletProvider';
 import { supportedChains } from './blockchain';
 import { getEtherspotBundlerUrl } from './bundler';
 import {
+  encodePillarHookMultiplexerInstallData,
+  encodePillarValidatorInstallData,
   encodePillarExecuteCall,
   createPillarSmartAccountClient,
+  PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
   PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
+  PILLAR_MODULE_TYPE,
+  PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
   type PillarCall,
   type PillarSmartAccount,
 } from './pillarSmartAccountClient';
@@ -177,17 +183,25 @@ export interface TransactionKitState {
   walletAddresses: Record<number, string>;
 }
 
+type PaymasterDetails = {
+  url?: string;
+  context?: unknown;
+};
+
 type EstimateParams = {
   authorization?: SignAuthorizationReturnType;
+  paymasterDetails?: PaymasterDetails;
 };
 
 type SendParams = {
   authorization?: SignAuthorizationReturnType;
+  paymasterDetails?: PaymasterDetails;
 };
 
 type BatchParams = {
   onlyBatchNames?: string[];
   authorization?: SignAuthorizationReturnType;
+  paymasterDetails?: PaymasterDetails;
 };
 
 type BundlerClient = Awaited<ReturnType<typeof createPillarSmartAccountClient>>;
@@ -234,6 +248,9 @@ const retainCompatibleParameter = (...values: unknown[]) => values.length;
 const redactBundlerUrl = (url: string) =>
   url.replace(/([?&]api-key=)[^&]+/i, '$1<redacted>');
 
+const isPaymasterDetailsEnabled = (paymasterDetails?: PaymasterDetails) =>
+  Boolean(paymasterDetails && paymasterDetails.url !== '');
+
 const summarizeAuthorization = (authorization?: SignAuthorizationReturnType) =>
   authorization
     ? {
@@ -268,6 +285,17 @@ const getEstimateAuthorizationCachePayload = (
       }
     : undefined;
 
+const getEstimatePaymasterCachePayload = (
+  paymasterDetails?: PaymasterDetails
+) =>
+  paymasterDetails
+    ? {
+        enabled: paymasterDetails.url !== '',
+        url: paymasterDetails.url || '<bundler-url>',
+        context: paymasterDetails.context ?? null,
+      }
+    : undefined;
+
 const getEstimateTransactionCachePayload = (
   transaction: TransactionBuilder
 ) => ({
@@ -281,15 +309,18 @@ const getEstimateTransactionsCacheKey = ({
   chainId,
   transactions,
   authorization,
+  paymasterDetails,
 }: {
   chainId: number;
   transactions: TransactionBuilder[];
   authorization?: SignAuthorizationReturnType;
+  paymasterDetails?: PaymasterDetails;
 }) =>
   JSON.stringify({
     chainId,
     transactions: transactions.map(getEstimateTransactionCachePayload),
     authorization: getEstimateAuthorizationCachePayload(authorization),
+    paymasterDetails: getEstimatePaymasterCachePayload(paymasterDetails),
   });
 
 const summarizeError = (error: unknown) => ({
@@ -495,6 +526,59 @@ const sumUserOperationGas = (
     BigInt(gas.paymasterPostOpGasLimit ?? 0) +
     BigInt(gas.paymasterVerificationGasLimit ?? 0)
   );
+};
+
+const getPreparedUserOperationGas = (
+  preparedUserOperation: Partial<UserOperation>
+): EstimateUserOperationGasReturnType => {
+  const {
+    callGasLimit,
+    preVerificationGas,
+    verificationGasLimit,
+    paymasterPostOpGasLimit,
+    paymasterVerificationGasLimit,
+  } = preparedUserOperation;
+
+  if (
+    typeof callGasLimit === 'undefined' ||
+    typeof preVerificationGas === 'undefined' ||
+    typeof verificationGasLimit === 'undefined'
+  ) {
+    throw new Error('Paymaster user operation is missing gas fields.');
+  }
+
+  return {
+    callGasLimit,
+    preVerificationGas,
+    verificationGasLimit,
+    ...(typeof paymasterPostOpGasLimit !== 'undefined'
+      ? { paymasterPostOpGasLimit }
+      : {}),
+    ...(typeof paymasterVerificationGasLimit !== 'undefined'
+      ? { paymasterVerificationGasLimit }
+      : {}),
+  };
+};
+
+const getPreparedUserOperationFeeEstimate = (
+  preparedUserOperation: Partial<UserOperation>
+): UserOperationFeeEstimate => {
+  const { maxFeePerGas, maxPriorityFeePerGas } = preparedUserOperation;
+
+  if (
+    typeof maxFeePerGas === 'undefined' ||
+    typeof maxPriorityFeePerGas === 'undefined'
+  ) {
+    throw new Error('Paymaster user operation is missing fee fields.');
+  }
+
+  return {
+    feePerGas: maxFeePerGas,
+    fees: {
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    },
+  };
 };
 
 const groupTransactionsByChainId = (
@@ -1013,19 +1097,156 @@ export class EtherspotTransactionKit {
     };
   }
 
+  private createPaymasterClientForChain({
+    chainId,
+    paymasterDetails,
+  }: {
+    chainId: number;
+    paymasterDetails?: PaymasterDetails;
+  }) {
+    if (!isPaymasterDetailsEnabled(paymasterDetails)) {
+      return undefined;
+    }
+
+    const paymasterUrl =
+      paymasterDetails?.url?.trim() ||
+      this.etherspotProvider.getBundlerUrl(chainId);
+
+    transactionDebugLog('[TransactionKit] creating paymaster client', {
+      chainId,
+      paymasterUrl: redactBundlerUrl(paymasterUrl),
+      usesBundlerUrl: !paymasterDetails?.url,
+      hasContext: Boolean(paymasterDetails?.context),
+    });
+
+    return createPaymasterClient({
+      transport: http(paymasterUrl),
+    });
+  }
+
+  private async isPillarModuleInstalled({
+    account,
+    chainId,
+    moduleType,
+    module,
+    name,
+  }: {
+    account: PillarSmartAccount;
+    chainId: number;
+    moduleType: bigint;
+    module: Address;
+    name: string;
+  }): Promise<boolean> {
+    try {
+      const installed = await account.isModuleInstalled({
+        moduleType,
+        module,
+        additionalContext: '0x',
+      });
+      transactionDebugLog('[TransactionKit] module install probe completed', {
+        chainId,
+        account: account.address,
+        name,
+        module,
+        moduleType: moduleType.toString(),
+        installed,
+      });
+      return installed;
+    } catch (error) {
+      transactionDebugError('[TransactionKit] module install probe failed', {
+        chainId,
+        account: account.address,
+        name,
+        module,
+        moduleType: moduleType.toString(),
+        error: summarizeError(error),
+      });
+      return false;
+    }
+  }
+
+  private async getPillarModuleInstallCallsIfNeeded({
+    account,
+    chainId,
+  }: {
+    account: PillarSmartAccount;
+    chainId: number;
+  }): Promise<PillarCall[]> {
+    const [isHookInstalled, isValidatorInstalled] = await Promise.all([
+      this.isPillarModuleInstalled({
+        account,
+        chainId,
+        name: 'HookMultiplexer V2 hook',
+        moduleType: PILLAR_MODULE_TYPE.HOOK,
+        module: PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
+      }),
+      this.isPillarModuleInstalled({
+        account,
+        chainId,
+        name: 'MultipleOwnerECDSA validator',
+        moduleType: PILLAR_MODULE_TYPE.VALIDATOR,
+        module: PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
+      }),
+    ]);
+
+    const installCalls: PillarCall[] = [];
+
+    if (!isHookInstalled) {
+      installCalls.push({
+        to: account.address,
+        data: account.encodeInstallModule({
+          moduleType: PILLAR_MODULE_TYPE.HOOK,
+          module: PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
+          initData: encodePillarHookMultiplexerInstallData(),
+        }),
+      });
+    }
+
+    if (!isValidatorInstalled) {
+      installCalls.push({
+        to: account.address,
+        data: account.encodeInstallModule({
+          moduleType: PILLAR_MODULE_TYPE.VALIDATOR,
+          module: PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
+          initData: encodePillarValidatorInstallData({
+            hook: PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
+            validatorData: account.address,
+          }),
+        }),
+      });
+    }
+
+    transactionDebugLog('[TransactionKit] module install calls resolved', {
+      chainId,
+      account: account.address,
+      isHookInstalled,
+      isValidatorInstalled,
+      installCalls: installCalls.map((call) => ({
+        to: call.to,
+        dataLength: call.data?.length ?? 0,
+        dataPrefix: call.data?.slice(0, 18),
+      })),
+    });
+
+    return installCalls;
+  }
+
   private async estimateTransactions({
     chainId,
     transactions,
     authorization,
+    paymasterDetails,
   }: {
     chainId: number;
     transactions: TransactionBuilder[];
     authorization?: SignAuthorizationReturnType;
+    paymasterDetails?: PaymasterDetails;
   }): Promise<EstimateTransactionsResult> {
     const cacheKey = getEstimateTransactionsCacheKey({
       chainId,
       transactions,
       authorization,
+      paymasterDetails,
     });
     const cachedEstimate = this.estimateTransactionsCache.get(cacheKey);
 
@@ -1044,6 +1265,8 @@ export class EtherspotTransactionKit {
       walletMode: this.etherspotProvider.getWalletMode(),
       transactions: transactions.map(summarizeTransaction),
       authorization: summarizeAuthorization(authorization),
+      hasPaymasterDetails: isPaymasterDetailsEnabled(paymasterDetails),
+      paymasterContext: paymasterDetails?.context,
     });
 
     const authorizationError = this.validateAuthorization(
@@ -1081,7 +1304,19 @@ export class EtherspotTransactionKit {
 
     const bundlerClient =
       await this.etherspotProvider.getBundlerClient(chainId);
-    const calls = transactions.map(toCall);
+    if (!bundlerClient.account) {
+      throw new Error('No smart account configured for user operation');
+    }
+
+    const moduleInstallCalls = await this.getPillarModuleInstallCallsIfNeeded({
+      account: bundlerClient.account as PillarSmartAccount,
+      chainId,
+    });
+    const calls = [...moduleInstallCalls, ...transactions.map(toCall)];
+    const paymasterClient = this.createPaymasterClientForChain({
+      chainId,
+      paymasterDetails,
+    });
     const shouldUseAuthorization = Boolean(
       authorization && authorization.chainId === chainId && !isDelegated
     );
@@ -1089,6 +1324,9 @@ export class EtherspotTransactionKit {
       chainId,
       sender: bundlerClient.account?.address,
       calls,
+      moduleInstallCallCount: moduleInstallCalls.length,
+      hasPaymasterClient: Boolean(paymasterClient),
+      paymasterContext: paymasterDetails?.context,
       shouldUseAuthorization,
       authorization: shouldUseAuthorization
         ? summarizeAuthorization(authorization)
@@ -1099,43 +1337,78 @@ export class EtherspotTransactionKit {
     let feeEstimate: UserOperationFeeEstimate;
     let preparedUserOperation: Partial<UserOperation>;
     try {
-      preparedUserOperation = await bundlerClient.prepareUserOperation({
+      const prepareRequest = {
         account: bundlerClient.account,
         calls,
         ...(shouldUseAuthorization ? { authorization } : {}),
-        parameters: [
-          'authorization',
-          'factory',
-          'nonce',
-          'paymaster',
-          'signature',
-        ],
-      });
+      };
+
+      if (paymasterClient) {
+        preparedUserOperation = await bundlerClient.prepareUserOperation({
+          ...prepareRequest,
+          paymaster: paymasterClient,
+          paymasterContext: paymasterDetails?.context,
+          parameters: [
+            'authorization',
+            'factory',
+            'fees',
+            'gas',
+            'nonce',
+            'paymaster',
+            'signature',
+          ],
+        });
+      } else {
+        preparedUserOperation = await bundlerClient.prepareUserOperation({
+          ...prepareRequest,
+          parameters: [
+            'authorization',
+            'factory',
+            'nonce',
+            'paymaster',
+            'signature',
+          ],
+        });
+      }
+
       transactionDebugLog('[TransactionKit] user operation prepared', {
         chainId,
         sender: preparedUserOperation.sender,
         nonce: preparedUserOperation.nonce?.toString(),
         callDataLength: preparedUserOperation.callData?.length,
+        hasPaymaster: Boolean(
+          preparedUserOperation.paymaster ||
+            preparedUserOperation.paymasterAndData
+        ),
         hasAuthorization: Boolean(preparedUserOperation.authorization),
       });
 
-      const [rpcGas, resolvedFeeEstimate] = await Promise.all([
-        bundlerClient.request({
-          method: 'eth_estimateUserOperationGas',
-          params: [
-            formatUserOperationRequest(preparedUserOperation),
-            bundlerClient.account.entryPoint.address,
-          ],
-        }),
-        this.getUserOperationFeeEstimate(chainId),
-      ]);
-      feeEstimate = resolvedFeeEstimate;
-      gas = formatUserOperationGas(
-        rpcGas as RpcEstimateUserOperationGasReturnType
-      );
+      if (paymasterClient) {
+        gas = getPreparedUserOperationGas(preparedUserOperation);
+        feeEstimate = getPreparedUserOperationFeeEstimate(
+          preparedUserOperation
+        );
+      } else {
+        const [rpcGas, resolvedFeeEstimate] = await Promise.all([
+          bundlerClient.request({
+            method: 'eth_estimateUserOperationGas',
+            params: [
+              formatUserOperationRequest(preparedUserOperation),
+              bundlerClient.account.entryPoint.address,
+            ],
+          }),
+          this.getUserOperationFeeEstimate(chainId),
+        ]);
+        feeEstimate = resolvedFeeEstimate;
+        gas = formatUserOperationGas(
+          rpcGas as RpcEstimateUserOperationGasReturnType
+        );
+      }
+
       transactionDebugLog('[TransactionKit] user operation gas estimated', {
         chainId,
         gas,
+        usedPaymasterPrepare: Boolean(paymasterClient),
       });
     } catch (error) {
       transactionDebugError(
@@ -1886,11 +2159,13 @@ export class EtherspotTransactionKit {
         chainId,
         transaction: summarizeTransaction(transaction),
         authorization: summarizeAuthorization(params.authorization),
+        hasPaymasterDetails: isPaymasterDetailsEnabled(params.paymasterDetails),
       });
       const { cost } = await this.estimateTransactions({
         chainId,
         transactions: [transaction],
         authorization: params.authorization,
+        paymasterDetails: params.paymasterDetails,
       });
       transactionDebugLog('[TransactionKit] estimate succeeded', {
         chainId,
@@ -1945,11 +2220,13 @@ export class EtherspotTransactionKit {
         chainId,
         transaction: summarizeTransaction(transaction),
         authorization: summarizeAuthorization(params.authorization),
+        hasPaymasterDetails: isPaymasterDetailsEnabled(params.paymasterDetails),
       });
       const estimate = await this.estimateTransactions({
         chainId,
         transactions: [transaction],
         authorization: params.authorization,
+        paymasterDetails: params.paymasterDetails,
       });
       const { cost, calls, shouldUseAuthorization } = estimate;
       const bundlerClient =
@@ -1973,6 +2250,7 @@ export class EtherspotTransactionKit {
         cost: cost.toString(),
       });
       this.clearEoaDelegationStatusCache(chainId);
+      this.clearEstimateTransactionsCache();
 
       if (this.selectedTransactionName) {
         this.remove();
@@ -2036,6 +2314,7 @@ export class EtherspotTransactionKit {
               chainId,
               transactions: chainTransactions,
               authorization: params.authorization,
+              paymasterDetails: params.paymasterDetails,
             });
             const transactionResults = chainTransactions.map((transaction) => ({
               ...toBaseResult(transaction),
@@ -2120,6 +2399,7 @@ export class EtherspotTransactionKit {
               chainId,
               transactions: chainTransactions,
               authorization: params.authorization,
+              paymasterDetails: params.paymasterDetails,
             });
             const { cost } = estimate;
             const bundlerClient =
@@ -2129,6 +2409,7 @@ export class EtherspotTransactionKit {
               estimate,
             });
             this.clearEoaDelegationStatusCache(chainId);
+            this.clearEstimateTransactionsCache();
             const transactionResults = chainTransactions.map((transaction) => ({
               ...toBaseResult(transaction),
               cost,

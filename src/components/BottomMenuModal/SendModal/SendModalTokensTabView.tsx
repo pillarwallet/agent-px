@@ -3,7 +3,6 @@
 /* eslint-disable no-plusplus */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import * as Sentry from '@sentry/react';
-import { BigNumber, ethers } from 'ethers';
 import {
   ArrangeVertical as ArrangeVerticalIcon,
   ClipboardText as IconClipboardText,
@@ -44,10 +43,7 @@ import { useTransactionDebugLogger } from '../../../hooks/useTransactionDebugLog
 import useTransactionKit from '../../../hooks/useTransactionKit';
 
 // services
-import {
-  GasConsumptions,
-  getAllGaslessPaymasters,
-} from '../../../services/gasless';
+import { getAllGaslessPaymasters } from '../../../services/gasless';
 import { useRecordPresenceMutation } from '../../../services/pillarXApiPresence';
 import { getUserOperationStatus } from '../../../services/userOpStatus';
 
@@ -94,6 +90,20 @@ import {
 } from '../../../types';
 import { PortfolioData } from '../../../types/api';
 import { ITransaction } from '../../../types/blockchain';
+
+const NATIVE_FEE_OPTION_ID = 'native-token';
+const GASLESS_APPROVAL_AMOUNT = '1';
+
+const getNativeFeeOption = (chainId?: number): SelectOption => {
+  const nativeAsset = chainId ? getNativeAssetForChainId(chainId) : undefined;
+
+  return {
+    id: NATIVE_FEE_OPTION_ID,
+    title: 'Native Token',
+    value: nativeAsset?.symbol ?? '',
+    imageSrc: nativeAsset?.logoURI,
+  };
+};
 
 const getAmountLeft = (
   selectedAsset: AssetSelectOption | undefined,
@@ -188,7 +198,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   const [pasteClicked, setPasteClicked] = React.useState<boolean>(false);
   const { hide, showHistory, showBatchSendModal, setShowBatchSendModal } =
     useBottomMenuModal();
-  const paymasterUrl = import.meta.env.VITE_PAYMASTER_URL?.trim();
   const [isPaymaster, setIsPaymaster] = React.useState<boolean>(false);
   const [paymasterContext, setPaymasterContext] = React.useState<{
     mode: string;
@@ -206,18 +215,15 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   const [feeAssetOptions, setFeeAssetOptions] = React.useState<
     TokenAssetSelectOption[]
   >([]);
-  const [queryString, setQueryString] = React.useState<string>('');
   const [approveData, setApproveData] = React.useState<string>('');
-  const [gasPrice, setGasPrice] = React.useState<string>();
   const [feeMin, setFeeMin] = React.useState<string>();
   const isDelegatedEoa = React.useMemo(
     () => kit.getEtherspotProvider().getWalletMode() === 'delegatedEoa',
     [kit]
   );
 
-  const [selectedFeeType, setSelectedFeeType] = React.useState<string>(
-    isDelegatedEoa ? 'Native Token' : 'Gasless'
-  );
+  const [selectedFeeType, setSelectedFeeType] =
+    React.useState<string>('Native Token');
   const [isLoadingFeeOptions, setIsLoadingFeeOptions] =
     React.useState<boolean>(false);
 
@@ -227,7 +233,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   );
 
   const { transactionDebugLog } = useTransactionDebugLogger();
-  const { getWalletDeploymentCost, getGasPrice } = useDeployWallet();
+  const { getWalletDeploymentCost } = useDeployWallet();
   const {
     userOpStatus,
     setTransactionHash,
@@ -273,65 +279,56 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     walletPortfolioDataError,
   ]);
 
-  const feeTypeOptions = React.useMemo(
-    () => [
-      {
-        id: 'Gasless',
-        title: 'Gasless',
-        type: 'token',
-        value: '',
-      },
-      {
-        id: 'Native Token',
-        title: 'Native Token',
-        type: 'token',
-        value: '',
-      },
-    ],
+  const [feeType, setFeeType] = React.useState<SelectOption[]>([
+    getNativeFeeOption(),
+  ]);
+
+  const setNativeFeePayment = React.useCallback(() => {
+    setSelectedFeeType('Native Token');
+    setIsPaymaster(false);
+    setPaymasterContext(null);
+    setSelectedPaymasterAddress('');
+    setSelectedFeeAsset(undefined);
+    setApproveData('');
+    setFeeMin(undefined);
+  }, []);
+
+  const setGaslessFeePayment = React.useCallback(
+    (feeOption: TokenAssetSelectOption) => {
+      const paymasterAddress = feeOption.id.split('-')[2];
+
+      setSelectedFeeType('Gasless');
+      setSelectedFeeAsset({
+        token: feeOption.asset.contract,
+        decimals: feeOption.asset.decimals,
+        tokenPrice: feeOption.asset.price?.toString(),
+        balance: feeOption.value?.toString(),
+        id: feeOption.id,
+      });
+      setSelectedPaymasterAddress(paymasterAddress);
+      setPaymasterContext({
+        mode: 'commonerc20',
+        token: feeOption.asset.contract,
+      });
+      setIsPaymaster(true);
+    },
     []
   );
-
-  const [feeType, setFeeType] = React.useState(
-    isDelegatedEoa ? [feeTypeOptions[1]] : feeTypeOptions
-  );
-
-  // Initialize fee type list based on wallet mode
-  React.useEffect(() => {
-    if (isDelegatedEoa) {
-      setFeeType([feeTypeOptions[1]]); // Only Native Token
-      setSelectedFeeType('Native Token');
-      setIsPaymaster(false);
-      setPaymasterContext(null);
-      setSelectedPaymasterAddress('');
-      setSelectedFeeAsset(undefined);
-    } else {
-      setFeeType(feeTypeOptions);
-      setSelectedFeeType('Gasless');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDelegatedEoa]);
 
   useEffect(() => {
     if (!walletPortfolio) return;
     const tokens = convertPortfolioAPIResponseToToken(walletPortfolio);
     if (!selectedAsset) return;
+    const nativeFeeOption = getNativeFeeOption(selectedAsset.chainId);
+    const selectedFeeToken = selectedFeeAsset?.token;
+    const shouldRestoreSelectedFeeToken =
+      selectedFeeType === 'Gasless' && Boolean(selectedFeeToken);
 
     // Reset paymaster context when asset changes to ensure clean state
-    setPaymasterContext(null);
-    setIsPaymaster(false);
+    setNativeFeePayment();
     setSelectedPaymasterAddress(''); // Clear selected paymaster address
-    setPaymasterContext(null);
-    setIsPaymaster(false);
+    setFeeType([nativeFeeOption]);
 
-    // If in delegatedEoa mode, disable gasless and skip paymaster fetching
-    if (isDelegatedEoa) {
-      setFeeType([feeTypeOptions[1]]);
-      setSelectedFeeType('Native Token');
-      setIsLoadingFeeOptions(false);
-      return;
-    }
-
-    setQueryString(`?chainId=${selectedAsset.chainId}`);
     setIsLoadingFeeOptions(true);
     getAllGaslessPaymasters(selectedAsset.chainId, tokens)
       .then((paymasterObject) => {
@@ -380,71 +377,27 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
               (value): value is TokenAssetSelectOption => value !== undefined
             );
           if (feeOptions && feeOptions.length > 0 && feeOptions[0]) {
-            setFeeType(feeTypeOptions);
             setFeeAssetOptions(feeOptions);
-            // get Skandha gas price
-            getGasPrice(selectedAsset.chainId).then((res) => {
-              setGasPrice(res);
-            });
+            setFeeType([nativeFeeOption, ...feeOptions]);
 
-            // Set fee asset and paymaster context based on current selection
-            if (selectedFeeType === 'Gasless') {
-              // If Gasless is selected, set up the first gasless option to ensure gasless state is properly restored after asset switches
-              const firstOption = feeOptions[0];
-              if (selectedFeeAsset?.token) {
-                // Fee asset already selected by user, try to keep it if available
-                const userSelectedOption = feeOptions.find(
-                  (value) =>
-                    value.asset.contract.toLowerCase() ===
-                    selectedFeeAsset.token.toLowerCase()
-                );
-                if (userSelectedOption) {
-                  // Keep user's selected fee asset
-                  setSelectedFeeAsset({
-                    token: userSelectedOption.asset.contract,
-                    decimals: userSelectedOption.asset.decimals,
-                    tokenPrice: userSelectedOption.asset.price?.toString(),
-                    balance: userSelectedOption.value?.toString(),
-                    id: userSelectedOption.id,
-                  });
-                  setSelectedPaymasterAddress(
-                    userSelectedOption.id.split('-')[2]
-                  );
-                  setPaymasterContext({
-                    mode: 'commonerc20',
-                    token: userSelectedOption.asset.contract,
-                  });
-                  setIsPaymaster(true);
-                  setIsLoadingFeeOptions(false);
-                  return; // Exit early
-                }
+            if (shouldRestoreSelectedFeeToken && selectedFeeToken) {
+              const selectedFeeOption = feeOptions.find(
+                (value) =>
+                  value.asset.contract.toLowerCase() ===
+                  selectedFeeToken.toLowerCase()
+              );
+
+              if (selectedFeeOption) {
+                setGaslessFeePayment(selectedFeeOption);
               }
-              setSelectedFeeAsset({
-                token: firstOption.asset.contract,
-                decimals: firstOption.asset.decimals,
-                tokenPrice: firstOption.asset.price?.toString(),
-                balance: firstOption.value?.toString(),
-                id: firstOption.id,
-              });
-              setSelectedPaymasterAddress(firstOption.id.split('-')[2]);
-              setPaymasterContext({
-                mode: 'commonerc20',
-                token: firstOption.asset.contract,
-              });
-              setIsPaymaster(true);
             }
           } else {
-            setIsPaymaster(false);
-            setPaymasterContext(null);
             setFeeAssetOptions([]);
-            setFeeType([feeTypeOptions[1]]); // Only "Native Token" option when no gasless
+            setFeeType([nativeFeeOption]);
           }
         } else {
-          setPaymasterContext(null);
-          setIsPaymaster(false);
           setFeeAssetOptions([]);
-          setFeeType([feeTypeOptions[1]]); // Only "Native Token" option when gasless is unavailable
-          setSelectedFeeType('Native Token');
+          setFeeType([nativeFeeOption]);
         }
         setIsLoadingFeeOptions(false);
       })
@@ -456,92 +409,29 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     selectedAsset?.id,
     selectedAsset?.chainId,
     walletPortfolio,
-    isDelegatedEoa,
+    setGaslessFeePayment,
+    setNativeFeePayment,
   ]);
 
-  const setApprovalData = async (gasCost: number) => {
-    if (selectedAsset && selectedFeeAsset && gasPrice && gasCost) {
-      const nativeDecimals = getNativeAssetForChainId(
-        selectedAsset.chainId
-      ).decimals;
-      const estimatedCost = Number(
-        formatUnits(
-          BigInt(BigNumber.from(gasCost).mul(gasPrice).toString()),
-          nativeDecimals
-        )
-      );
-      const costAsFiat = +estimatedCost * nativeAssetPrice;
-      const feeTokenPrice = selectedFeeAsset.tokenPrice;
-      let estimatedCostInToken;
-      if (feeTokenPrice) {
-        estimatedCostInToken = (costAsFiat / +feeTokenPrice).toFixed(
-          selectedFeeAsset.decimals
-        );
-        setFeeMin(estimatedCostInToken);
-        setApproveData(
-          encodeFunctionData({
-            abi: erc20Abi,
-            functionName: 'approve',
-            args: [
-              selectedPaymasterAddress as Address,
-              parseUnits(estimatedCostInToken, selectedFeeAsset.decimals),
-            ],
-          })
-        );
-      }
-    }
-  };
-
-  // Clears when explicitly switching to Native Token
   useEffect(() => {
-    if (selectedFeeType === 'Native Token') {
-      setPaymasterContext(null);
-      setIsPaymaster(false);
-      setSelectedFeeAsset(undefined);
-      setSelectedPaymasterAddress('');
+    if (!selectedFeeAsset || !selectedPaymasterAddress) {
+      setApproveData('');
+      setFeeMin(undefined);
+      return;
     }
-  }, [selectedFeeType]);
 
-  useEffect(() => {
-    if (!selectedAsset) return;
-    if (!gasPrice) return;
-    let gasCost = 0;
-    /*
-     * The gas cost is estimated based on the type of asset being sent.
-     * The gas cost is calculated based on the type of asset being sent
-     * and the chain ID of the asset. The gas cost is then used to calculate
-     * the estimated cost in fiat.
-     * And the token cost is generally estimated as $0.01 even for undeployed wallet
-     * though it can be even lower for deployed wallet to save rpc call for checking
-     * deployed wallet or not, we can use the same gas cost for both deployed and undeployed wallet
-     */
-    // See if its Arbitrum Chain as gas consumptions lend to be higher than all other chains
-    if (selectedAsset.chainId === 42161) {
-      if (selectedAsset.type === 'token') {
-        if (selectedAsset.asset.contract === ethers.constants.AddressZero) {
-          gasCost = GasConsumptions.native_arb; // estimated gas consumption for native asset transfer for undeployed wallet + 15% markup
-        } else {
-          gasCost = GasConsumptions.token_arb; // estimated gas consumption for token asset transfer for undeployed wallet + 15% markup
-        }
-      } else if (selectedAsset.type === 'nft') {
-        gasCost = GasConsumptions.nft_arb; // estimated gas consumption for token asset transfer for undeployed wallet + 15% markup
-      }
-    } else {
-      // eslint-disable-next-line no-lonely-if
-      if (selectedAsset.type === 'token') {
-        if (selectedAsset.asset.contract === ethers.constants.AddressZero) {
-          gasCost = GasConsumptions.native; // estimated gas consumption for native asset transfer for deployed wallet + 15% markup
-        } else {
-          gasCost = GasConsumptions.token; // estimated gas consumption for token asset transfer for deployed wallet + 15% markup
-        }
-      } else if (selectedAsset.type === 'nft') {
-        gasCost = GasConsumptions.nft; // estimated gas consumption for token asset transfer for deployed wallet + 15% markup
-      }
-    }
-    setApprovalData(gasCost);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gasPrice, selectedFeeAsset]);
+    setFeeMin(GASLESS_APPROVAL_AMOUNT);
+    setApproveData(
+      encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [
+          selectedPaymasterAddress as Address,
+          parseUnits(GASLESS_APPROVAL_AMOUNT, selectedFeeAsset.decimals),
+        ],
+      })
+    );
+  }, [selectedFeeAsset, selectedPaymasterAddress]);
 
   // Fetch native token price for the selected asset's chain
   const nativeSymbol = selectedAsset
@@ -1086,17 +976,10 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setErrorMessage('');
     setSafetyWarningMessage('');
 
-    // Compute paymasterDetails only for user-driven flows
-    const safePaymasterUrl = paymasterUrl?.endsWith('/')
-      ? paymasterUrl.slice(0, -1)
-      : paymasterUrl;
+    // The native kit uses the same chain-specific Skandha URL as bundler/rpc/paymaster.
     const paymasterDetails =
-      !isPayloadTransaction &&
-      isPaymaster &&
-      paymasterContext &&
-      safePaymasterUrl
+      !isPayloadTransaction && isPaymaster && paymasterContext
         ? {
-            url: `${safePaymasterUrl}${queryString}`,
             context: paymasterContext,
           }
         : undefined;
@@ -2714,45 +2597,20 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setRecipient('');
   };
 
-  const handleOnChange = React.useCallback(
+  const handleOnChangeFeePayment = React.useCallback(
     (value: SelectOption) => {
-      const tokenOption = feeAssetOptions.filter(
-        (option) => option.id === value.id
-      )[0] as TokenAssetSelectOption;
-      const values = value.id.split('-');
-      const tokenAddress = values[0];
-      setSelectedFeeAsset({
-        token: tokenAddress,
-        decimals: Number(values[3]) ?? 18,
-        tokenPrice: tokenOption.asset.price?.toString(),
-        balance: tokenOption.value?.toString(),
-        id: tokenOption.id,
-      });
-      const paymasterAddress = value.id.split('-')[2];
-      setSelectedPaymasterAddress(paymasterAddress);
-      setPaymasterContext({
-        mode: 'commonerc20',
-        token: tokenAddress,
-      });
-    },
-    [feeAssetOptions]
-  );
-
-  const handleOnChangeFeeAsset = React.useCallback(
-    (value: SelectOption) => {
-      setSelectedFeeType(value.title);
-      if (value.title === 'Gasless') {
-        setPaymasterContext({
-          mode: 'commonerc20',
-          token: selectedFeeAsset?.token,
-        });
-        setIsPaymaster(true);
-      } else {
-        setPaymasterContext(null);
-        setIsPaymaster(false);
+      if (value.id === NATIVE_FEE_OPTION_ID) {
+        setNativeFeePayment();
+        return;
       }
+
+      const feeOption = feeAssetOptions.find(
+        (option) => option.id === value.id
+      );
+
+      if (feeOption) setGaslessFeePayment(feeOption);
     },
-    [selectedFeeAsset?.token]
+    [feeAssetOptions, setGaslessFeePayment, setNativeFeePayment]
   );
 
   return (
@@ -2825,34 +2683,19 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           )}
           {selectedAsset && feeType.length > 0 && (
             <FormGroup>
-              <Label>{t`label.feeType`}</Label>
+              <Label>{t`label.payFeeIn`}</Label>
               <Select
-                key={`fee-type-select-${selectedFeeType}`}
+                key={`pay-fee-in-select-${selectedAsset.chainId}-${selectedFeeType}-${selectedFeeAsset?.id ?? NATIVE_FEE_OPTION_ID}-${feeType.length}`}
                 type="token"
-                onChange={handleOnChangeFeeAsset}
+                onChange={handleOnChangeFeePayment}
                 options={feeType}
                 isLoadingOptions={isLoadingFeeOptions}
                 defaultSelectedId={
-                  feeType.find((option) => option.title === selectedFeeType)
-                    ?.id || feeType[0]?.id
+                  selectedFeeType === 'Gasless' && selectedFeeAsset?.id
+                    ? selectedFeeAsset.id
+                    : NATIVE_FEE_OPTION_ID
                 }
               />
-              {paymasterContext?.mode === 'commonerc20' &&
-                selectedFeeType === 'Gasless' &&
-                feeAssetOptions.length > 0 && (
-                  <>
-                    <Label>{t`label.selectFeeAsset`}</Label>
-                    <Select
-                      type="token"
-                      onChange={handleOnChange}
-                      options={feeAssetOptions}
-                      isLoadingOptions={isLoadingFeeOptions}
-                      defaultSelectedId={
-                        selectedFeeAsset?.id ?? feeAssetOptions[0]?.id
-                      }
-                    />
-                  </>
-                )}
             </FormGroup>
           )}
           {selectedAsset && (

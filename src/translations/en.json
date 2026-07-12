@@ -79,6 +79,7 @@
     "received": "Received",
     "latestApps": "Latest Apps",
     "feeType": "Fee Type",
+    "payFeeIn": "Pay fee in",
     "selectFeeAsset": "Select fee asset"
   },
   "placeholder": {

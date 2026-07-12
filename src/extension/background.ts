@@ -1,10 +1,13 @@
 import {
   createPublicClient,
   createWalletClient,
+  encodeFunctionData,
+  erc20Abi,
   formatEther,
   getAddress,
   http,
   isAddress,
+  parseUnits,
 } from 'viem';
 import type {
   Address,
@@ -31,6 +34,8 @@ import {
   PILLARX_PROVIDER_APPROVAL_GET_PENDING,
   PILLARX_PROVIDER_APPROVAL_RESPOND,
   PILLARX_PROVIDER_RPC_REQUEST,
+  ProviderApprovalFeePayment,
+  ProviderApprovalFeePaymentOption,
   ProviderApprovalKind,
   ProviderApprovalRequestView,
   ProviderApprovalRespondMessage,
@@ -57,10 +62,12 @@ import {
 } from './keyring/PillarKeyringController';
 import { PILLARX_KEEP_ALIVE_PORT } from './keepAlive';
 import { getEtherspotBundlerUrl } from '../utils/bundler';
+import { EtherspotTransactionKit } from '../utils/nativeTransactionKit';
 import {
   encodePillarExecuteCall,
   PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
 } from '../utils/pillarSmartAccountClient';
+import { getAllGaslessPaymasters } from '../services/gasless';
 
 type ExtensionInstallReason = {
   reason?: string;
@@ -184,6 +191,12 @@ const DEFAULT_MAINNET_CHAIN_ID = 1;
 const DEFAULT_TESTNET_CHAIN_ID = 11155111;
 const APPROVAL_WINDOW_WIDTH = 430;
 const APPROVAL_WINDOW_HEIGHT = 744;
+const NATIVE_FEE_OPTION_ID = 'native-token';
+const GASLESS_APPROVAL_AMOUNT = '1';
+const WALLET_PORTFOLIO_URL =
+  import.meta.env.VITE_USE_TESTNETS === 'true'
+    ? 'https://hifidata-nubpgwxpiq-uc.a.run.app'
+    : 'https://hifidata-7eu4izffpa-uc.a.run.app';
 const alchemyNetworkByChainId: Record<number, string> = {
   [mainnet.id]: 'eth-mainnet',
   [polygon.id]: 'polygon-mainnet',
@@ -203,6 +216,16 @@ const chainNativeSymbols: Record<number, string> = {
   [arbitrum.id]: 'ETH',
   [sepolia.id]: 'ETH',
   [gnosis.id]: 'XDAI',
+};
+const portfolioChainNamesById: Record<number, string> = {
+  [mainnet.id]: 'Ethereum',
+  [polygon.id]: 'Polygon',
+  [base.id]: 'Base',
+  [bsc.id]: 'BNB Smart Chain',
+  [optimism.id]: 'Optimistic',
+  [arbitrum.id]: 'Arbitrum',
+  [sepolia.id]: 'Ethereum Sepolia Testnet',
+  [gnosis.id]: 'Gnosis',
 };
 const defaultChainId =
   import.meta.env.VITE_USE_TESTNETS === 'true'
@@ -282,9 +305,43 @@ type AlchemyAssetChange = {
   tokenId?: string | null;
 };
 
+type WalletPortfolioResponse = {
+  result?: {
+    data?: {
+      assets?: {
+        asset?: {
+          id?: number;
+          logo?: string;
+          name?: string;
+          symbol?: string;
+        };
+        contracts_balances?: {
+          address?: string;
+          balance?: number;
+          chainId?: string;
+          decimals?: number;
+        }[];
+        price?: number;
+      }[];
+    };
+  };
+};
+
+type PortfolioGaslessToken = {
+  balance?: number;
+  blockchain: string;
+  contract: string;
+  decimals: number;
+  id: number;
+  logo: string;
+  name: string;
+  price?: number;
+  symbol: string;
+};
+
 type PendingProviderApproval = {
   reject: (error: ProviderRpcError) => void;
-  resolve: () => void;
+  resolve: (response?: { feePayment?: ProviderApprovalFeePayment }) => void;
   timeoutId: ReturnType<typeof setTimeout>;
   view: ProviderApprovalRequestView;
 };
@@ -749,6 +806,127 @@ const getRpcUrl = (chainId: number) =>
     apiKey: bundlerApiKey,
   });
 
+const getPortfolioChainIds = () => Array.from(supportedChainIds);
+
+const fetchWalletPortfolioTokens = async (
+  wallet: Address
+): Promise<PortfolioGaslessToken[]> => {
+  const chainIds = getPortfolioChainIds();
+  const chainIdsQuery = chainIds.map((id) => `chainIds=${id}`).join('&');
+  const response = await fetch(
+    `${WALLET_PORTFOLIO_URL}?${chainIdsQuery}&testnets=${String(
+      import.meta.env.VITE_USE_TESTNETS === 'true'
+    )}`,
+    {
+      body: JSON.stringify({
+        path: 'wallet/portfolio',
+        params: {
+          wallet,
+          blockchains: chainIds.join(','),
+          unlistedAssets: 'true',
+          filterSpam: 'true',
+          pnl: false,
+        },
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    }
+  );
+
+  const json = (await response.json()) as WalletPortfolioResponse & {
+    error?: { message?: string };
+  };
+
+  if (!response.ok || json.error) {
+    throw new Error(
+      json.error?.message ??
+        'Unable to fetch wallet portfolio for gasless fees.'
+    );
+  }
+
+  return (json.result?.data?.assets ?? []).flatMap((asset) =>
+    (asset.contracts_balances ?? [])
+      .filter((contract) => (contract.balance ?? 0) > 0)
+      .map((contract) => {
+        const chainId = Number(contract.chainId?.split(':')[1]);
+
+        return {
+          balance: contract.balance,
+          blockchain: portfolioChainNamesById[chainId] ?? String(chainId),
+          contract: contract.address ?? '',
+          decimals: contract.decimals ?? 18,
+          id: asset.asset?.id ?? 0,
+          logo: asset.asset?.logo ?? '',
+          name: asset.asset?.name ?? 'Token',
+          price: asset.price,
+          symbol: asset.asset?.symbol ?? 'Token',
+        };
+      })
+      .filter((token) => isAddress(token.contract))
+  );
+};
+
+const getDappFeePaymentOptions = async ({
+  account,
+  chainId,
+}: {
+  account: UnlockedAccount;
+  chainId: number;
+}): Promise<ProviderApprovalFeePaymentOption[]> => {
+  const nativeOption: ProviderApprovalFeePaymentOption = {
+    id: NATIVE_FEE_OPTION_ID,
+    title: 'Native Token',
+    type: 'native',
+    value: chainNativeSymbols[chainId],
+  };
+
+  try {
+    const tokens = await fetchWalletPortfolioTokens(account.address);
+    const paymasters = await getAllGaslessPaymasters(chainId, tokens);
+
+    if (!paymasters?.length) {
+      return [nativeOption];
+    }
+
+    const gaslessOptions = paymasters
+      .map((paymaster) => {
+        const token = tokens.find(
+          (portfolioToken) =>
+            portfolioToken.contract.toLowerCase() ===
+            paymaster.gasToken.toLowerCase()
+        );
+
+        if (!token) return undefined;
+
+        return {
+          balance: token.balance,
+          decimals: token.decimals,
+          id: `${paymaster.gasToken}-${paymaster.chainId}-${paymaster.paymasterAddress}-${token.decimals}`,
+          imageSrc: token.logo,
+          paymasterAddress: paymaster.paymasterAddress,
+          title: token.symbol,
+          token: paymaster.gasToken,
+          type: 'gasless',
+          value: token.balance?.toString(),
+        } satisfies ProviderApprovalFeePaymentOption;
+      })
+      .filter(
+        (
+          option
+        ): option is Extract<
+          ProviderApprovalFeePaymentOption,
+          { type: 'gasless' }
+        > => Boolean(option)
+      );
+
+    return [nativeOption, ...gaslessOptions];
+  } catch {
+    return [nativeOption];
+  }
+};
+
 const getDelegationAuthorization = async ({
   account,
   chain,
@@ -1032,6 +1210,122 @@ const getDappTransactionSimulation = async ({
   return { changes };
 };
 
+const isGaslessFeePayment = (
+  feePayment?: ProviderApprovalFeePayment
+): feePayment is Extract<ProviderApprovalFeePayment, { type: 'gasless' }> =>
+  feePayment?.type === 'gasless' &&
+  isAddress(feePayment.token) &&
+  isAddress(feePayment.paymasterAddress);
+
+const sendGaslessDappTransaction = async ({
+  account,
+  chainId,
+  feePayment,
+  transaction,
+}: {
+  account: UnlockedAccount;
+  chainId: number;
+  feePayment: Extract<ProviderApprovalFeePayment, { type: 'gasless' }>;
+  transaction: DappTransactionRequest;
+}) => {
+  const chain = getChainById(chainId);
+  const requestedChainId = parseChainId(transaction.chainId);
+
+  if (requestedChainId && requestedChainId !== chainId) {
+    throw providerError(
+      4901,
+      `Transaction chain ${requestedChainId} does not match selected chain ${chainId}.`
+    );
+  }
+
+  assertRequestedAccount(transaction.from ?? account.address, account.address);
+
+  if (typeof transaction.to !== 'string' || !isAddress(transaction.to)) {
+    throw providerError(
+      4200,
+      'PillarX does not support dapp contract deployment transactions yet.'
+    );
+  }
+
+  const authorization = await getDelegationAuthorization({
+    account,
+    chain,
+  });
+  const batchName = `dapp-gasless-${Date.now()}`;
+  const kit = new EtherspotTransactionKit({
+    bundlerApiKey,
+    chainId,
+    debugMode: import.meta.env.DEV,
+    viemLocalAccount: account,
+    walletMode: 'delegatedEoa',
+  });
+  const approveData = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: 'approve',
+    args: [
+      feePayment.paymasterAddress,
+      parseUnits(GASLESS_APPROVAL_AMOUNT, feePayment.decimals),
+    ],
+  });
+
+  kit
+    .transaction({
+      chainId,
+      to: feePayment.token,
+      value: '0',
+      data: approveData,
+    })
+    .name({ transactionName: 'approve gas fee token' })
+    .addToBatch({ batchName });
+
+  kit
+    .transaction({
+      chainId,
+      to: getAddress(transaction.to),
+      value: (parseQuantity(transaction.value) ?? BigInt(0)).toString(),
+      data: normalizeHexData(transaction.data),
+    })
+    .name({ transactionName: 'dapp transaction' })
+    .addToBatch({ batchName });
+
+  const batchSend = await kit.sendBatches({
+    onlyBatchNames: [batchName],
+    authorization: authorization || undefined,
+    paymasterDetails: {
+      context: {
+        mode: 'commonerc20',
+        token: feePayment.token,
+      },
+    },
+  });
+  const sentBatch = batchSend.batches[batchName];
+
+  if (!batchSend.isSentSuccessfully || sentBatch?.errorMessage) {
+    throw providerError(
+      4900,
+      sentBatch?.errorMessage || 'Gasless dapp transaction failed.'
+    );
+  }
+
+  const userOpHash = sentBatch?.chainGroups?.[chainId]?.userOpHash;
+  if (!userOpHash) {
+    throw providerError(
+      4900,
+      'Gasless dapp transaction did not return a hash.'
+    );
+  }
+
+  const transactionHash = await kit.getTransactionHash(userOpHash, chainId);
+  if (!transactionHash) {
+    throw providerError(
+      4900,
+      'Gasless dapp transaction was sent, but the transaction hash was not available yet.'
+    );
+  }
+
+  return transactionHash;
+};
+
 const requestRpc = async ({
   chainId,
   method,
@@ -1243,6 +1537,7 @@ const requestProviderApproval = async ({
   accountAddress,
   chainId,
   estimatedFee,
+  feePaymentOptions,
   message,
   method,
   simulation,
@@ -1251,58 +1546,63 @@ const requestProviderApproval = async ({
   accountAddress?: string;
   chainId: number;
   estimatedFee?: TransactionFeeEstimateView;
+  feePaymentOptions?: ProviderApprovalFeePaymentOption[];
   message: ProviderRuntimeRequestMessage;
   method: ProviderApprovalKind;
   simulation?: TransactionSimulationView;
 }) =>
-  new Promise<void>((resolve, reject) => {
-    const timeoutId = setTimeout(
-      () => {
-        pendingProviderApprovals.delete(message.id);
-        reject(providerError(4001, 'PillarX request approval timed out.'));
-      },
-      5 * 60 * 1000
-    );
-
-    pendingProviderApprovals.set(message.id, {
-      reject,
-      resolve,
-      timeoutId,
-      view: {
-        id: message.id,
-        account: account?.address ?? accountAddress,
-        chainId,
-        createdAt: Date.now(),
-        estimatedFee,
-        favicon: message.favicon,
-        method,
-        origin: message.origin,
-        params: message.args.params,
-        simulation,
-        title: message.title,
-        url: message.url,
-      },
-    });
-
-    openApprovalSurface().catch((error) => {
-      clearTimeout(timeoutId);
-      pendingProviderApprovals.delete(message.id);
-      reject(
-        providerError(
-          4001,
-          error instanceof Error
-            ? error.message
-            : 'Unable to open PillarX approval window.'
-        )
+  new Promise<{ feePayment?: ProviderApprovalFeePayment } | undefined>(
+    (resolve, reject) => {
+      const timeoutId = setTimeout(
+        () => {
+          pendingProviderApprovals.delete(message.id);
+          reject(providerError(4001, 'PillarX request approval timed out.'));
+        },
+        5 * 60 * 1000
       );
-    });
-  });
+
+      pendingProviderApprovals.set(message.id, {
+        reject,
+        resolve,
+        timeoutId,
+        view: {
+          id: message.id,
+          account: account?.address ?? accountAddress,
+          chainId,
+          createdAt: Date.now(),
+          estimatedFee,
+          feePaymentOptions,
+          favicon: message.favicon,
+          method,
+          origin: message.origin,
+          params: message.args.params,
+          simulation,
+          title: message.title,
+          url: message.url,
+        },
+      });
+
+      openApprovalSurface().catch((error) => {
+        clearTimeout(timeoutId);
+        pendingProviderApprovals.delete(message.id);
+        reject(
+          providerError(
+            4001,
+            error instanceof Error
+              ? error.message
+              : 'Unable to open PillarX approval window.'
+          )
+        );
+      });
+    }
+  );
 
 const getPendingProviderApprovalViews = () =>
   Array.from(pendingProviderApprovals.values()).map((pending) => pending.view);
 
 const respondToProviderApproval = ({
   approved,
+  feePayment,
   id,
 }: ProviderApprovalRespondMessage) => {
   const pending = pendingProviderApprovals.get(id);
@@ -1314,7 +1614,7 @@ const respondToProviderApproval = ({
   pendingProviderApprovals.delete(id);
 
   if (approved) {
-    pending.resolve();
+    pending.resolve({ feePayment });
     return { ok: true };
   }
 
@@ -1801,15 +2101,29 @@ const handleProviderRequest = async (
             }
           : undefined
       );
+      const feePaymentOptions = await getDappFeePaymentOptions({
+        account,
+        chainId,
+      });
 
-      await requestProviderApproval({
+      const approvalResponse = await requestProviderApproval({
         account,
         chainId,
         estimatedFee,
+        feePaymentOptions,
         message,
         method,
         simulation,
       });
+
+      if (isGaslessFeePayment(approvalResponse?.feePayment)) {
+        return sendGaslessDappTransaction({
+          account,
+          chainId,
+          feePayment: approvalResponse.feePayment,
+          transaction,
+        });
+      }
 
       return preparedTransaction.walletClient.sendTransaction(
         preparedTransaction.request

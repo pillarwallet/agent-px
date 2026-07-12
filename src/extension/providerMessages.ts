@@ -70,6 +70,36 @@ export type ProviderApprovalKind =
   | 'eth_signTypedData_v4'
   | 'personal_sign';
 
+export type ProviderApprovalFeePaymentOption =
+  | {
+      id: 'native-token';
+      title: string;
+      type: 'native';
+      value?: string;
+    }
+  | {
+      balance?: number;
+      decimals: number;
+      id: string;
+      imageSrc?: string;
+      paymasterAddress: string;
+      title: string;
+      token: string;
+      type: 'gasless';
+      value?: string;
+    };
+
+export type ProviderApprovalFeePayment =
+  | {
+      type: 'native';
+    }
+  | {
+      decimals: number;
+      paymasterAddress: string;
+      token: string;
+      type: 'gasless';
+    };
+
 export type ProviderApprovalRequestView = {
   id: string;
   account?: string;
@@ -81,6 +111,7 @@ export type ProviderApprovalRequestView = {
     feePerGas?: string;
     totalWei?: string;
   };
+  feePaymentOptions?: ProviderApprovalFeePaymentOption[];
   favicon?: string;
   method: ProviderApprovalKind;
   origin: string;
@@ -111,4 +142,5 @@ export type ProviderApprovalRespondMessage = {
   type: typeof PILLARX_PROVIDER_APPROVAL_RESPOND;
   id: string;
   approved: boolean;
+  feePayment?: ProviderApprovalFeePayment;
 };
