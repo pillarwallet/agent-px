@@ -100,6 +100,23 @@ export type ProviderApprovalFeePayment =
       type: 'gasless';
     };
 
+export type ProviderApprovalStatus =
+  | {
+      phase: 'pending';
+    }
+  | {
+      message?: string;
+      phase: 'submitting';
+    }
+  | {
+      phase: 'success';
+      transactionHash: string;
+    }
+  | {
+      message: string;
+      phase: 'error';
+    };
+
 export type ProviderApprovalRequestView = {
   id: string;
   account?: string;
@@ -130,6 +147,7 @@ export type ProviderApprovalRequestView = {
     }[];
     error?: string;
   };
+  status?: ProviderApprovalStatus;
   title?: string;
   url: string;
 };
