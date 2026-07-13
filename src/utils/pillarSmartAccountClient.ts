@@ -39,8 +39,6 @@ export const PILLAR_BOOTSTRAP_ADDRESS =
   '0xCF2808eA7d131d96E5C73Eb0eCD8Dc84D33905C7' as const;
 export const PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS =
   '0x0eA25BF9F313344d422B513e1af679484338518E' as const;
-export const PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS =
-  '0xe629A99Fe2fAD23B1dF6Aa680BA6995cfDA885a3' as const;
 export const PILLAR_ZERO_ADDRESS =
   '0x0000000000000000000000000000000000000000' as const;
 export const PILLAR_KERNEL_EXECUTE_SELECTOR = '0xe9ae5c53' as const;
@@ -86,10 +84,6 @@ export const pillarBootstrapAbi = parseAbi([
 
 export const pillarModuleAbi = parseAbi(['function onInstall(bytes data)']);
 
-export const pillarHookMultiplexerAbi = parseAbi([
-  'function onInstall(bytes data)',
-]);
-
 type SmartAccountClient = SmartAccountImplementation<
   typeof entryPoint07Abi,
   '0.7',
@@ -111,19 +105,6 @@ export type PillarCall = {
 export type PillarBootstrapConfig = {
   module: Address;
   data: Hex;
-};
-
-export type PillarHookMultiplexerSigHookInit = {
-  sig: Hex;
-  hooks: readonly Address[];
-};
-
-export type PillarHookMultiplexerConfig = {
-  globalHooks?: readonly Address[];
-  valueHooks?: readonly Address[];
-  delegatecallHooks?: readonly Address[];
-  sigHooks?: readonly PillarHookMultiplexerSigHookInit[];
-  targetSigHooks?: readonly PillarHookMultiplexerSigHookInit[];
 };
 
 export type PillarValidatorInstallDataParameters = {
@@ -197,8 +178,6 @@ export type PillarBootstrapInitMSAParameters = {
 export type PillarBootstrapModuleSetupParameters = {
   bootstrapAddress?: Address;
   multipleOwnerEcdsaValidator?: Address;
-  hookMultiplexer?: Address;
-  hookMultiplexerConfig?: PillarHookMultiplexerConfig;
 };
 
 const getDefaultBootstrapConfig = (): PillarBootstrapConfig => ({
@@ -330,52 +309,6 @@ export function encodePillarUninstallModuleCall({
   });
 }
 
-export function encodePillarHookMultiplexerConfigData({
-  globalHooks = [],
-  valueHooks = [],
-  delegatecallHooks = [],
-  sigHooks = [],
-  targetSigHooks = [],
-}: PillarHookMultiplexerConfig = {}): Hex {
-  const sigHookTuples = sigHooks.map(({ sig, hooks }) => [sig, hooks] as const);
-  const targetSigHookTuples = targetSigHooks.map(
-    ({ sig, hooks }) => [sig, hooks] as const
-  );
-
-  return encodeAbiParameters(
-    [
-      { type: 'address[]' },
-      { type: 'address[]' },
-      { type: 'address[]' },
-      {
-        type: 'tuple[]',
-        components: [{ type: 'bytes4' }, { type: 'address[]' }],
-      },
-      {
-        type: 'tuple[]',
-        components: [{ type: 'bytes4' }, { type: 'address[]' }],
-      },
-    ],
-    [
-      globalHooks,
-      valueHooks,
-      delegatecallHooks,
-      sigHookTuples,
-      targetSigHookTuples,
-    ]
-  );
-}
-
-export function encodePillarHookMultiplexerInstallData(
-  config: PillarHookMultiplexerConfig = {}
-): Hex {
-  return encodeFunctionData({
-    abi: pillarHookMultiplexerAbi,
-    functionName: 'onInstall',
-    args: [encodePillarHookMultiplexerConfigData(config)],
-  });
-}
-
 export function encodePillarValidatorInstallData({
   validatorData,
   hook = PILLAR_ZERO_ADDRESS,
@@ -396,15 +329,9 @@ export function encodePillarValidatorInstallData({
 export function encodePillarBootstrapModuleSetupCall({
   bootstrapAddress = PILLAR_BOOTSTRAP_ADDRESS,
   multipleOwnerEcdsaValidator = PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
-  hookMultiplexer = PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
-  hookMultiplexerConfig = {},
 }: PillarBootstrapModuleSetupParameters = {}): Hex {
   const initMSAData = encodePillarBootstrapInitMSA({
     validators: [makePillarBootstrapConfig(multipleOwnerEcdsaValidator)],
-    hook: makePillarBootstrapConfig(
-      hookMultiplexer,
-      encodePillarHookMultiplexerConfigData(hookMultiplexerConfig)
-    ),
   });
 
   return encodePillarExecuteDelegateCall({
@@ -545,7 +472,6 @@ export const pillarSmartAccountClient = {
   constants: {
     bootstrapAddress: PILLAR_BOOTSTRAP_ADDRESS,
     entryPointAddress: PILLAR_ENTRY_POINT_V07_ADDRESS,
-    hookMultiplexerV2Address: PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
     kernel7702ImplementationAddress: PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
     multipleOwnerEcdsaValidatorAddress:
       PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
@@ -555,7 +481,6 @@ export const pillarSmartAccountClient = {
   encodeExecuteBatch: encodePillarExecuteBatch,
   encodeExecuteCall: encodePillarExecuteCall,
   encodeExecuteDelegateCall: encodePillarExecuteDelegateCall,
-  encodeHookMultiplexerInstallData: encodePillarHookMultiplexerInstallData,
   encodeInstallModule: encodePillarInstallModuleCall,
   encodeValidatorInstallData: encodePillarValidatorInstallData,
   encodeUninstallModule: encodePillarUninstallModuleCall,

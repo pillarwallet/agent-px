@@ -25,6 +25,7 @@ export const supportedGaslessTokens: SupportedGaslessToken[] = [
   },
 ];
 
+export const GASLESS_TOKEN_APPROVAL_AMOUNT = '0.1';
 const MIN_GASLESS_TOKEN_BALANCE = 0.01;
 
 const gaslessChainNameToChainId = (chainName: string) => {
@@ -69,7 +70,7 @@ export const getAllGaslessPaymasters = async (
             gaslessChainNameToChainId(token.blockchain) === chainId &&
             token.contract.toLowerCase() ===
               supportedToken.tokenAddress.toLowerCase() &&
-            (token.balance ?? 0) > MIN_GASLESS_TOKEN_BALANCE
+            (token.balance ?? 0) >= MIN_GASLESS_TOKEN_BALANCE
         )
     );
 

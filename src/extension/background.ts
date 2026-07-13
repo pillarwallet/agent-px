@@ -4,6 +4,7 @@ import {
   encodeFunctionData,
   erc20Abi,
   formatEther,
+  formatUnits,
   getAddress,
   http,
   isAddress,
@@ -39,6 +40,7 @@ import {
   ProviderApprovalKind,
   ProviderApprovalRequestView,
   ProviderApprovalRespondMessage,
+  ProviderApprovalStatus,
   ProviderRequestArguments,
   ProviderRpcErrorPayload,
   ProviderRuntimeRequestMessage,
@@ -67,7 +69,10 @@ import {
   encodePillarExecuteCall,
   PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
 } from '../utils/pillarSmartAccountClient';
-import { getAllGaslessPaymasters } from '../services/gasless';
+import {
+  GASLESS_TOKEN_APPROVAL_AMOUNT,
+  getAllGaslessPaymasters,
+} from '../services/gasless';
 
 type ExtensionInstallReason = {
   reason?: string;
@@ -192,7 +197,6 @@ const DEFAULT_TESTNET_CHAIN_ID = 11155111;
 const APPROVAL_WINDOW_WIDTH = 430;
 const APPROVAL_WINDOW_HEIGHT = 744;
 const NATIVE_FEE_OPTION_ID = 'native-token';
-const GASLESS_APPROVAL_AMOUNT = '1';
 const WALLET_PORTFOLIO_URL =
   import.meta.env.VITE_USE_TESTNETS === 'true'
     ? 'https://hifidata-nubpgwxpiq-uc.a.run.app'
@@ -289,6 +293,13 @@ type DappTransactionRequest = {
 
 type TransactionFeeEstimateView = ProviderApprovalRequestView['estimatedFee'];
 type TransactionSimulationView = ProviderApprovalRequestView['simulation'];
+type TransactionSimulationChange = NonNullable<
+  NonNullable<TransactionSimulationView>['changes']
+>[number];
+type AggregatableSimulationChange = TransactionSimulationChange & {
+  decimals?: number;
+  rawAmount?: string;
+};
 
 type AlchemyAssetChange = {
   amount?: string;
@@ -340,6 +351,8 @@ type PortfolioGaslessToken = {
 };
 
 type PendingProviderApproval = {
+  approved?: boolean;
+  cleanupId?: ReturnType<typeof setTimeout>;
   reject: (error: ProviderRpcError) => void;
   resolve: (response?: { feePayment?: ProviderApprovalFeePayment }) => void;
   timeoutId: ReturnType<typeof setTimeout>;
@@ -1084,6 +1097,91 @@ const getDappTransactionFeeEstimate = async ({
   };
 };
 
+const parseSimulationRawAmount = (rawAmount?: string) => {
+  if (!rawAmount) return undefined;
+
+  try {
+    return BigInt(rawAmount);
+  } catch {
+    return undefined;
+  }
+};
+
+const trimDisplayAmount = (amount: string) =>
+  amount.includes('.') ? amount.replace(/\.?0+$/, '') || '0' : amount;
+
+const addDisplayAmounts = (left?: string, right?: string) => {
+  const sum = Number(left ?? '0') + Number(right ?? '0');
+  if (!Number.isFinite(sum)) return right ?? left;
+
+  return trimDisplayAmount(sum.toFixed(18));
+};
+
+const getSimulationAggregationKey = (change: AggregatableSimulationChange) =>
+  [
+    change.direction,
+    change.assetType ?? '',
+    change.contractAddress?.toLowerCase() ?? '',
+    change.symbol ?? '',
+    change.name ?? '',
+    change.tokenId ?? '',
+  ].join('|');
+
+const addSimulationChanges = (
+  existing: AggregatableSimulationChange,
+  next: AggregatableSimulationChange
+): AggregatableSimulationChange => {
+  const existingRawAmount = parseSimulationRawAmount(existing.rawAmount);
+  const nextRawAmount = parseSimulationRawAmount(next.rawAmount);
+  const canUseRawAmount =
+    existingRawAmount !== undefined &&
+    nextRawAmount !== undefined &&
+    existing.decimals !== undefined &&
+    existing.decimals === next.decimals;
+
+  if (canUseRawAmount) {
+    const rawAmount = existingRawAmount + nextRawAmount;
+    return {
+      ...existing,
+      amount: trimDisplayAmount(formatUnits(rawAmount, existing.decimals)),
+      rawAmount: rawAmount.toString(),
+    };
+  }
+
+  return {
+    ...existing,
+    amount: addDisplayAmounts(existing.amount, next.amount),
+  };
+};
+
+const aggregateSimulationChanges = (
+  changes: AggregatableSimulationChange[]
+): TransactionSimulationChange[] => {
+  const aggregatedChanges = new Map<string, AggregatableSimulationChange>();
+
+  changes.forEach((change) => {
+    const key = getSimulationAggregationKey(change);
+    const existing = aggregatedChanges.get(key);
+
+    aggregatedChanges.set(
+      key,
+      existing ? addSimulationChanges(existing, change) : change
+    );
+  });
+
+  return Array.from(aggregatedChanges.values()).map((change) => ({
+    amount: change.amount,
+    assetType: change.assetType,
+    changeType: change.changeType,
+    contractAddress: change.contractAddress,
+    direction: change.direction,
+    logo: change.logo,
+    name: change.name,
+    symbol: change.symbol,
+    tokenId: change.tokenId,
+  }));
+};
+
 const getDappTransactionSimulation = async ({
   account,
   chainId,
@@ -1169,7 +1267,7 @@ const getDappTransactionSimulation = async ({
   }
 
   const accountAddress = account.address.toLowerCase();
-  const changes = (json.result?.changes ?? [])
+  const normalizedChanges = (json.result?.changes ?? [])
     .map((change) => {
       const from = change.from?.toLowerCase();
       const to = change.to?.toLowerCase();
@@ -1188,24 +1286,23 @@ const getDappTransactionSimulation = async ({
         assetType: change.assetType,
         changeType: change.changeType,
         contractAddress: change.contractAddress,
+        decimals: change.decimals,
         direction,
         logo: change.logo,
         name: change.name,
+        rawAmount: change.rawAmount,
         symbol: change.symbol,
         tokenId: change.tokenId,
       };
     })
-    .filter(
-      (
-        change
-      ): change is NonNullable<
-        NonNullable<TransactionSimulationView>['changes'][number]
-      > => Boolean(change)
-    )
-    .sort((a, b) => {
-      if (a.direction === b.direction) return 0;
-      return a.direction === 'spend' ? -1 : 1;
-    });
+    .filter((change): change is AggregatableSimulationChange =>
+      Boolean(change)
+    );
+
+  const changes = aggregateSimulationChanges(normalizedChanges).sort((a, b) => {
+    if (a.direction === b.direction) return 0;
+    return a.direction === 'spend' ? -1 : 1;
+  });
 
   return { changes };
 };
@@ -1264,7 +1361,7 @@ const sendGaslessDappTransaction = async ({
     functionName: 'approve',
     args: [
       feePayment.paymasterAddress,
-      parseUnits(GASLESS_APPROVAL_AMOUNT, feePayment.decimals),
+      parseUnits(GASLESS_TOKEN_APPROVAL_AMOUNT, feePayment.decimals),
     ],
   });
 
@@ -1370,6 +1467,47 @@ const unsupportedMethods = new Set([
 ]);
 const pendingProviderApprovals = new Map<string, PendingProviderApproval>();
 let approvalWindowId: number | undefined;
+
+const approvalStatusPriority = (status?: ProviderApprovalStatus): number => {
+  switch (status?.phase) {
+    case 'success':
+    case 'error':
+      return 2;
+    case 'submitting':
+      return 1;
+    default:
+      return 0;
+  }
+};
+
+const scheduleProviderApprovalCleanup = (id: string) => {
+  const pending = pendingProviderApprovals.get(id);
+  if (!pending || pending.cleanupId) return;
+
+  pending.cleanupId = setTimeout(
+    () => {
+      pendingProviderApprovals.delete(id);
+    },
+    5 * 60 * 1000
+  );
+};
+
+const updateProviderApprovalStatus = (
+  id: string,
+  status: ProviderApprovalStatus
+) => {
+  const pending = pendingProviderApprovals.get(id);
+  if (!pending) return;
+
+  pending.view = {
+    ...pending.view,
+    status,
+  };
+
+  if (status.phase === 'success' || status.phase === 'error') {
+    scheduleProviderApprovalCleanup(id);
+  }
+};
 
 const buildPermissions = (origin: string, address: string) => [
   {
@@ -1508,11 +1646,18 @@ async function openApprovalSurface() {
 }
 
 const rejectPendingProviderApprovals = (message: string) => {
-  pendingProviderApprovals.forEach((pending) => {
+  pendingProviderApprovals.forEach((pending, id) => {
     clearTimeout(pending.timeoutId);
-    pending.reject(providerError(4001, message));
+    if (pending.cleanupId) {
+      clearTimeout(pending.cleanupId);
+    }
+
+    if (!pending.approved) {
+      pending.reject(providerError(4001, message));
+    }
+
+    pendingProviderApprovals.delete(id);
   });
-  pendingProviderApprovals.clear();
 };
 
 const getConnectedAccount = async (
@@ -1598,7 +1743,14 @@ const requestProviderApproval = async ({
   );
 
 const getPendingProviderApprovalViews = () =>
-  Array.from(pendingProviderApprovals.values()).map((pending) => pending.view);
+  Array.from(pendingProviderApprovals.values())
+    .map((pending) => pending.view)
+    .sort((a, b) => {
+      const statusDelta =
+        approvalStatusPriority(a.status) - approvalStatusPriority(b.status);
+      if (statusDelta !== 0) return statusDelta;
+      return a.createdAt - b.createdAt;
+    });
 
 const respondToProviderApproval = ({
   approved,
@@ -1611,13 +1763,23 @@ const respondToProviderApproval = ({
   }
 
   clearTimeout(pending.timeoutId);
-  pendingProviderApprovals.delete(id);
 
   if (approved) {
+    pending.approved = true;
+    if (pending.view.method === 'eth_sendTransaction') {
+      updateProviderApprovalStatus(id, {
+        message: 'Waiting for the transaction hash from the network.',
+        phase: 'submitting',
+      });
+    } else {
+      pendingProviderApprovals.delete(id);
+    }
+
     pending.resolve({ feePayment });
     return { ok: true };
   }
 
+  pendingProviderApprovals.delete(id);
   pending.reject(providerError(4001, 'User rejected the PillarX request.'));
   return { ok: true };
 };
@@ -2116,18 +2278,37 @@ const handleProviderRequest = async (
         simulation,
       });
 
-      if (isGaslessFeePayment(approvalResponse?.feePayment)) {
-        return sendGaslessDappTransaction({
-          account,
-          chainId,
-          feePayment: approvalResponse.feePayment,
-          transaction,
-        });
-      }
+      try {
+        const transactionHash = isGaslessFeePayment(
+          approvalResponse?.feePayment
+        )
+          ? await sendGaslessDappTransaction({
+              account,
+              chainId,
+              feePayment: approvalResponse.feePayment,
+              transaction,
+            })
+          : await preparedTransaction.walletClient.sendTransaction(
+              preparedTransaction.request
+            );
 
-      return preparedTransaction.walletClient.sendTransaction(
-        preparedTransaction.request
-      );
+        updateProviderApprovalStatus(message.id, {
+          phase: 'success',
+          transactionHash,
+        });
+
+        return transactionHash;
+      } catch (error) {
+        updateProviderApprovalStatus(message.id, {
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Unable to send this transaction.',
+          phase: 'error',
+        });
+
+        throw error;
+      }
     }
 
     case 'wallet_getCapabilities':

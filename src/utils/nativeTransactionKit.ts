@@ -43,11 +43,9 @@ import type { WalletProviderLike } from '../types/walletProvider';
 import { supportedChains } from './blockchain';
 import { getEtherspotBundlerUrl } from './bundler';
 import {
-  encodePillarHookMultiplexerInstallData,
   encodePillarValidatorInstallData,
   encodePillarExecuteCall,
   createPillarSmartAccountClient,
-  PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
   PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
   PILLAR_MODULE_TYPE,
   PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
@@ -1172,35 +1170,15 @@ export class EtherspotTransactionKit {
     account: PillarSmartAccount;
     chainId: number;
   }): Promise<PillarCall[]> {
-    const [isHookInstalled, isValidatorInstalled] = await Promise.all([
-      this.isPillarModuleInstalled({
-        account,
-        chainId,
-        name: 'HookMultiplexer V2 hook',
-        moduleType: PILLAR_MODULE_TYPE.HOOK,
-        module: PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
-      }),
-      this.isPillarModuleInstalled({
-        account,
-        chainId,
-        name: 'MultipleOwnerECDSA validator',
-        moduleType: PILLAR_MODULE_TYPE.VALIDATOR,
-        module: PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
-      }),
-    ]);
+    const isValidatorInstalled = await this.isPillarModuleInstalled({
+      account,
+      chainId,
+      name: 'MultipleOwnerECDSA validator',
+      moduleType: PILLAR_MODULE_TYPE.VALIDATOR,
+      module: PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
+    });
 
     const installCalls: PillarCall[] = [];
-
-    if (!isHookInstalled) {
-      installCalls.push({
-        to: account.address,
-        data: account.encodeInstallModule({
-          moduleType: PILLAR_MODULE_TYPE.HOOK,
-          module: PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
-          initData: encodePillarHookMultiplexerInstallData(),
-        }),
-      });
-    }
 
     if (!isValidatorInstalled) {
       installCalls.push({
@@ -1209,7 +1187,6 @@ export class EtherspotTransactionKit {
           moduleType: PILLAR_MODULE_TYPE.VALIDATOR,
           module: PILLAR_MULTIPLE_OWNER_ECDSA_VALIDATOR_ADDRESS,
           initData: encodePillarValidatorInstallData({
-            hook: PILLAR_HOOK_MULTIPLEXER_V2_ADDRESS,
             validatorData: account.address,
           }),
         }),
@@ -1219,7 +1196,6 @@ export class EtherspotTransactionKit {
     transactionDebugLog('[TransactionKit] module install calls resolved', {
       chainId,
       account: account.address,
-      isHookInstalled,
       isValidatorInstalled,
       installCalls: installCalls.map((call) => ({
         to: call.to,

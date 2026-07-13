@@ -1,12 +1,16 @@
 import {
   AlertTriangle,
   Check,
+  CheckCircle2,
   ChevronDown,
+  ExternalLink,
   FileSignature,
   Globe2,
   KeyRound,
+  LoaderCircle,
   Send,
   X,
+  XCircle,
 } from 'lucide-react';
 import { CSSProperties, ReactNode, useEffect, useMemo, useState } from 'react';
 import { formatEther } from 'viem';
@@ -95,6 +99,23 @@ const CHAIN_NATIVE_SYMBOLS: Record<number, string> = {
   11155111: 'ETH',
 };
 
+const CHAIN_EXPLORER_TX_URLS: Record<number, { name: string; url: string }> = {
+  1: { name: 'Etherscan', url: 'https://etherscan.io/tx/' },
+  10: {
+    name: 'Optimistic Etherscan',
+    url: 'https://optimistic.etherscan.io/tx/',
+  },
+  56: { name: 'BscScan', url: 'https://bscscan.com/tx/' },
+  100: { name: 'Gnosisscan', url: 'https://gnosisscan.io/tx/' },
+  137: { name: 'Polygonscan', url: 'https://polygonscan.com/tx/' },
+  8453: { name: 'Basescan', url: 'https://basescan.org/tx/' },
+  42161: { name: 'Arbiscan', url: 'https://arbiscan.io/tx/' },
+  11155111: {
+    name: 'Sepolia Etherscan',
+    url: 'https://sepolia.etherscan.io/tx/',
+  },
+};
+
 const sendRuntimeMessage = <T,>(message: unknown): Promise<T | undefined> =>
   new Promise((resolve, reject) => {
     if (!chromeLike?.runtime?.sendMessage) {
@@ -166,6 +187,25 @@ const compactHex = (value?: string) => {
   if (!value) return '0x';
   if (value.length <= 22) return value;
   return `${value.slice(0, 14)}...${value.slice(-8)}`;
+};
+
+const getTransactionExplorer = (chainId: number, transactionHash?: string) => {
+  const explorer = CHAIN_EXPLORER_TX_URLS[chainId];
+  if (!explorer || !transactionHash) return undefined;
+
+  return {
+    name: explorer.name,
+    url: `${explorer.url}${transactionHash}`,
+  };
+};
+
+const getFeePaymentOptionLabel = (
+  option: NonNullable<ProviderApprovalRequestView['feePaymentOptions']>[number]
+) => {
+  if (option.type !== 'gasless') return option.title;
+  if (!option.value) return option.title;
+
+  return `${option.title} (${option.value})`;
 };
 
 const formatValue = (value: unknown, chainId: number) => {
@@ -421,6 +461,11 @@ export default function ProviderApprovalOverlay({
     feePaymentOptions.find((option) => option.id === selectedFeePaymentId) ??
     feePaymentOptions[0];
   const firstFeePaymentOptionId = feePaymentOptions[0]?.id ?? 'native-token';
+  const transactionStatus = activeRequest?.status;
+  const showTransactionStatusView =
+    isTransactionRequest &&
+    transactionStatus !== undefined &&
+    transactionStatus.phase !== 'pending';
 
   const refreshPending = async () => {
     try {
@@ -512,6 +557,7 @@ export default function ProviderApprovalOverlay({
       }
 
       await respondToApproval(activeRequest.id, approved, feePayment);
+      setShowRawPayload(false);
       const nextPending = await refreshPending();
 
       if (closeWhenSettled && nextPending.length === 0) {
@@ -602,8 +648,151 @@ export default function ProviderApprovalOverlay({
     return 'Connect';
   };
 
+  const renderTransactionStatusMain = () => {
+    if (!transactionStatus || transactionStatus.phase === 'pending') {
+      return null;
+    }
+
+    let explorer: ReturnType<typeof getTransactionExplorer>;
+    const isSubmitting = transactionStatus.phase === 'submitting';
+    const isSuccess = transactionStatus.phase === 'success';
+    let statusDescription = transactionStatus.message;
+    let statusIcon = <XCircle size={62} strokeWidth={2.1} />;
+    let statusIconToneStyle = styles.statusIconError;
+    let statusLabel = 'Failed';
+    let statusTitle = 'Transaction Failed';
+
+    if (isSubmitting) {
+      statusDescription =
+        transactionStatus.message ??
+        'PillarX is sending this transaction and waiting for the hash.';
+      statusIcon = (
+        <LoaderCircle size={58} strokeWidth={2.4} style={styles.spinnerIcon} />
+      );
+      statusIconToneStyle = styles.statusIconSubmitting;
+      statusLabel = 'Sending';
+      statusTitle = 'Sending Transaction';
+    } else if (isSuccess) {
+      explorer = getTransactionExplorer(
+        activeRequest.chainId,
+        transactionStatus.transactionHash
+      );
+      statusDescription =
+        'The network accepted the transaction and returned a hash.';
+      statusIcon = <CheckCircle2 size={62} strokeWidth={2.1} />;
+      statusIconToneStyle = styles.statusIconSuccess;
+      statusLabel = 'Hash received';
+      statusTitle = 'Transaction Sent';
+    }
+
+    const renderStatusAction = () => {
+      if (isSubmitting) {
+        return (
+          <button
+            disabled
+            style={{ ...styles.button, ...styles.pendingActionButton }}
+            type="button"
+          >
+            <LoaderCircle
+              size={18}
+              strokeWidth={2.4}
+              style={styles.spinnerIcon}
+            />
+            Sending
+          </button>
+        );
+      }
+
+      if (isSuccess && explorer) {
+        return (
+          <button
+            onClick={() =>
+              window.open(explorer.url, '_blank', 'noopener,noreferrer')
+            }
+            style={{ ...styles.button, ...styles.approveButton }}
+            type="button"
+          >
+            <ExternalLink size={18} strokeWidth={2.4} />
+            View on {explorer.name}
+          </button>
+        );
+      }
+
+      return (
+        <button
+          onClick={() => window.close()}
+          style={{ ...styles.button, ...styles.rejectButton }}
+          type="button"
+        >
+          <X size={18} strokeWidth={2.4} />
+          Close
+        </button>
+      );
+    };
+
+    return (
+      <>
+        <main
+          aria-live="polite"
+          style={{ ...styles.content, ...styles.statusContent }}
+        >
+          <div
+            style={{
+              ...styles.statusIcon,
+              ...statusIconToneStyle,
+            }}
+          >
+            {statusIcon}
+          </div>
+
+          <div style={styles.summaryText}>
+            <h1 style={styles.title}>{statusTitle}</h1>
+            <p style={styles.description}>{statusDescription}</p>
+          </div>
+
+          <div style={styles.detailList}>
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Network</span>
+              <span style={styles.detailValue}>
+                {CHAIN_NAMES[activeRequest.chainId] ?? 'Unknown'}
+              </span>
+            </div>
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Status</span>
+              <span style={styles.detailValue}>{statusLabel}</span>
+            </div>
+            {transactionStatus.phase === 'success' ? (
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Hash</span>
+                <span style={styles.detailValue}>
+                  {compactHex(transactionStatus.transactionHash)}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </main>
+
+        <footer style={{ ...styles.actions, ...styles.singleActionFooter }}>
+          {renderStatusAction()}
+        </footer>
+      </>
+    );
+  };
+
+  const transactionStatusContent = showTransactionStatusView
+    ? renderTransactionStatusMain()
+    : null;
+
   return (
     <div style={styles.backdrop}>
+      <style>
+        {`
+          @keyframes pillarx-approval-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
       <section style={styles.sheet} role="dialog" aria-modal="true">
         <header style={styles.header}>
           <div style={styles.dappIdentity}>
@@ -630,150 +819,154 @@ export default function ProviderApprovalOverlay({
           ) : null}
         </header>
 
-        <main style={styles.content}>
-          <div
-            style={{
-              ...styles.summaryIcon,
-              ...getSummaryIconToneStyle(),
-            }}
-          >
-            {approvalSummary.icon}
-          </div>
-
-          <div style={styles.summaryText}>
-            <h1 style={styles.title}>{approvalSummary.title}</h1>
-            <p style={styles.description}>{approvalSummary.description}</p>
-          </div>
-
-          <div style={styles.detailList}>
-            {approvalSummary.rows.map((row) => (
-              <div key={row.label} style={styles.detailRow}>
-                <span style={styles.detailLabel}>{row.label}</span>
-                <span style={styles.detailValue}>{row.value}</span>
-              </div>
-            ))}
-          </div>
-
-          {showFeePaymentSelect ? (
-            <section style={styles.feePaymentPanel}>
-              <span style={styles.feePaymentLabel}>Pay fee in</span>
-              <select
-                disabled={isResponding}
-                id="pillarx-fee-payment"
-                onChange={(event) =>
-                  setSelectedFeePaymentId(event.target.value)
-                }
-                style={styles.feePaymentSelect}
-                value={selectedFeePaymentOption?.id ?? 'native-token'}
+        {transactionStatusContent ?? (
+          <>
+            <main style={styles.content}>
+              <div
+                style={{
+                  ...styles.summaryIcon,
+                  ...getSummaryIconToneStyle(),
+                }}
               >
-                {feePaymentOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.type === 'gasless'
-                      ? `${option.title}${option.value ? ` (${option.value})` : ''}`
-                      : option.title}
-                  </option>
+                {approvalSummary.icon}
+              </div>
+
+              <div style={styles.summaryText}>
+                <h1 style={styles.title}>{approvalSummary.title}</h1>
+                <p style={styles.description}>{approvalSummary.description}</p>
+              </div>
+
+              <div style={styles.detailList}>
+                {approvalSummary.rows.map((row) => (
+                  <div key={row.label} style={styles.detailRow}>
+                    <span style={styles.detailLabel}>{row.label}</span>
+                    <span style={styles.detailValue}>{row.value}</span>
+                  </div>
                 ))}
-              </select>
-            </section>
-          ) : null}
+              </div>
 
-          {connectNeedsUnlock ? (
-            <section style={styles.unlockPanel}>
-              <span style={styles.unlockLabel} id="pillarx-passcode-label">
-                Wallet passcode
-              </span>
-              <div style={styles.passcodeWrap}>
-                <KeyRound size={17} strokeWidth={2.2} />
-                <input
-                  aria-labelledby="pillarx-passcode-label"
-                  disabled={isResponding}
-                  id="pillarx-passcode"
-                  onChange={(event) => setPasscode(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      handleResponse(true);
+              {showFeePaymentSelect ? (
+                <section style={styles.feePaymentPanel}>
+                  <span style={styles.feePaymentLabel}>Pay fee in</span>
+                  <select
+                    disabled={isResponding}
+                    id="pillarx-fee-payment"
+                    onChange={(event) =>
+                      setSelectedFeePaymentId(event.target.value)
                     }
+                    style={styles.feePaymentSelect}
+                    value={selectedFeePaymentOption?.id ?? 'native-token'}
+                  >
+                    {feePaymentOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {getFeePaymentOptionLabel(option)}
+                      </option>
+                    ))}
+                  </select>
+                </section>
+              ) : null}
+
+              {connectNeedsUnlock ? (
+                <section style={styles.unlockPanel}>
+                  <span style={styles.unlockLabel} id="pillarx-passcode-label">
+                    Wallet passcode
+                  </span>
+                  <div style={styles.passcodeWrap}>
+                    <KeyRound size={17} strokeWidth={2.2} />
+                    <input
+                      aria-labelledby="pillarx-passcode-label"
+                      disabled={isResponding}
+                      id="pillarx-passcode"
+                      onChange={(event) => setPasscode(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          handleResponse(true);
+                        }
+                      }}
+                      placeholder="Enter passcode"
+                      style={styles.passcodeInput}
+                      type="password"
+                      value={passcode}
+                    />
+                  </div>
+                </section>
+              ) : null}
+
+              {errorMessage ? (
+                <p style={styles.errorMessage}>{errorMessage}</p>
+              ) : null}
+
+              {activeRequest.simulation ? (
+                <section style={styles.simulationPanel}>
+                  <div style={styles.simulationHeader}>
+                    <span style={styles.detailLabel}>Simulation</span>
+                  </div>
+                  {renderSimulationContent()}
+                </section>
+              ) : null}
+
+              {transactionPreview?.data && transactionPreview.data !== '0x' ? (
+                <div style={styles.callDataPreview}>
+                  <span style={styles.detailLabel}>Calldata</span>
+                  <code style={styles.callDataCode}>
+                    {compactHex(transactionPreview.data)}
+                  </code>
+                </div>
+              ) : null}
+
+              <div style={styles.warning}>
+                <AlertTriangle size={16} strokeWidth={2.1} />
+                <span>
+                  {isConnectRequest
+                    ? 'Only connect to sites you trust.'
+                    : 'Only approve requests you expect from this site.'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => setShowRawPayload((value) => !value)}
+                style={styles.rawToggle}
+                type="button"
+              >
+                <span>Raw payload</span>
+                <ChevronDown
+                  size={17}
+                  style={{
+                    transform: showRawPayload
+                      ? 'rotate(180deg)'
+                      : 'rotate(0deg)',
+                    transition: 'transform 140ms ease',
                   }}
-                  placeholder="Enter passcode"
-                  style={styles.passcodeInput}
-                  type="password"
-                  value={passcode}
                 />
-              </div>
-            </section>
-          ) : null}
+              </button>
 
-          {errorMessage ? (
-            <p style={styles.errorMessage}>{errorMessage}</p>
-          ) : null}
+              {showRawPayload ? (
+                <pre style={styles.params}>{paramsPreview}</pre>
+              ) : null}
+            </main>
 
-          {activeRequest.simulation ? (
-            <section style={styles.simulationPanel}>
-              <div style={styles.simulationHeader}>
-                <span style={styles.detailLabel}>Simulation</span>
-              </div>
-              {renderSimulationContent()}
-            </section>
-          ) : null}
-
-          {transactionPreview?.data && transactionPreview.data !== '0x' ? (
-            <div style={styles.callDataPreview}>
-              <span style={styles.detailLabel}>Calldata</span>
-              <code style={styles.callDataCode}>
-                {compactHex(transactionPreview.data)}
-              </code>
-            </div>
-          ) : null}
-
-          <div style={styles.warning}>
-            <AlertTriangle size={16} strokeWidth={2.1} />
-            <span>
-              {isConnectRequest
-                ? 'Only connect to sites you trust.'
-                : 'Only approve requests you expect from this site.'}
-            </span>
-          </div>
-
-          <button
-            onClick={() => setShowRawPayload((value) => !value)}
-            style={styles.rawToggle}
-            type="button"
-          >
-            <span>Raw payload</span>
-            <ChevronDown
-              size={17}
-              style={{
-                transform: showRawPayload ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 140ms ease',
-              }}
-            />
-          </button>
-
-          {showRawPayload ? (
-            <pre style={styles.params}>{paramsPreview}</pre>
-          ) : null}
-        </main>
-
-        <footer style={styles.actions}>
-          <button
-            disabled={isResponding}
-            onClick={() => handleResponse(false)}
-            style={{ ...styles.button, ...styles.rejectButton }}
-            type="button"
-          >
-            <X size={18} strokeWidth={2.4} />
-            {isConnectRequest ? 'Cancel' : 'Reject'}
-          </button>
-          <button
-            disabled={isResponding}
-            onClick={() => handleResponse(true)}
-            style={{ ...styles.button, ...styles.approveButton }}
-            type="button"
-          >
-            <Check size={18} strokeWidth={2.4} />
-            {getApproveButtonLabel()}
-          </button>
-        </footer>
+            <footer style={styles.actions}>
+              <button
+                disabled={isResponding}
+                onClick={() => handleResponse(false)}
+                style={{ ...styles.button, ...styles.rejectButton }}
+                type="button"
+              >
+                <X size={18} strokeWidth={2.4} />
+                {isConnectRequest ? 'Cancel' : 'Reject'}
+              </button>
+              <button
+                disabled={isResponding}
+                onClick={() => handleResponse(true)}
+                style={{ ...styles.button, ...styles.approveButton }}
+                type="button"
+              >
+                <Check size={18} strokeWidth={2.4} />
+                {getApproveButtonLabel()}
+              </button>
+            </footer>
+          </>
+        )}
       </section>
     </div>
   );
@@ -999,6 +1192,11 @@ function getApprovalOverlayStyles({
       fontWeight: 800,
       padding: '5px 9px',
     },
+    pendingActionButton: {
+      background: 'rgba(255, 255, 255, 0.08)',
+      color: 'rgba(255, 255, 255, 0.72)',
+      cursor: 'default',
+    },
     passcodeInput: {
       background: 'transparent',
       border: 0,
@@ -1056,6 +1254,9 @@ function getApprovalOverlayStyles({
     signatureIcon: {
       background: 'rgba(76, 211, 194, 0.14)',
       color: '#7ff1df',
+    },
+    singleActionFooter: {
+      gridTemplateColumns: '1fr',
     },
     simulationAmount: {
       fontSize: 13,
@@ -1158,6 +1359,40 @@ function getApprovalOverlayStyles({
       display: 'grid',
       gap: 5,
       justifyItems: 'center',
+    },
+    spinnerIcon: {
+      animation: 'pillarx-approval-spin 900ms linear infinite',
+    },
+    statusContent: {
+      alignContent: 'center',
+      gap: 18,
+      justifyItems: 'stretch',
+      overflow: 'hidden',
+      padding: standalone ? '40px 24px' : '28px 18px',
+    },
+    statusIcon: {
+      alignItems: 'center',
+      borderRadius: 999,
+      display: 'flex',
+      height: 112,
+      justifyContent: 'center',
+      justifySelf: 'center',
+      width: 112,
+    },
+    statusIconError: {
+      background: 'rgba(255, 54, 108, 0.12)',
+      border: '1px solid rgba(255, 54, 108, 0.24)',
+      color: '#ff8fac',
+    },
+    statusIconSubmitting: {
+      background: 'rgba(143, 108, 255, 0.14)',
+      border: '1px solid rgba(143, 108, 255, 0.26)',
+      color: '#bba6ff',
+    },
+    statusIconSuccess: {
+      background: 'rgba(76, 211, 194, 0.14)',
+      border: '1px solid rgba(76, 211, 194, 0.26)',
+      color: '#7ff1df',
     },
     title: {
       color: '#ffffff',

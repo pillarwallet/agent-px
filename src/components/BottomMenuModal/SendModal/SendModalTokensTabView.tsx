@@ -43,7 +43,10 @@ import { useTransactionDebugLogger } from '../../../hooks/useTransactionDebugLog
 import useTransactionKit from '../../../hooks/useTransactionKit';
 
 // services
-import { getAllGaslessPaymasters } from '../../../services/gasless';
+import {
+  GASLESS_TOKEN_APPROVAL_AMOUNT,
+  getAllGaslessPaymasters,
+} from '../../../services/gasless';
 import { useRecordPresenceMutation } from '../../../services/pillarXApiPresence';
 import { getUserOperationStatus } from '../../../services/userOpStatus';
 
@@ -92,7 +95,6 @@ import { PortfolioData } from '../../../types/api';
 import { ITransaction } from '../../../types/blockchain';
 
 const NATIVE_FEE_OPTION_ID = 'native-token';
-const GASLESS_APPROVAL_AMOUNT = '1';
 
 const getNativeFeeOption = (chainId?: number): SelectOption => {
   const nativeAsset = chainId ? getNativeAssetForChainId(chainId) : undefined;
@@ -216,7 +218,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     TokenAssetSelectOption[]
   >([]);
   const [approveData, setApproveData] = React.useState<string>('');
-  const [feeMin, setFeeMin] = React.useState<string>();
   const isDelegatedEoa = React.useMemo(
     () => kit.getEtherspotProvider().getWalletMode() === 'delegatedEoa',
     [kit]
@@ -290,7 +291,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setSelectedPaymasterAddress('');
     setSelectedFeeAsset(undefined);
     setApproveData('');
-    setFeeMin(undefined);
   }, []);
 
   const setGaslessFeePayment = React.useCallback(
@@ -416,18 +416,16 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   useEffect(() => {
     if (!selectedFeeAsset || !selectedPaymasterAddress) {
       setApproveData('');
-      setFeeMin(undefined);
       return;
     }
 
-    setFeeMin(GASLESS_APPROVAL_AMOUNT);
     setApproveData(
       encodeFunctionData({
         abi: erc20Abi,
         functionName: 'approve',
         args: [
           selectedPaymasterAddress as Address,
-          parseUnits(GASLESS_APPROVAL_AMOUNT, selectedFeeAsset.decimals),
+          parseUnits(GASLESS_TOKEN_APPROVAL_AMOUNT, selectedFeeAsset.decimals),
         ],
       })
     );
@@ -1014,51 +1012,6 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       });
 
       return;
-    }
-
-    // Paymaster balance check only for user-driven flows
-    if (
-      !isPayloadTransaction &&
-      isPaymaster &&
-      paymasterContext?.mode === 'commonerc20'
-    ) {
-      let amountLeft = 0;
-      if (
-        selectedAsset?.type === 'token' &&
-        selectedAsset?.asset?.contract?.toLowerCase() ===
-          selectedFeeAsset?.token?.toLowerCase()
-      ) {
-        amountLeft = +getAmountLeft(
-          selectedAsset,
-          amount,
-          selectedAsset.balance
-        );
-      } else {
-        amountLeft = +(selectedFeeAsset?.balance ?? 0);
-      }
-      if (!feeMin) return;
-      if (amountLeft < +feeMin) {
-        handleError(t`error.insufficientBalanceForGasless`);
-
-        Sentry.captureMessage('Insufficient balance for gasless transaction', {
-          level: 'error',
-          tags: {
-            component: 'send_flow',
-            action: 'insufficient_balance_gasless',
-            sendId,
-          },
-          contexts: {
-            insufficient_balance: {
-              sendId,
-              amountLeft,
-              feeMin,
-              selectedAsset: selectedAsset?.id,
-              selectedFeeAsset: selectedFeeAsset?.token,
-            },
-          },
-        });
-        return;
-      }
     }
 
     transactionDebugLog('Preparing to send transaction', {
