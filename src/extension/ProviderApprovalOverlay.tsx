@@ -69,6 +69,12 @@ type ApprovalSummary = {
 type SimulationChange = NonNullable<
   ProviderApprovalRequestView['simulation']
 >['changes'][number];
+type FeePaymentOption = NonNullable<
+  ProviderApprovalRequestView['feePaymentOptions']
+>[number];
+
+const isActionableApproval = (request: ProviderApprovalRequestView) =>
+  !request.status || request.status.phase === 'pending';
 
 type ProviderApprovalOverlayProps = {
   closeWhenSettled?: boolean;
@@ -199,13 +205,50 @@ const getTransactionExplorer = (chainId: number, transactionHash?: string) => {
   };
 };
 
-const getFeePaymentOptionLabel = (
-  option: NonNullable<ProviderApprovalRequestView['feePaymentOptions']>[number]
-) => {
-  if (option.type !== 'gasless') return option.title;
-  if (!option.value) return option.title;
+const getFeePaymentOptionSubtitle = (option: FeePaymentOption) => {
+  if (option.type === 'native') {
+    return option.value ? `Network gas in ${option.value}` : 'Network gas';
+  }
 
-  return `${option.title} (${option.value})`;
+  if (option.value) {
+    return `Balance ${option.value} ${option.title}`;
+  }
+
+  return 'Gasless fee token';
+};
+
+const getFeePaymentOptionBadge = (option: FeePaymentOption) =>
+  option.type === 'gasless' ? 'Gasless' : 'Native';
+
+const FeePaymentOptionIcon = ({
+  option,
+  styles,
+}: {
+  option: FeePaymentOption;
+  styles: Record<string, CSSProperties>;
+}) => {
+  const [hideImage, setHideImage] = useState(false);
+
+  if (option.type === 'gasless' && option.imageSrc && !hideImage) {
+    return (
+      <img
+        alt=""
+        onError={() => setHideImage(true)}
+        src={option.imageSrc}
+        style={styles.feePaymentOptionImage}
+      />
+    );
+  }
+
+  return (
+    <span style={styles.feePaymentOptionFallback}>
+      {option.type === 'native' ? (
+        <Send size={18} strokeWidth={2.2} />
+      ) : (
+        option.title.slice(0, 1).toUpperCase()
+      )}
+    </span>
+  );
 };
 
 const formatValue = (value: unknown, chainId: number) => {
@@ -293,12 +336,28 @@ const getMessagePreview = (request: ProviderApprovalRequestView) => {
     : serialized || 'Message payload';
 };
 
-const getSimulationLabel = (direction: SimulationChange['direction']) =>
-  direction === 'spend' ? 'You spend' : 'You receive';
+const getSimulationLabel = (direction: SimulationChange['direction']) => {
+  if (direction === 'approve') return 'You approve';
+  if (direction === 'spend') return 'You spend';
+  return 'You receive';
+};
+
+const getSimulationAmountToneStyle = (
+  direction: SimulationChange['direction'],
+  styles: Record<string, CSSProperties>
+) => {
+  if (direction === 'approve') return styles.simulationAmountApprove;
+  if (direction === 'receive') return styles.simulationAmountReceive;
+  return styles.simulationAmountSpend;
+};
 
 const getSimulationAmount = (change: SimulationChange) => {
   const amount = change.amount ?? '';
   const symbol = change.symbol ?? change.name ?? change.assetType ?? 'Asset';
+  if (change.direction === 'approve') {
+    return amount ? `${amount} ${symbol}` : symbol;
+  }
+
   const prefix = change.direction === 'spend' ? '-' : '+';
 
   return `${prefix}${amount ? `${amount} ` : ''}${symbol}`;
@@ -433,6 +492,7 @@ export default function ProviderApprovalOverlay({
   const [showRawPayload, setShowRawPayload] = useState(false);
   const [selectedFeePaymentId, setSelectedFeePaymentId] =
     useState('native-token');
+  const [isFeePaymentExpanded, setIsFeePaymentExpanded] = useState(false);
   const activeRequest = pending[0];
   const isConnectRequest = activeRequest?.method === 'eth_requestAccounts';
   const isTransactionRequest = activeRequest?.method === 'eth_sendTransaction';
@@ -491,6 +551,7 @@ export default function ProviderApprovalOverlay({
     setShowRawPayload(false);
     setPasscode('');
     setErrorMessage(undefined);
+    setIsFeePaymentExpanded(false);
     setSelectedFeePaymentId(firstFeePaymentOptionId);
   }, [activeRequest?.id, firstFeePaymentOptionId]);
 
@@ -503,6 +564,7 @@ export default function ProviderApprovalOverlay({
     }
 
     setSelectedFeePaymentId(feePaymentOptions[0].id);
+    setIsFeePaymentExpanded(false);
   }, [feePaymentOptions, selectedFeePaymentId]);
 
   if (!activeRequest || !approvalSummary) {
@@ -558,10 +620,35 @@ export default function ProviderApprovalOverlay({
 
       await respondToApproval(activeRequest.id, approved, feePayment);
       setShowRawPayload(false);
-      const nextPending = await refreshPending();
 
-      if (closeWhenSettled && nextPending.length === 0) {
-        window.setTimeout(() => window.close(), 100);
+      if (closeWhenSettled && (!approved || !isTransactionRequest)) {
+        const latestPending = await fetchPendingApprovals().catch(() => []);
+        const actionablePending = latestPending.filter(isActionableApproval);
+
+        if (actionablePending.length === 0) {
+          window.close();
+          return;
+        }
+
+        setPending(latestPending);
+        return;
+      }
+
+      const nextPending = await refreshPending();
+      const hasActionablePending = nextPending.some(isActionableApproval);
+      const shouldCloseNonTransactionRequest =
+        !isTransactionRequest && !hasActionablePending;
+
+      if (
+        closeWhenSettled &&
+        (nextPending.length === 0 || shouldCloseNonTransactionRequest)
+      ) {
+        window.setTimeout(async () => {
+          const latestPending = await refreshPending();
+          if (!latestPending.some(isActionableApproval)) {
+            window.close();
+          }
+        }, 1200);
       }
     } catch (error) {
       setErrorMessage(
@@ -618,9 +705,7 @@ export default function ProviderApprovalOverlay({
             <span
               style={{
                 ...styles.simulationAmount,
-                ...(change.direction === 'receive'
-                  ? styles.simulationAmountReceive
-                  : styles.simulationAmountSpend),
+                ...getSimulationAmountToneStyle(change.direction, styles),
               }}
             >
               {getSimulationAmount(change)}
@@ -647,6 +732,57 @@ export default function ProviderApprovalOverlay({
     if (connectNeedsUnlock) return 'Unlock & Connect';
     return 'Connect';
   };
+
+  const renderFeePaymentOption = ({
+    option,
+    selected = false,
+  }: {
+    option: FeePaymentOption;
+    selected?: boolean;
+  }) => (
+    <button
+      disabled={isResponding}
+      key={option.id}
+      onClick={() => {
+        if (selected) {
+          setIsFeePaymentExpanded((value) => !value);
+          return;
+        }
+
+        setSelectedFeePaymentId(option.id);
+        setIsFeePaymentExpanded(false);
+      }}
+      style={{
+        ...styles.feePaymentOption,
+        ...(selected ? styles.feePaymentOptionSelected : {}),
+      }}
+      type="button"
+    >
+      <FeePaymentOptionIcon option={option} styles={styles} />
+      <span style={styles.feePaymentOptionText}>
+        <strong style={styles.feePaymentOptionTitle}>{option.title}</strong>
+        <span style={styles.feePaymentOptionValue}>
+          {getFeePaymentOptionSubtitle(option)}
+        </span>
+      </span>
+      <span style={styles.feePaymentOptionRight}>
+        <span style={styles.feePaymentOptionBadge}>
+          {getFeePaymentOptionBadge(option)}
+        </span>
+        {selected ? (
+          <ChevronDown
+            size={17}
+            style={{
+              ...styles.feePaymentOptionToggle,
+              transform: isFeePaymentExpanded
+                ? 'rotate(180deg)'
+                : 'rotate(0deg)',
+            }}
+          />
+        ) : null}
+      </span>
+    </button>
+  );
 
   const renderTransactionStatusMain = () => {
     if (!transactionStatus || transactionStatus.phase === 'pending') {
@@ -848,21 +984,22 @@ export default function ProviderApprovalOverlay({
               {showFeePaymentSelect ? (
                 <section style={styles.feePaymentPanel}>
                   <span style={styles.feePaymentLabel}>Pay fee in</span>
-                  <select
-                    disabled={isResponding}
-                    id="pillarx-fee-payment"
-                    onChange={(event) =>
-                      setSelectedFeePaymentId(event.target.value)
-                    }
-                    style={styles.feePaymentSelect}
-                    value={selectedFeePaymentOption?.id ?? 'native-token'}
-                  >
-                    {feePaymentOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {getFeePaymentOptionLabel(option)}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={styles.feePaymentList}>
+                    {selectedFeePaymentOption
+                      ? renderFeePaymentOption({
+                          option: selectedFeePaymentOption,
+                          selected: true,
+                        })
+                      : null}
+                    {isFeePaymentExpanded
+                      ? feePaymentOptions
+                          .filter(
+                            (option) =>
+                              option.id !== selectedFeePaymentOption?.id
+                          )
+                          .map((option) => renderFeePaymentOption({ option }))
+                      : null}
+                  </div>
                 </section>
               ) : null}
 
@@ -1111,6 +1248,94 @@ function getApprovalOverlayStyles({
       fontSize: 12,
       fontWeight: 800,
     },
+    feePaymentList: {
+      display: 'grid',
+      gap: 8,
+    },
+    feePaymentOption: {
+      alignItems: 'center',
+      appearance: 'none',
+      background: 'rgba(255, 255, 255, 0.055)',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      borderRadius: 8,
+      color: '#ffffff',
+      cursor: 'pointer',
+      display: 'grid',
+      gap: 10,
+      gridTemplateColumns: '38px minmax(0, 1fr) auto',
+      minHeight: 58,
+      padding: '9px 10px',
+      textAlign: 'left',
+      width: '100%',
+    },
+    feePaymentOptionBadge: {
+      background: 'rgba(143, 108, 255, 0.16)',
+      border: '1px solid rgba(143, 108, 255, 0.22)',
+      borderRadius: 999,
+      color: '#dcd2ff',
+      fontSize: 10,
+      fontWeight: 900,
+      padding: '4px 7px',
+      textTransform: 'uppercase',
+      whiteSpace: 'nowrap',
+    },
+    feePaymentOptionFallback: {
+      alignItems: 'center',
+      background: 'rgba(143, 108, 255, 0.16)',
+      border: '1px solid rgba(143, 108, 255, 0.22)',
+      borderRadius: 999,
+      color: '#dcd2ff',
+      display: 'flex',
+      fontSize: 14,
+      fontWeight: 900,
+      height: 38,
+      justifyContent: 'center',
+      width: 38,
+    },
+    feePaymentOptionImage: {
+      borderRadius: 999,
+      height: 38,
+      objectFit: 'cover',
+      width: 38,
+    },
+    feePaymentOptionRight: {
+      alignItems: 'center',
+      display: 'flex',
+      gap: 6,
+      justifyContent: 'flex-end',
+    },
+    feePaymentOptionSelected: {
+      background: 'rgba(143, 108, 255, 0.12)',
+      border: '1px solid rgba(143, 108, 255, 0.34)',
+    },
+    feePaymentOptionText: {
+      display: 'grid',
+      gap: 4,
+      minWidth: 0,
+    },
+    feePaymentOptionTitle: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: 900,
+      lineHeight: 1.15,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    feePaymentOptionToggle: {
+      color: '#dcd2ff',
+      flexShrink: 0,
+      transition: 'transform 140ms ease',
+    },
+    feePaymentOptionValue: {
+      color: 'rgba(255, 255, 255, 0.54)',
+      fontSize: 12,
+      fontWeight: 700,
+      lineHeight: 1.2,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
     feePaymentPanel: {
       background: 'rgba(255, 255, 255, 0.04)',
       border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -1118,19 +1343,6 @@ function getApprovalOverlayStyles({
       display: 'grid',
       gap: 8,
       padding: 12,
-    },
-    feePaymentSelect: {
-      appearance: 'none',
-      background: '#191821',
-      border: '1px solid rgba(255, 255, 255, 0.14)',
-      borderRadius: 8,
-      color: '#ffffff',
-      fontSize: 13,
-      fontWeight: 800,
-      minHeight: 42,
-      outline: 'none',
-      padding: '0 12px',
-      width: '100%',
     },
     errorMessage: {
       background: 'rgba(255, 54, 108, 0.1)',
@@ -1261,8 +1473,13 @@ function getApprovalOverlayStyles({
     simulationAmount: {
       fontSize: 13,
       fontWeight: 900,
+      maxWidth: '100%',
       overflowWrap: 'anywhere',
       textAlign: 'right',
+      wordBreak: 'break-word',
+    },
+    simulationAmountApprove: {
+      color: '#dcd2ff',
     },
     simulationAmountReceive: {
       color: '#7ff1df',
@@ -1330,7 +1547,7 @@ function getApprovalOverlayStyles({
       alignItems: 'center',
       display: 'grid',
       gap: 10,
-      gridTemplateColumns: 'minmax(0, 1fr) auto',
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 48%)',
       minHeight: 36,
     },
     simulationRows: {
