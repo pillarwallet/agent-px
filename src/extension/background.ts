@@ -69,6 +69,7 @@ import { getEtherspotBundlerUrl } from '../utils/bundler';
 import { EtherspotTransactionKit } from '../utils/nativeTransactionKit';
 import {
   encodePillarExecuteCall,
+  encodePillarExecuteBatch,
   PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS,
 } from '../utils/pillarSmartAccountClient';
 import {
@@ -293,6 +294,33 @@ type DappTransactionRequest = {
   value?: unknown;
 };
 
+type ParsedWalletSendCallsCall = {
+  capabilities?: unknown;
+  data: Hex;
+  to: Address;
+  value: bigint;
+};
+
+type WalletSendCallsRequest = {
+  atomicRequired: boolean;
+  calls: ParsedWalletSendCallsCall[];
+  capabilities?: unknown;
+  chainId: number;
+  from?: unknown;
+  id: string;
+  version: string;
+};
+
+type WalletCallBatchStatusRecord = {
+  atomic: boolean;
+  chainId: number;
+  createdAt: number;
+  error?: string;
+  id: string;
+  status: 100 | 200 | 400 | 500 | 600;
+  transactionHash?: Hex;
+};
+
 type TransactionFeeEstimateView = ProviderApprovalRequestView['estimatedFee'];
 type TransactionSimulationView = ProviderApprovalRequestView['simulation'];
 type TransactionSimulationChange = NonNullable<
@@ -505,6 +533,10 @@ const ERC1271_MAGIC_VALUE = '0x1626ba7e';
 const MAX_UINT256 = 2n ** 256n - 1n;
 const PILLAR_KERNEL_VERSION = '0.3.3';
 const PILLAR_KERNEL_EIP7702_VALIDATOR_IDENTIFIER = '0x00' as const;
+const WALLET_CALLS_VERSION = '2.0.0';
+const WALLET_CALL_BATCH_STATUS_TTL_MS = 24 * 60 * 60 * 1000;
+const SUPPORTED_WALLET_SEND_CALLS_CAPABILITIES = new Set(['atomic']);
+const walletCallBatchStatuses = new Map<string, WalletCallBatchStatusRecord>();
 
 const erc1271Abi = [
   {
@@ -799,6 +831,125 @@ const requestFirstParam = (
 const requestParamsArray = (
   params: ProviderRequestArguments['params']
 ): readonly unknown[] => (Array.isArray(params) ? params : []);
+
+const createWalletCallBatchId = () => {
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'));
+
+  return `0x${hex.join('')}`;
+};
+
+const getWalletCallBatchStatusKey = (origin: string, id: string) =>
+  `${origin}:${id}`;
+
+const pruneWalletCallBatchStatuses = () => {
+  const now = Date.now();
+
+  walletCallBatchStatuses.forEach((status, key) => {
+    if (now - status.createdAt > WALLET_CALL_BATCH_STATUS_TTL_MS) {
+      walletCallBatchStatuses.delete(key);
+    }
+  });
+};
+
+const assertSupportedWalletSendCallsCapabilities = (
+  capabilities: unknown,
+  scope: string
+) => {
+  if (capabilities === undefined || capabilities === null) return;
+  if (!isObject(capabilities)) {
+    throw providerError(-32602, `Invalid ${scope} capabilities.`);
+  }
+
+  Object.entries(capabilities).forEach(([capabilityName, capability]) => {
+    if (SUPPORTED_WALLET_SEND_CALLS_CAPABILITIES.has(capabilityName)) return;
+
+    if (isObject(capability) && capability.optional === true) return;
+
+    throw providerError(
+      5700,
+      `PillarX does not support required wallet_sendCalls capability "${capabilityName}".`
+    );
+  });
+};
+
+const parseWalletSendCallsRequest = (
+  params: ProviderRequestArguments['params']
+): WalletSendCallsRequest => {
+  const request = requestFirstParam(params);
+  if (!request) {
+    throw providerError(-32602, 'Missing wallet_sendCalls request.');
+  }
+
+  const chainId = parseChainId(request.chainId);
+  if (!chainId) {
+    throw providerError(-32602, 'Missing wallet_sendCalls chainId.');
+  }
+
+  if (!Array.isArray(request.calls) || request.calls.length === 0) {
+    throw providerError(-32602, 'wallet_sendCalls requires at least one call.');
+  }
+
+  if (
+    request.id !== undefined &&
+    (typeof request.id !== 'string' || request.id.length > 8194)
+  ) {
+    throw providerError(-32602, 'Invalid wallet_sendCalls id.');
+  }
+
+  if (request.from !== undefined) {
+    if (typeof request.from !== 'string' || !isAddress(request.from)) {
+      throw providerError(-32602, 'Invalid wallet_sendCalls from address.');
+    }
+  }
+
+  const atomicRequired =
+    typeof request.atomicRequired === 'boolean' ? request.atomicRequired : true;
+
+  assertSupportedWalletSendCallsCapabilities(
+    request.capabilities,
+    'wallet_sendCalls'
+  );
+
+  const calls = request.calls.map((call, index) => {
+    if (!isObject(call)) {
+      throw providerError(-32602, `Invalid wallet_sendCalls call ${index}.`);
+    }
+
+    assertSupportedWalletSendCallsCapabilities(
+      call.capabilities,
+      `wallet_sendCalls call ${index}`
+    );
+
+    if (typeof call.to !== 'string' || !isAddress(call.to)) {
+      throw providerError(
+        -32602,
+        `PillarX does not support wallet_sendCalls deployment call ${index}.`
+      );
+    }
+
+    return {
+      capabilities: call.capabilities,
+      data: normalizeHexData(call.data),
+      to: getAddress(call.to),
+      value: parseQuantity(call.value) ?? 0n,
+    } satisfies ParsedWalletSendCallsCall;
+  });
+
+  return {
+    atomicRequired,
+    calls,
+    capabilities: request.capabilities,
+    chainId,
+    from: request.from,
+    id: request.id ?? createWalletCallBatchId(),
+    version:
+      typeof request.version === 'string'
+        ? request.version
+        : WALLET_CALLS_VERSION,
+  };
+};
 
 const assertRequestedAccount = (
   requestedAddress: unknown,
@@ -1239,6 +1390,53 @@ const buildDappTransactionRequest = async ({
       ...(transaction.nonce !== undefined
         ? { nonce: parseNonce(transaction.nonce) }
         : {}),
+    },
+    publicClient,
+    walletClient,
+  };
+};
+
+const buildDappBatchTransactionRequest = async ({
+  account,
+  calls,
+  chainId,
+}: {
+  account: UnlockedAccount;
+  calls: ParsedWalletSendCallsCall[];
+  chainId: number;
+}) => {
+  const chain = getChainById(chainId);
+  const authorization = await getDelegationAuthorization({
+    account,
+    chain,
+  });
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(getRpcUrl(chainId)),
+  });
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(getRpcUrl(chainId)),
+  });
+  const pillarCalls = calls.map(({ data, to, value }) => ({
+    data,
+    to,
+    value,
+  }));
+
+  return {
+    chainId,
+    request: {
+      account,
+      chain,
+      to: account.address,
+      value: BigInt(0),
+      data:
+        pillarCalls.length === 1
+          ? encodePillarExecuteCall(pillarCalls[0])
+          : encodePillarExecuteBatch(pillarCalls),
+      ...(authorization ? { authorizationList: [authorization] } : {}),
     },
     publicClient,
     walletClient,
@@ -1753,6 +1951,99 @@ const sendGaslessDappTransaction = async ({
   return transactionHash;
 };
 
+const sendGaslessDappCalls = async ({
+  account,
+  calls,
+  chainId,
+  feePayment,
+}: {
+  account: UnlockedAccount;
+  calls: ParsedWalletSendCallsCall[];
+  chainId: number;
+  feePayment: Extract<ProviderApprovalFeePayment, { type: 'gasless' }>;
+}) => {
+  const chain = getChainById(chainId);
+  const authorization = await getDelegationAuthorization({
+    account,
+    chain,
+  });
+  const batchName = `dapp-send-calls-gasless-${Date.now()}`;
+  const kit = new EtherspotTransactionKit({
+    bundlerApiKey,
+    chainId,
+    debugMode: import.meta.env.DEV,
+    viemLocalAccount: account,
+    walletMode: 'delegatedEoa',
+  });
+  const approveData = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: 'approve',
+    args: [
+      feePayment.paymasterAddress,
+      parseUnits(GASLESS_TOKEN_APPROVAL_AMOUNT, feePayment.decimals),
+    ],
+  });
+
+  kit
+    .transaction({
+      chainId,
+      to: feePayment.token,
+      value: '0',
+      data: approveData,
+    })
+    .name({ transactionName: 'approve gas fee token' })
+    .addToBatch({ batchName });
+
+  calls.forEach((call, index) => {
+    kit
+      .transaction({
+        chainId,
+        to: call.to,
+        value: call.value.toString(),
+        data: call.data,
+      })
+      .name({ transactionName: `wallet_sendCalls ${index + 1}` })
+      .addToBatch({ batchName });
+  });
+
+  const batchSend = await kit.sendBatches({
+    onlyBatchNames: [batchName],
+    authorization: authorization || undefined,
+    paymasterDetails: {
+      context: {
+        mode: 'commonerc20',
+        token: feePayment.token,
+      },
+    },
+  });
+  const sentBatch = batchSend.batches[batchName];
+
+  if (!batchSend.isSentSuccessfully || sentBatch?.errorMessage) {
+    throw providerError(
+      4900,
+      sentBatch?.errorMessage || 'Gasless wallet_sendCalls failed.'
+    );
+  }
+
+  const userOpHash = sentBatch?.chainGroups?.[chainId]?.userOpHash;
+  if (!userOpHash) {
+    throw providerError(
+      4900,
+      'Gasless wallet_sendCalls did not return a hash.'
+    );
+  }
+
+  const transactionHash = await kit.getTransactionHash(userOpHash, chainId);
+  if (!transactionHash) {
+    throw providerError(
+      4900,
+      'Gasless wallet_sendCalls was sent, but the transaction hash was not available yet.'
+    );
+  }
+
+  return transactionHash;
+};
+
 const requestRpc = async ({
   chainId,
   method,
@@ -1791,10 +2082,140 @@ const requestRpc = async ({
   return json.result;
 };
 
-const unsupportedMethods = new Set([
-  'wallet_sendCalls',
-  'wallet_getCallsStatus',
-]);
+const formatWalletCallReceipt = (
+  receipt: Awaited<
+    ReturnType<ReturnType<typeof createPublicClient>['getTransactionReceipt']>
+  >
+) => ({
+  blockHash: receipt.blockHash,
+  blockNumber: quantityToHex(receipt.blockNumber),
+  gasUsed: quantityToHex(receipt.gasUsed),
+  logs: receipt.logs.map((log) => ({
+    address: log.address,
+    data: log.data,
+    topics: log.topics,
+  })),
+  status: receipt.status === 'success' ? '0x1' : '0x0',
+  transactionHash: receipt.transactionHash,
+});
+
+const getWalletCallsStatus = async ({
+  id,
+  origin,
+}: {
+  id: string;
+  origin: string;
+}) => {
+  pruneWalletCallBatchStatuses();
+
+  const statusKey = getWalletCallBatchStatusKey(origin, id);
+  const storedStatus = walletCallBatchStatuses.get(statusKey);
+  if (!storedStatus) {
+    throw providerError(4900, 'Unknown wallet_sendCalls batch id.');
+  }
+
+  const baseStatus = {
+    atomic: storedStatus.atomic,
+    chainId: numberToChainHex(storedStatus.chainId),
+    id: storedStatus.id,
+    status: storedStatus.status,
+    version: WALLET_CALLS_VERSION,
+  };
+
+  if (!storedStatus.transactionHash) {
+    return baseStatus;
+  }
+
+  const publicClient = createPublicClient({
+    chain: getChainById(storedStatus.chainId),
+    transport: http(getRpcUrl(storedStatus.chainId)),
+  });
+
+  try {
+    const receipt = await publicClient.getTransactionReceipt({
+      hash: storedStatus.transactionHash,
+    });
+    const nextStatus: WalletCallBatchStatusRecord = {
+      ...storedStatus,
+      status: receipt.status === 'success' ? 200 : 500,
+    };
+
+    walletCallBatchStatuses.set(statusKey, nextStatus);
+
+    return {
+      ...baseStatus,
+      receipts: [formatWalletCallReceipt(receipt)],
+      status: nextStatus.status,
+    };
+  } catch {
+    return {
+      ...baseStatus,
+      status: 100,
+    };
+  }
+};
+
+const getWalletCapabilities = async ({
+  address,
+  chainIds,
+  origin,
+}: {
+  address?: unknown;
+  chainIds?: unknown;
+  origin: string;
+}) => {
+  const unlockedAddress = await getUnlockedAddress();
+  const requestedAddress =
+    typeof address === 'string' && isAddress(address)
+      ? getAddress(address)
+      : undefined;
+
+  if (typeof address === 'string' && !requestedAddress) {
+    throw providerError(-32602, 'Invalid wallet_getCapabilities address.');
+  }
+
+  if (requestedAddress && !unlockedAddress) {
+    throw providerError(4100, 'Unlock PillarX to use this site.');
+  }
+
+  if (!unlockedAddress) return {};
+
+  if (
+    requestedAddress &&
+    unlockedAddress &&
+    requestedAddress !== getAddress(unlockedAddress)
+  ) {
+    throw providerError(
+      4100,
+      'Requested capabilities account does not match PillarX.'
+    );
+  }
+
+  if (unlockedAddress && !(await isOriginConnected(origin, unlockedAddress))) {
+    throw providerError(4100, 'Connect PillarX to this site first.');
+  }
+
+  const requestedChainIds = Array.isArray(chainIds)
+    ? chainIds.map(parseChainId).filter((id): id is number => Boolean(id))
+    : [await getSelectedChainId(origin)];
+
+  return requestedChainIds.reduce<
+    Record<string, { atomic: { status: string } }>
+  >((capabilities, requestedChainId) => {
+    if (!supportedChainIds.has(requestedChainId)) return capabilities;
+
+    return {
+      ...capabilities,
+      [numberToChainHex(requestedChainId)]: {
+        atomic: {
+          status: 'supported',
+        },
+      },
+    };
+  }, {});
+};
+
+const unsupportedMethods = new Set<string>();
 const pendingProviderApprovals = new Map<string, PendingProviderApproval>();
 let approvalWindowId: number | undefined;
 
@@ -2112,7 +2533,10 @@ const respondToProviderApproval = ({
 
   if (approved) {
     pending.approved = true;
-    if (pending.view.method === 'eth_sendTransaction') {
+    if (
+      pending.view.method === 'eth_sendTransaction' ||
+      pending.view.method === 'wallet_sendCalls'
+    ) {
       updateProviderApprovalStatus(id, {
         message: 'Waiting for the transaction hash from the network.',
         phase: 'submitting',
@@ -2661,8 +3085,168 @@ const handleProviderRequest = async (
       }
     }
 
-    case 'wallet_getCapabilities':
-      return {};
+    case 'wallet_sendCalls': {
+      pruneWalletCallBatchStatuses();
+
+      const account = await getConnectedAccount(origin);
+      const sendCallsRequest = parseWalletSendCallsRequest(params);
+      const statusKey = getWalletCallBatchStatusKey(
+        origin,
+        sendCallsRequest.id
+      );
+
+      if (walletCallBatchStatuses.has(statusKey)) {
+        throw providerError(
+          -32602,
+          'Duplicate wallet_sendCalls id for this site.'
+        );
+      }
+
+      assertRequestedAccount(
+        sendCallsRequest.from ?? account.address,
+        account.address
+      );
+
+      if (!supportedChainIds.has(sendCallsRequest.chainId)) {
+        throw providerError(
+          4901,
+          `PillarX is not connected to chain ${sendCallsRequest.chainId}.`
+        );
+      }
+
+      const preparedTransaction = await buildDappBatchTransactionRequest({
+        account,
+        calls: sendCallsRequest.calls,
+        chainId: sendCallsRequest.chainId,
+      });
+      const estimatedFee = await getDappTransactionFeeEstimate(
+        preparedTransaction
+      ).catch(() => undefined);
+      const simulation = await getDappTransactionSimulation({
+        account,
+        chainId: sendCallsRequest.chainId,
+        estimatedFee,
+        transaction: {
+          chainId: numberToChainHex(sendCallsRequest.chainId),
+          data: preparedTransaction.request.data,
+          from: account.address,
+          to: account.address,
+          value: '0x0',
+        },
+      }).catch((error) =>
+        alchemyApiKey
+          ? {
+              changes: [],
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Alchemy transaction simulation failed.',
+            }
+          : undefined
+      );
+      const feePaymentOptions = await getDappFeePaymentOptions({
+        account,
+        chainId: sendCallsRequest.chainId,
+      });
+
+      const approvalResponse = await requestProviderApproval({
+        account,
+        chainId: sendCallsRequest.chainId,
+        estimatedFee,
+        feePaymentOptions,
+        message,
+        method,
+        simulation,
+      });
+
+      try {
+        const transactionHash = isGaslessFeePayment(
+          approvalResponse?.feePayment
+        )
+          ? await sendGaslessDappCalls({
+              account,
+              calls: sendCallsRequest.calls,
+              chainId: sendCallsRequest.chainId,
+              feePayment: approvalResponse.feePayment,
+            })
+          : await preparedTransaction.walletClient.sendTransaction(
+              preparedTransaction.request
+            );
+
+        walletCallBatchStatuses.set(statusKey, {
+          atomic: true,
+          chainId: sendCallsRequest.chainId,
+          createdAt: Date.now(),
+          id: sendCallsRequest.id,
+          status: 100,
+          transactionHash,
+        });
+
+        updateProviderApprovalStatus(message.id, {
+          phase: 'success',
+          transactionHash,
+        });
+
+        return {
+          id: sendCallsRequest.id,
+        };
+      } catch (error) {
+        walletCallBatchStatuses.set(statusKey, {
+          atomic: true,
+          chainId: sendCallsRequest.chainId,
+          createdAt: Date.now(),
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Unable to submit wallet_sendCalls.',
+          id: sendCallsRequest.id,
+          status: 400,
+        });
+
+        updateProviderApprovalStatus(message.id, {
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Unable to submit wallet_sendCalls.',
+          phase: 'error',
+        });
+
+        throw error;
+      }
+    }
+
+    case 'wallet_getCallsStatus': {
+      const [id] = requestParamsArray(params);
+      if (typeof id !== 'string') {
+        throw providerError(-32602, 'Missing wallet_getCallsStatus id.');
+      }
+
+      return getWalletCallsStatus({ id, origin });
+    }
+
+    case 'wallet_showCallsStatus': {
+      const [id] = requestParamsArray(params);
+      if (typeof id !== 'string') {
+        throw providerError(-32602, 'Missing wallet_showCallsStatus id.');
+      }
+
+      const statusKey = getWalletCallBatchStatusKey(origin, id);
+      if (!walletCallBatchStatuses.has(statusKey)) {
+        throw providerError(4900, 'Unknown wallet_sendCalls batch id.');
+      }
+
+      return null;
+    }
+
+    case 'wallet_getCapabilities': {
+      const values = requestParamsArray(params);
+
+      return getWalletCapabilities({
+        address: values[0],
+        chainIds: values[1],
+        origin,
+      });
+    }
 
     default:
       if (unsupportedMethods.has(method)) {

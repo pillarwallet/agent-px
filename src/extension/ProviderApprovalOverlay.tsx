@@ -289,6 +289,42 @@ const getTransactionPreview = (
   };
 };
 
+const getWalletSendCallsPreview = (request: ProviderApprovalRequestView) => {
+  const requestParam = getFirstObjectParam(request.params);
+  const calls = Array.isArray(requestParam?.calls) ? requestParam.calls : [];
+  let totalValue = BigInt(0);
+  let dataBytes = 0;
+
+  calls.forEach((call) => {
+    if (!call || typeof call !== 'object') return;
+
+    const callObject = call as Record<string, unknown>;
+    try {
+      if (callObject.value !== undefined) {
+        totalValue += BigInt(String(callObject.value));
+      }
+    } catch {
+      // Keep the preview resilient if a dapp sends malformed values.
+    }
+
+    if (typeof callObject.data === 'string' && callObject.data !== '0x') {
+      dataBytes += Math.max((callObject.data.length - 2) / 2, 0);
+    }
+  });
+
+  return {
+    atomicRequired:
+      typeof requestParam?.atomicRequired === 'boolean'
+        ? requestParam.atomicRequired
+        : true,
+    callCount: calls.length,
+    dataBytes,
+    from:
+      typeof requestParam?.from === 'string' ? requestParam.from : undefined,
+    totalValue,
+  };
+};
+
 const safeJsonParse = (value: string) => {
   try {
     return JSON.parse(value);
@@ -387,32 +423,79 @@ const getApprovalSummary = (
 
   if (
     request.method === 'eth_sendTransaction' ||
-    request.method === 'eth_signTransaction'
+    request.method === 'eth_signTransaction' ||
+    request.method === 'wallet_sendCalls'
   ) {
-    const tx = getTransactionPreview(request);
-    const dataLength = tx.data ? Math.max((tx.data.length - 2) / 2, 0) : 0;
+    const isSendCalls = request.method === 'wallet_sendCalls';
+    const tx = isSendCalls ? undefined : getTransactionPreview(request);
+    const batch = isSendCalls ? getWalletSendCallsPreview(request) : undefined;
+    const dataLength = tx?.data ? Math.max((tx.data.length - 2) / 2, 0) : 0;
+    const description = (() => {
+      if (request.method === 'wallet_sendCalls') {
+        return 'Confirm this batch of on-chain calls';
+      }
+
+      if (request.method === 'eth_sendTransaction') {
+        return 'Confirm this on-chain request';
+      }
+
+      return 'Confirm this transaction signature';
+    })();
+    const title = (() => {
+      if (request.method === 'eth_sendTransaction') return 'Send Transaction';
+      if (request.method === 'wallet_sendCalls') return 'Send Calls';
+      return 'Sign Transaction';
+    })();
 
     return {
-      description:
-        request.method === 'eth_sendTransaction'
-          ? 'Confirm this on-chain request'
-          : 'Confirm this transaction signature',
+      description,
       icon: <Send size={22} strokeWidth={2.2} />,
-      rows: [
-        { label: 'Network', value: CHAIN_NAMES[request.chainId] ?? 'Unknown' },
-        { label: 'From', value: shortAddress(tx.from ?? request.account) },
-        { label: 'To', value: shortAddress(tx.to) },
-        { label: 'Value', value: formatValue(tx.value, request.chainId) },
-        {
-          label: 'Estimated fee',
-          value: request.estimatedFee?.formatted ?? 'Unavailable',
-        },
-        { label: 'Data', value: dataLength ? `${dataLength} bytes` : 'None' },
-      ],
-      title:
-        request.method === 'eth_sendTransaction'
-          ? 'Send Transaction'
-          : 'Sign Transaction',
+      rows: isSendCalls
+        ? [
+            {
+              label: 'Network',
+              value: CHAIN_NAMES[request.chainId] ?? 'Unknown',
+            },
+            {
+              label: 'From',
+              value: shortAddress(batch?.from ?? request.account),
+            },
+            { label: 'Calls', value: String(batch?.callCount ?? 0) },
+            {
+              label: 'Total value',
+              value: formatValue(batch?.totalValue ?? 0n, request.chainId),
+            },
+            {
+              label: 'Estimated fee',
+              value: request.estimatedFee?.formatted ?? 'Unavailable',
+            },
+            {
+              label: 'Atomic',
+              value: batch?.atomicRequired ? 'Required' : 'Supported',
+            },
+            {
+              label: 'Data',
+              value: batch?.dataBytes ? `${batch.dataBytes} bytes` : 'None',
+            },
+          ]
+        : [
+            {
+              label: 'Network',
+              value: CHAIN_NAMES[request.chainId] ?? 'Unknown',
+            },
+            { label: 'From', value: shortAddress(tx?.from ?? request.account) },
+            { label: 'To', value: shortAddress(tx?.to) },
+            { label: 'Value', value: formatValue(tx?.value, request.chainId) },
+            {
+              label: 'Estimated fee',
+              value: request.estimatedFee?.formatted ?? 'Unavailable',
+            },
+            {
+              label: 'Data',
+              value: dataLength ? `${dataLength} bytes` : 'None',
+            },
+          ],
+      title,
       tone: 'transaction',
     };
   }
@@ -495,7 +578,9 @@ export default function ProviderApprovalOverlay({
   const [isFeePaymentExpanded, setIsFeePaymentExpanded] = useState(false);
   const activeRequest = pending[0];
   const isConnectRequest = activeRequest?.method === 'eth_requestAccounts';
-  const isTransactionRequest = activeRequest?.method === 'eth_sendTransaction';
+  const isTransactionRequest =
+    activeRequest?.method === 'eth_sendTransaction' ||
+    activeRequest?.method === 'wallet_sendCalls';
   const connectNeedsUnlock = Boolean(
     isConnectRequest && !activeRequest.account
   );
