@@ -139,7 +139,7 @@ export type ProviderApprovalRequestView = {
       assetType?: string;
       changeType?: string;
       contractAddress?: string;
-      direction: 'receive' | 'spend';
+      direction: 'approve' | 'receive' | 'spend';
       logo?: string;
       name?: string;
       symbol?: string;

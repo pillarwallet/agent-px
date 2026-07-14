@@ -1,4 +1,5 @@
 import {
+  concatHex,
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
@@ -6,6 +7,7 @@ import {
   formatEther,
   formatUnits,
   getAddress,
+  hashTypedData,
   http,
   isAddress,
   parseUnits,
@@ -498,6 +500,40 @@ const formatNativeFee = (wei: bigint, chainId: number) => {
 };
 
 const quantityToHex = (value: bigint) => `0x${value.toString(16)}`;
+const ERC20_APPROVE_SELECTOR = '0x095ea7b3';
+const ERC1271_MAGIC_VALUE = '0x1626ba7e';
+const MAX_UINT256 = 2n ** 256n - 1n;
+const PILLAR_KERNEL_VERSION = '0.3.3';
+const PILLAR_KERNEL_EIP7702_VALIDATOR_IDENTIFIER = '0x00' as const;
+
+const erc1271Abi = [
+  {
+    type: 'function',
+    name: 'isValidSignature',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'hash', type: 'bytes32' },
+      { name: 'signature', type: 'bytes' },
+    ],
+    outputs: [{ name: 'magicValue', type: 'bytes4' }],
+  },
+] as const;
+
+const decodeErc20ApproveCalldata = (data: unknown) => {
+  const normalizedData = normalizeHexData(data);
+
+  if (!normalizedData.toLowerCase().startsWith(ERC20_APPROVE_SELECTOR)) {
+    return undefined;
+  }
+
+  const encoded = normalizedData.slice(10);
+  if (encoded.length < 128) return undefined;
+
+  const amountWord = encoded.slice(64, 128);
+  const amount = BigInt(`0x${amountWord}`);
+
+  return { amount };
+};
 
 const getAlchemyRpcUrl = (chainId: number) => {
   if (!alchemyApiKey) return undefined;
@@ -980,6 +1016,155 @@ const getDelegationAuthorization = async ({
   });
 };
 
+const getPillarKernelDelegatedAddress = (code?: Hex) => {
+  const delegatedAddressMatch = code?.match(/^0xef0100(.{40})$/);
+
+  return delegatedAddressMatch
+    ? getAddress(`0x${delegatedAddressMatch[1]}`)
+    : undefined;
+};
+
+const isErc1271SignatureValid = async ({
+  account,
+  hash,
+  publicClient,
+  signature,
+}: {
+  account: Address;
+  hash: Hex;
+  publicClient: ReturnType<typeof createPublicClient>;
+  signature: Hex;
+}) => {
+  try {
+    const result = await publicClient.readContract({
+      address: account,
+      abi: erc1271Abi,
+      functionName: 'isValidSignature',
+      args: [hash, signature],
+    });
+
+    return result.toLowerCase() === ERC1271_MAGIC_VALUE;
+  } catch {
+    return undefined;
+  }
+};
+
+const findValidErc1271Signature = async ({
+  account,
+  candidates,
+  hash,
+  publicClient,
+}: {
+  account: Address;
+  candidates: readonly Hex[];
+  hash: Hex;
+  publicClient: ReturnType<typeof createPublicClient>;
+}) => {
+  const results = await Promise.all(
+    candidates.map(async (signature) => ({
+      isValid: await isErc1271SignatureValid({
+        account,
+        hash,
+        publicClient,
+        signature,
+      }),
+      signature,
+    }))
+  );
+
+  return results.find(({ isValid }) => isValid)?.signature;
+};
+
+const signKernelWrappedTypedDataHash = async ({
+  account,
+  chainId,
+  typedDataHash,
+}: {
+  account: UnlockedAccount;
+  chainId: number;
+  typedDataHash: Hex;
+}) => {
+  return account.signTypedData({
+    domain: {
+      name: 'Kernel',
+      version: PILLAR_KERNEL_VERSION,
+      chainId,
+      verifyingContract: account.address,
+    },
+    primaryType: 'Kernel',
+    types: {
+      Kernel: [{ name: 'hash', type: 'bytes32' }],
+    },
+    message: {
+      hash: typedDataHash,
+    },
+  });
+};
+
+const signTypedDataForDapp = async ({
+  account,
+  chainId,
+  typedData,
+}: {
+  account: UnlockedAccount;
+  chainId: number;
+  typedData: TypedDataDefinition;
+}) => {
+  const rawTypedDataSignature = () => account.signTypedData(typedData);
+  const chain = getChainById(chainId);
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(getRpcUrl(chain.id)),
+  });
+
+  const code = await publicClient.getCode({ address: account.address });
+  const delegatedAddress = getPillarKernelDelegatedAddress(code);
+
+  if (
+    delegatedAddress?.toLowerCase() !==
+    PILLAR_KERNEL_7702_IMPLEMENTATION_ADDRESS.toLowerCase()
+  ) {
+    return rawTypedDataSignature();
+  }
+
+  const typedDataHash = hashTypedData(typedData);
+  const kernelSignature = await signKernelWrappedTypedDataHash({
+    account,
+    chainId,
+    typedDataHash,
+  });
+  const primaryKernelSignature = concatHex([
+    PILLAR_KERNEL_EIP7702_VALIDATOR_IDENTIFIER,
+    kernelSignature,
+  ]);
+
+  const validKernelSignature = await findValidErc1271Signature({
+    account: account.address,
+    candidates: [primaryKernelSignature],
+    hash: typedDataHash,
+    publicClient,
+  });
+
+  if (validKernelSignature) return validKernelSignature;
+
+  const rawSignature = await rawTypedDataSignature();
+  const rawCandidates = [
+    rawSignature,
+    concatHex([PILLAR_KERNEL_EIP7702_VALIDATOR_IDENTIFIER, rawSignature]),
+  ];
+
+  const validRawSignature = await findValidErc1271Signature({
+    account: account.address,
+    candidates: rawCandidates,
+    hash: typedDataHash,
+    publicClient,
+  });
+
+  if (validRawSignature) return validRawSignature;
+
+  return primaryKernelSignature;
+};
+
 const buildDappTransactionRequest = async ({
   account,
   chainId,
@@ -1182,6 +1367,110 @@ const aggregateSimulationChanges = (
   }));
 };
 
+const getErc20TokenMetadata = async ({
+  chainId,
+  token,
+}: {
+  chainId: number;
+  token: Address;
+}) => {
+  const chain = getChainById(chainId);
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(getRpcUrl(chainId)),
+  });
+  const [symbolResult, nameResult, decimalsResult] = await Promise.allSettled([
+    publicClient.readContract({
+      abi: erc20Abi,
+      address: token,
+      functionName: 'symbol',
+    }),
+    publicClient.readContract({
+      abi: erc20Abi,
+      address: token,
+      functionName: 'name',
+    }),
+    publicClient.readContract({
+      abi: erc20Abi,
+      address: token,
+      functionName: 'decimals',
+    }),
+  ]);
+  const symbol =
+    symbolResult.status === 'fulfilled' &&
+    typeof symbolResult.value === 'string'
+      ? symbolResult.value
+      : 'Token';
+  const name =
+    nameResult.status === 'fulfilled' && typeof nameResult.value === 'string'
+      ? nameResult.value
+      : symbol;
+  const decimals =
+    decimalsResult.status === 'fulfilled' &&
+    typeof decimalsResult.value === 'number'
+      ? decimalsResult.value
+      : 18;
+
+  return { decimals, name, symbol };
+};
+
+const formatApprovalSimulationAmount = ({
+  amount,
+  decimals,
+}: {
+  amount: bigint;
+  decimals: number;
+}) => {
+  if (amount >= MAX_UINT256 / 2n) return 'Unlimited';
+
+  const formatted = trimDisplayAmount(formatUnits(amount, decimals));
+  if (formatted.length <= 24) return formatted;
+
+  const [integer, decimal] = formatted.split('.');
+  if (integer.length > 16) {
+    return `${integer.slice(0, 10)}...${integer.slice(-4)}`;
+  }
+
+  return `${integer}.${(decimal ?? '').slice(0, 6)}...`;
+};
+
+const isUnlimitedApprovalLikeAmount = ({
+  amount,
+  rawAmount,
+}: {
+  amount?: string;
+  rawAmount?: string;
+}) => {
+  const parsedRawAmount = parseSimulationRawAmount(rawAmount);
+  if (parsedRawAmount !== undefined) {
+    return parsedRawAmount >= MAX_UINT256 / 2n;
+  }
+
+  if (!amount) return false;
+
+  const normalizedAmount = amount.replace(/,/g, '').replace(/^-/, '');
+  const integerPart = normalizedAmount.split('.')[0] ?? '';
+
+  return (
+    normalizedAmount.startsWith(
+      '115792089237316195423570985008687907853269984665640564039457'
+    ) || integerPart.length > 36
+  );
+};
+
+const getSimulationDirectionOrder = (
+  direction: TransactionSimulationChange['direction']
+) => {
+  if (direction === 'spend') return 0;
+  if (direction === 'approve') return 1;
+  return 2;
+};
+
+const isTokenSimulationAsset = (change: AlchemyAssetChange) =>
+  change.assetType?.toLowerCase().includes('erc20') ||
+  (typeof change.contractAddress === 'string' &&
+    isAddress(change.contractAddress));
+
 const getDappTransactionSimulation = async ({
   account,
   chainId,
@@ -1198,6 +1487,35 @@ const getDappTransactionSimulation = async ({
 
   if (typeof transaction.to !== 'string' || !isAddress(transaction.to)) {
     return undefined;
+  }
+
+  const approval = decodeErc20ApproveCalldata(transaction.data);
+  if (approval) {
+    const token = getAddress(transaction.to);
+    const metadata = await getErc20TokenMetadata({ chainId, token }).catch(
+      () => ({
+        decimals: 18,
+        name: 'Token',
+        symbol: 'Token',
+      })
+    );
+
+    return {
+      changes: [
+        {
+          amount: formatApprovalSimulationAmount({
+            amount: approval.amount,
+            decimals: metadata.decimals,
+          }),
+          assetType: 'erc20',
+          changeType: 'approval',
+          contractAddress: token,
+          direction: 'approve',
+          name: metadata.name,
+          symbol: metadata.symbol,
+        },
+      ],
+    };
   }
 
   const simulationTransaction: Record<string, string> = {
@@ -1281,16 +1599,26 @@ const getDappTransactionSimulation = async ({
 
       if (!direction) return undefined;
 
+      const isUnlimitedApprovalArtifact =
+        direction === 'spend' &&
+        isTokenSimulationAsset(change) &&
+        isUnlimitedApprovalLikeAmount({
+          amount: change.amount,
+          rawAmount: change.rawAmount,
+        });
+
       return {
-        amount: change.amount,
+        amount: isUnlimitedApprovalArtifact ? 'Unlimited' : change.amount,
         assetType: change.assetType,
-        changeType: change.changeType,
+        changeType: isUnlimitedApprovalArtifact
+          ? 'approval'
+          : change.changeType,
         contractAddress: change.contractAddress,
         decimals: change.decimals,
-        direction,
+        direction: isUnlimitedApprovalArtifact ? 'approve' : direction,
         logo: change.logo,
         name: change.name,
-        rawAmount: change.rawAmount,
+        rawAmount: isUnlimitedApprovalArtifact ? undefined : change.rawAmount,
         symbol: change.symbol,
         tokenId: change.tokenId,
       };
@@ -1300,8 +1628,10 @@ const getDappTransactionSimulation = async ({
     );
 
   const changes = aggregateSimulationChanges(normalizedChanges).sort((a, b) => {
-    if (a.direction === b.direction) return 0;
-    return a.direction === 'spend' ? -1 : 1;
+    return (
+      getSimulationDirectionOrder(a.direction) -
+      getSimulationDirectionOrder(b.direction)
+    );
   });
 
   return { changes };
@@ -1490,6 +1820,20 @@ const scheduleProviderApprovalCleanup = (id: string) => {
     },
     5 * 60 * 1000
   );
+};
+
+const clearSettledProviderApprovals = () => {
+  pendingProviderApprovals.forEach((pending, id) => {
+    const phase = pending.view.status?.phase;
+    if (phase !== 'success' && phase !== 'error') return;
+
+    clearTimeout(pending.timeoutId);
+    if (pending.cleanupId) {
+      clearTimeout(pending.cleanupId);
+    }
+
+    pendingProviderApprovals.delete(id);
+  });
 };
 
 const updateProviderApprovalStatus = (
@@ -1705,6 +2049,8 @@ const requestProviderApproval = async ({
         },
         5 * 60 * 1000
       );
+
+      clearSettledProviderApprovals();
 
       pendingProviderApprovals.set(message.id, {
         reject,
@@ -2170,7 +2516,11 @@ const handleProviderRequest = async (
         method,
       });
 
-      return account.signTypedData(typedData);
+      return signTypedDataForDapp({
+        account,
+        chainId,
+        typedData,
+      });
     }
 
     case 'eth_sendRawTransaction':
