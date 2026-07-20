@@ -1,4 +1,5 @@
-const MCP_URL = 'http://127.0.0.1:8000/mcp/';
+const SIGNALS_AGENT_BASE_URL = 'https://agent.pillarx.app';
+const MCP_URL = `${SIGNALS_AGENT_BASE_URL}/mcp/`;
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 const MCP_HEADERS = {
@@ -22,7 +23,7 @@ const INITIALIZE_PAYLOAD = {
 };
 
 export const DEFAULT_SIGNALS_QUERY =
-  'Give me the top 10 Base tokens that are actually buyable right now. Hard filter for meaningful real volume, healthy liquidity, low risk, and momentum. Avoid brand-new dead pools, boosted junk, suspicious reports, non-core quote pairs, and anything with risk score above 4. Return a ranked table with logo_url, symbol, address, price, liquidity, 1h volume, 15m volume, volume acceleration, opportunity score, risk score, warnings, and verdict';
+  'Show safer momentum Base tokens with low risk, decent liquidity, and positive buyer activity.';
 
 const createResearchTokensPayload = (query: string) => ({
   jsonrpc: '2.0',
