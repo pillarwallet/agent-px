@@ -200,5 +200,9 @@ const AuthContentWrapper = styled.div<{
       overflow-y: auto;
       overscroll-behavior: contain;
       padding-bottom: 112px;
+
+      html.pillarx-no-page-scroll & {
+        overflow: hidden;
+      }
     `}
 `;

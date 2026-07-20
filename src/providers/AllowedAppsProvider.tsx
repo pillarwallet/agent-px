@@ -98,11 +98,20 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
             shortDescription: 'Perpetual futures trading on Hyperliquid',
             tags: 'trading,derivatives',
           } as ApiAllowedApp,
+          {
+            id: 'signals-local',
+            appId: 'signals',
+            type: 'app',
+            title: 'Signals',
+            name: 'Signals',
+            shortDescription: 'Trading signals',
+            tags: 'signals,trading',
+          } as ApiAllowedApp,
         ];
         setAllowed(appsWithPerps);
       } catch (e) {
         console.warn('Error calling PillarX apps API', e);
-        // Set perps app as fallback if API fails
+        // Set local apps as fallback if API fails
         setAllowed([
           {
             id: 'perps-local',
@@ -112,6 +121,15 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
             name: 'Perps',
             shortDescription: 'Perpetual futures trading on Hyperliquid',
             tags: 'trading,derivatives',
+          } as ApiAllowedApp,
+          {
+            id: 'signals-local',
+            appId: 'signals',
+            type: 'app',
+            title: 'Signals',
+            name: 'Signals',
+            shortDescription: 'Trading signals',
+            tags: 'signals,trading',
           } as ApiAllowedApp,
         ]);
       }
