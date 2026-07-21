@@ -34,6 +34,20 @@ const getNumber = (value: unknown) => {
   return undefined;
 };
 
+const formatAgeFromMinutes = (minutes?: number) => {
+  if (minutes === undefined || minutes < 0) return '';
+
+  const wholeMinutes = Math.floor(minutes);
+  const minutesInDay = 24 * 60;
+  const days = Math.floor(wholeMinutes / minutesInDay);
+
+  if (days > 365) return `${Math.floor(days / 365)}y`;
+  if (wholeMinutes > minutesInDay) return `${days}d`;
+  if (wholeMinutes > 60) return `${Math.floor(wholeMinutes / 60)}h`;
+
+  return `${wholeMinutes}m`;
+};
+
 const parseJsonLikeText = (text: string): unknown => {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
@@ -208,18 +222,24 @@ const normalizeToken = (
 
   if (!address && !symbol && !name) return undefined;
 
+  const ageMinutes = getNumber(
+    getFirstValue(token, ['age_minutes', 'ageMinutes'])
+  );
+
   return {
     address,
-    age: getString(
-      getFirstValue(token, [
-        'age',
-        'age_human',
-        'ageHuman',
-        'created_at',
-        'pair_age',
-        'token_age',
-      ])
-    ),
+    age:
+      formatAgeFromMinutes(ageMinutes) ||
+      getString(
+        getFirstValue(token, [
+          'age',
+          'age_human',
+          'ageHuman',
+          'created_at',
+          'pair_age',
+          'token_age',
+        ])
+      ),
     chain:
       getString(getFirstValue(token, ['chain', 'chainId', 'network'])) ||
       'base',
