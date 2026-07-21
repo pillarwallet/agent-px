@@ -300,6 +300,7 @@ const TokenSignalCard = ({ token }: TokenSignalCardProps) => {
           <Metric label="Liquidity" value={formatCompactUsd(token.liquidity)} />
           <Metric label="Vol 1h" value={formatCompactUsd(token.volume1hUsd)} />
           <Metric label="Confidence" value={formatScore(token.confidenceScore)} />
+          <Metric label="Age" value={token.age || '-'} />
         </div>
       ) : null}
     </article>
