@@ -1893,30 +1893,45 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           }
         );
 
-        transactionDebugLog(
-          'Requesting EIP-7702 authorization for direct EOA send if needed',
-          {
-            sendId,
-            feeChainId,
-          }
-        );
-        const directEoaAuthorization = await getEIP7702AuthorizationIfNeeded(
-          kit,
-          feeChainId,
-          { authorizationExecutor: 'self' }
-        );
-        transactionDebugLog(
-          'EIP-7702 authorization resolved for direct EOA send',
-          {
-            sendId,
-            feeChainId,
-            hasAuthorization: Boolean(directEoaAuthorization),
-            authorizationChainId: directEoaAuthorization?.chainId,
-            authorizationAddress: directEoaAuthorization?.address,
-          }
-        );
+        const isCustomFeeChain = Boolean(getCustomChainById(feeChainId));
+        let directEoaAuthorization: Awaited<
+          ReturnType<typeof getEIP7702AuthorizationIfNeeded>
+        > = null;
 
-        if (!directEoaAuthorization) {
+        if (isCustomFeeChain) {
+          transactionDebugLog(
+            'Skipping EIP-7702 authorization for custom chain direct EOA send',
+            {
+              sendId,
+              feeChainId,
+            }
+          );
+        } else {
+          transactionDebugLog(
+            'Requesting EIP-7702 authorization for direct EOA send if needed',
+            {
+              sendId,
+              feeChainId,
+            }
+          );
+          directEoaAuthorization = await getEIP7702AuthorizationIfNeeded(
+            kit,
+            feeChainId,
+            { authorizationExecutor: 'self' }
+          );
+          transactionDebugLog(
+            'EIP-7702 authorization resolved for direct EOA send',
+            {
+              sendId,
+              feeChainId,
+              hasAuthorization: Boolean(directEoaAuthorization),
+              authorizationChainId: directEoaAuthorization?.chainId,
+              authorizationAddress: directEoaAuthorization?.address,
+            }
+          );
+        }
+
+        if (!isCustomFeeChain && !directEoaAuthorization) {
           const delegationStatus =
             await kit.getDelegateSmartAccountToEoaStatus(feeChainId);
           const hasPillarKernelDelegation =

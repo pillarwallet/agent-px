@@ -520,6 +520,29 @@ const toDelegatedEoaExecutionTransaction = ({
   };
 };
 
+const toPlainEoaExecutionTransaction = ({
+  account,
+  data,
+  to,
+  value,
+}: {
+  account: Address;
+  to: string;
+  value?: bigint | string;
+  data?: string;
+}): PreparedDelegatedEoaTransaction => {
+  if (!to || !isAddress(to)) {
+    throw new Error('Transaction is missing a valid recipient address');
+  }
+
+  return {
+    account: checksumAddress(account),
+    outerTo: checksumAddress(to as Address),
+    outerValue: parseTransactionValue(value),
+    outerData: toHexData(data),
+  };
+};
+
 const sumUserOperationGas = (
   gas: EstimateUserOperationGasReturnType
 ): bigint => {
@@ -1753,18 +1776,27 @@ export class EtherspotTransactionKit {
       const publicClient =
         await this.etherspotProvider.getDirectPublicClient(chainId);
       const owner = await this.etherspotProvider.getOwnerAccount();
-      const authorizationList = authorization ? [authorization] : undefined;
-      const delegatedTransaction = toDelegatedEoaExecutionTransaction({
-        account: owner.address,
-        to,
-        value,
-        data,
-      });
+      const isCustomChain = Boolean(getCustomChainById(chainId));
+      const authorizationList =
+        !isCustomChain && authorization ? [authorization] : undefined;
+      const preparedTransaction = isCustomChain
+        ? toPlainEoaExecutionTransaction({
+            account: owner.address,
+            to,
+            value,
+            data,
+          })
+        : toDelegatedEoaExecutionTransaction({
+            account: owner.address,
+            to,
+            value,
+            data,
+          });
       const request = {
-        account: delegatedTransaction.account,
-        to: delegatedTransaction.outerTo,
-        value: delegatedTransaction.outerValue,
-        data: delegatedTransaction.outerData,
+        account: preparedTransaction.account,
+        to: preparedTransaction.outerTo,
+        value: preparedTransaction.outerValue,
+        data: preparedTransaction.outerData,
         ...(authorizationList ? { authorizationList } : {}),
       };
 
@@ -1772,12 +1804,13 @@ export class EtherspotTransactionKit {
         '[TransactionKit] estimating direct EOA transaction',
         {
           chainId,
+          isPlainCustomChainTransaction: isCustomChain,
           innerTransaction: summarizeTransaction(transaction),
           outerTransaction: summarizeTransaction({
             chainId,
-            to: delegatedTransaction.outerTo,
-            value: delegatedTransaction.outerValue,
-            data: delegatedTransaction.outerData,
+            to: preparedTransaction.outerTo,
+            value: preparedTransaction.outerValue,
+            data: preparedTransaction.outerData,
           }),
           authorization: summarizeAuthorization(authorization),
         }
@@ -1850,22 +1883,32 @@ export class EtherspotTransactionKit {
         await this.etherspotProvider.getDirectWalletClient(chainId);
       const owner = await this.etherspotProvider.getOwnerAccount();
       const account = walletClient.account || owner.address;
-      const authorizationList = authorization ? [authorization] : undefined;
-      const delegatedTransaction = toDelegatedEoaExecutionTransaction({
-        account: owner.address,
-        to,
-        value,
-        data,
-      });
+      const isCustomChain = Boolean(getCustomChainById(chainId));
+      const authorizationList =
+        !isCustomChain && authorization ? [authorization] : undefined;
+      const preparedTransaction = isCustomChain
+        ? toPlainEoaExecutionTransaction({
+            account: owner.address,
+            to,
+            value,
+            data,
+          })
+        : toDelegatedEoaExecutionTransaction({
+            account: owner.address,
+            to,
+            value,
+            data,
+          });
 
       transactionDebugLog('[TransactionKit] sending direct EOA transaction', {
         chainId,
+        isPlainCustomChainTransaction: isCustomChain,
         innerTransaction: summarizeTransaction(transaction),
         outerTransaction: summarizeTransaction({
           chainId,
-          to: delegatedTransaction.outerTo,
-          value: delegatedTransaction.outerValue,
-          data: delegatedTransaction.outerData,
+          to: preparedTransaction.outerTo,
+          value: preparedTransaction.outerValue,
+          data: preparedTransaction.outerData,
         }),
         hasGasEstimate: typeof gas === 'bigint',
         authorization: summarizeAuthorization(authorization),
@@ -1874,9 +1917,9 @@ export class EtherspotTransactionKit {
       const transactionHash = await walletClient.sendTransaction({
         account,
         chain: getChainById(chainId),
-        to: delegatedTransaction.outerTo,
-        value: delegatedTransaction.outerValue,
-        data: delegatedTransaction.outerData,
+        to: preparedTransaction.outerTo,
+        value: preparedTransaction.outerValue,
+        data: preparedTransaction.outerData,
         ...(authorizationList ? { authorizationList } : {}),
         ...(typeof gas === 'bigint' ? { gas } : {}),
       });
