@@ -4,7 +4,6 @@ export const NATIVE_TOKEN_ADDRESSES = new Set([
   '0x0000000000000000000000000000000000001010',
 ]);
 
-// Not including XDAI below
 export const WRAPPED_NATIVE_TOKEN_ADDRESSES: Record<number, string> = {
   // Ethereum
   1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
@@ -37,7 +36,6 @@ export const getWrappedTokenAddressIfNative = (
   if (isNativeToken(tokenAddress)) {
     const wrappedAddress = WRAPPED_NATIVE_TOKEN_ADDRESSES[chainId];
     // Return the original token address if no wrapped version is available
-    // This handles cases like XDAI or other chains without wrapped versions
     return wrappedAddress || tokenAddress;
   }
   return tokenAddress;

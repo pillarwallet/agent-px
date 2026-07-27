@@ -9,7 +9,6 @@ import {
   arbitrum,
   base,
   bsc,
-  gnosis,
   mainnet,
   optimism,
   polygon,
@@ -38,7 +37,6 @@ export default function useRelaySdk() {
             convertViemChainToRelayChain(arbitrum),
             convertViemChainToRelayChain(optimism),
             convertViemChainToRelayChain(bsc),
-            convertViemChainToRelayChain(gnosis),
           ],
         });
 

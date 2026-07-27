@@ -26,7 +26,6 @@ import {
   arbitrum,
   base,
   bsc,
-  gnosis,
   mainnet,
   optimism,
   polygon,
@@ -212,7 +211,6 @@ const alchemyNetworkByChainId: Record<number, string> = {
   [optimism.id]: 'opt-mainnet',
   [arbitrum.id]: 'arb-mainnet',
   [sepolia.id]: 'eth-sepolia',
-  [gnosis.id]: 'gnosis-mainnet',
 };
 const chainNativeSymbols: Record<number, string> = {
   [mainnet.id]: 'ETH',
@@ -222,7 +220,6 @@ const chainNativeSymbols: Record<number, string> = {
   [optimism.id]: 'ETH',
   [arbitrum.id]: 'ETH',
   [sepolia.id]: 'ETH',
-  [gnosis.id]: 'XDAI',
 };
 const portfolioChainNamesById: Record<number, string> = {
   [mainnet.id]: 'Ethereum',
@@ -232,7 +229,6 @@ const portfolioChainNamesById: Record<number, string> = {
   [optimism.id]: 'Optimistic',
   [arbitrum.id]: 'Arbitrum',
   [sepolia.id]: 'Ethereum Sepolia Testnet',
-  [gnosis.id]: 'Gnosis',
 };
 const defaultChainId =
   import.meta.env.VITE_USE_TESTNETS === 'true'
@@ -251,7 +247,6 @@ const supportedChainIds = new Set(
         56, // BNB Smart Chain
         10, // Optimism
         42161, // Arbitrum
-        ...(import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true' ? [100] : []),
       ]
 );
 
@@ -263,7 +258,6 @@ const chainById: Record<number, Chain> = {
   [optimism.id]: optimism,
   [arbitrum.id]: arbitrum,
   [sepolia.id]: sepolia,
-  [gnosis.id]: gnosis,
 };
 
 type ConnectedDapp = {

@@ -16,6 +16,7 @@ import Select from '../Select';
 
 // utils
 import { getChainName, visibleChains } from '../../../utils/blockchain';
+import { readCustomChains } from '../../../utils/customChains';
 import { formatAmountDisplay } from '../../../utils/number';
 
 // hooks
@@ -114,11 +115,25 @@ const AssetSelect = ({
     assets,
   ]);
 
-  const chainIdOptions = visibleChains.map((chain) => ({
-    id: `${chain.id}`,
-    title: getChainName(chain.id),
-    value: chain.id,
-  }));
+  const customChainIdOptions = readCustomChains()
+    .filter(
+      (customChain) =>
+        !visibleChains.some((chain) => chain.id === customChain.chainId)
+    )
+    .map((customChain) => ({
+      id: `${customChain.chainId}`,
+      title: customChain.chainName,
+      value: customChain.chainId,
+    }));
+
+  const chainIdOptions = [
+    ...visibleChains.map((chain) => ({
+      id: `${chain.id}`,
+      title: getChainName(chain.id),
+      value: chain.id,
+    })),
+    ...customChainIdOptions,
+  ];
 
   const selectedChainTitle = chainIdOptions.find(
     (option) => option.value === chainId

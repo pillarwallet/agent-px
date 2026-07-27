@@ -4,6 +4,7 @@ import { formatUnits } from 'viem';
 
 // types
 import {
+  AssetDataMobula,
   AssetMobula,
   ContractsBalanceMobula,
   PortfolioData,
@@ -26,6 +27,15 @@ import {
   isWrappedNativeToken,
 } from '../utils/blockchain';
 import { writeCachedWalletPortfolio } from '../utils/walletPortfolioCache';
+import {
+  CUSTOM_NATIVE_TOKEN_ADDRESS,
+  CustomChain,
+  CustomChainToken,
+  fetchNativeBalanceRaw,
+  fetchTokenBalanceRaw,
+  formatRawTokenBalance,
+  readCustomChains,
+} from '../utils/customChains';
 
 // services
 import { PortfolioToken, chainIdToChainNameTokensData } from './tokensData';
@@ -452,6 +462,186 @@ const addArcNativeBalanceToPortfolioData = async (
   };
 };
 
+const CUSTOM_CHAIN_ID_PREFIX = 'evm';
+
+const getCustomChainPortfolioChainId = (chainId: number) =>
+  `${CUSTOM_CHAIN_ID_PREFIX}:${chainId}`;
+
+const getCustomAssetId = (chainId: number, address: string) => {
+  if (address.toLowerCase() === CUSTOM_NATIVE_TOKEN_ADDRESS) {
+    return chainId;
+  }
+
+  try {
+    return Number(BigInt(address) % 1_000_000_000n);
+  } catch {
+    return chainId;
+  }
+};
+
+const createCustomPortfolioAsset = ({
+  wallet,
+  customChain,
+  token,
+  balanceRaw,
+  balance,
+}: {
+  wallet: string;
+  customChain: CustomChain;
+  token: CustomChainToken & { address: `0x${string}` };
+  balanceRaw: string;
+  balance: number;
+}): AssetDataMobula => {
+  const portfolioChainId = getCustomChainPortfolioChainId(customChain.chainId);
+
+  return {
+    contracts_balances: [
+      {
+        address: token.address,
+        balance,
+        balanceRaw,
+        chainId: portfolioChainId,
+        decimals: token.decimals,
+      },
+    ],
+    cross_chain_balances: {
+      [customChain.chainName]: {
+        address: token.address,
+        balance,
+        balanceRaw,
+        chainId: String(customChain.chainId),
+      },
+    },
+    price_change_24h: 0,
+    estimated_balance: 0,
+    price: 0,
+    token_balance: balance,
+    allocation: 0,
+    asset: {
+      id: getCustomAssetId(customChain.chainId, token.address),
+      name: token.name,
+      symbol: token.symbol,
+      logo: '',
+      decimals: [String(token.decimals)],
+      contracts: [token.address],
+      blockchains: [customChain.chainName],
+    },
+    wallets: [wallet],
+  };
+};
+
+const fetchCustomChainPortfolioAssets = async ({
+  wallet,
+  customChain,
+}: {
+  wallet: string;
+  customChain: CustomChain;
+}): Promise<AssetDataMobula[]> => {
+  const assets: AssetDataMobula[] = [];
+
+  try {
+    const nativeBalanceRaw = await fetchNativeBalanceRaw({
+      rpcUrl: customChain.rpcUrl,
+      wallet,
+    });
+    const nativeBalance = formatRawTokenBalance(
+      nativeBalanceRaw,
+      customChain.nativeTokenDecimals
+    );
+
+    if (nativeBalance > 0) {
+      assets.push(
+        createCustomPortfolioAsset({
+          wallet,
+          customChain,
+          token: {
+            address: CUSTOM_NATIVE_TOKEN_ADDRESS,
+            name: `${customChain.chainName} Native Token`,
+            symbol: customChain.nativeTokenSymbol,
+            decimals: customChain.nativeTokenDecimals,
+          },
+          balanceRaw: nativeBalanceRaw,
+          balance: nativeBalance,
+        })
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `Failed to fetch native balance for custom chain ${customChain.chainId}`,
+      error
+    );
+  }
+
+  const tokenAssets = await Promise.all(
+    customChain.tokens.map(async (token) => {
+      try {
+        const balanceRaw = await fetchTokenBalanceRaw({
+          rpcUrl: customChain.rpcUrl,
+          tokenAddress: token.address,
+          wallet,
+        });
+        const balance = formatRawTokenBalance(balanceRaw, token.decimals);
+
+        if (balance <= 0) return undefined;
+
+        return createCustomPortfolioAsset({
+          wallet,
+          customChain,
+          token,
+          balanceRaw,
+          balance,
+        });
+      } catch (error) {
+        console.warn(
+          `Failed to fetch token balance for ${token.address} on custom chain ${customChain.chainId}`,
+          error
+        );
+        return undefined;
+      }
+    })
+  );
+
+  tokenAssets.forEach((asset) => {
+    if (asset) assets.push(asset);
+  });
+
+  return assets;
+};
+
+const addCustomChainBalancesToPortfolioData = async (
+  portfolioData: PortfolioData,
+  wallet: string
+): Promise<PortfolioData> => {
+  const customChains = readCustomChains();
+
+  if (!wallet || customChains.length === 0) {
+    return portfolioData;
+  }
+
+  const customAssetsByChain = await Promise.all(
+    customChains.map((customChain) =>
+      fetchCustomChainPortfolioAssets({ wallet, customChain })
+    )
+  );
+  const customAssets = customAssetsByChain.flat();
+
+  if (customAssets.length === 0) {
+    return portfolioData;
+  }
+
+  return {
+    ...portfolioData,
+    assets: [...(portfolioData.assets || []), ...customAssets],
+    wallets: Array.from(new Set([...(portfolioData.wallets || []), wallet])),
+    balances_length:
+      (portfolioData.balances_length || 0) +
+      customAssets.reduce(
+        (count, asset) => count + asset.contracts_balances.length,
+        0
+      ),
+  };
+};
+
 const fetchBaseQueryWithRetry = retry(
   fetchBaseQuery({
     baseUrl: isTestnet
@@ -514,11 +704,16 @@ export const pillarXApiWalletPortfolio = createApi({
             normalizedPortfolioData,
             wallet
           );
+        const portfolioDataWithCustomChainBalances =
+          await addCustomChainBalancesToPortfolioData(
+            portfolioDataWithArcBalance,
+            wallet
+          );
 
         writeCachedWalletPortfolio({
           wallet,
           isPnl,
-          data: portfolioDataWithArcBalance,
+          data: portfolioDataWithCustomChainBalances,
         });
 
         return {
@@ -526,7 +721,7 @@ export const pillarXApiWalletPortfolio = createApi({
             ...baseResponse,
             result: {
               ...baseResponse.result,
-              data: portfolioDataWithArcBalance,
+              data: portfolioDataWithCustomChainBalances,
             },
           },
         };

@@ -19,7 +19,6 @@ import {
   arbitrum,
   base,
   bsc,
-  gnosis,
   mainnet,
   optimism,
   polygon,
@@ -37,12 +36,9 @@ import {
   arcTestnetChain,
 } from '../../../utils/blockchain';
 
-const isGnosisEnabled = import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true';
-
-const allChainMapping = {
+const chainMapping = {
   polygon: 'https://polygon-rpc.com',
   ethereum: 'https://ethereum-rpc.publicnode.com',
-  gnosis: 'https://rpc.gnosischain.com',
   base: 'https://base-rpc.publicnode.com',
   'bnb smart chain': 'https://bsc.drpc.org',
   optimism: 'https://optimism-rpc.publicnode.com',
@@ -50,16 +46,12 @@ const allChainMapping = {
   'arc testnet': 'https://rpc.testnet.arc.network',
 };
 
-const chainMapping = Object.fromEntries(
-  Object.entries(allChainMapping).filter(
-    ([chain]) => isGnosisEnabled || chain !== 'gnosis'
-  )
-);
-
-const allNativeTokensData: Record<Network, { name: string; symbol: string }> = {
+export const allNativeTokens: Record<
+  Network,
+  { name: string; symbol: string }
+> = {
   ethereum: { name: 'Ether', symbol: 'ETH' },
   polygon: { name: 'MATIC', symbol: 'MATIC' },
-  gnosis: { name: 'xDai', symbol: 'XDAI' },
   base: { name: 'Ether', symbol: 'ETH' },
   'bnb smart chain': { name: 'BNB', symbol: 'BNB' },
   optimism: { name: 'Ether', symbol: 'ETH' },
@@ -67,24 +59,12 @@ const allNativeTokensData: Record<Network, { name: string; symbol: string }> = {
   'arc testnet': { name: 'USDC', symbol: 'USDC' },
 };
 
-export const allNativeTokens = Object.fromEntries(
-  Object.entries(allNativeTokensData).filter(
-    ([network]) => isGnosisEnabled || network !== 'gnosis'
-  )
-) as Record<Network, { name: string; symbol: string }>;
-
 export const getNetworkViem = (chainId: number): Chain => {
-  if (!isGnosisEnabled && chainId === 100) {
-    return mainnet;
-  }
-
   switch (chainId) {
     case 1:
       return mainnet;
     case 137:
       return polygon;
-    case 100:
-      return gnosis;
     case 8453:
       return base;
     case 56:

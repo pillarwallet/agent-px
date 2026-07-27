@@ -21,7 +21,6 @@ export type AddedAssets = {
 export type Network =
   | 'ethereum'
   | 'polygon'
-  | 'gnosis'
   | 'base'
   | 'bnb smart chain'
   | 'optimism'

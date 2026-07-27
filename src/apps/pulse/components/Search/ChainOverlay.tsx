@@ -1,9 +1,6 @@
 import React from 'react';
 import { chainNameToChainIdTokensData } from '../../../../services/tokensData';
-import {
-  getLogoForChainId,
-  isGnosisEnabled,
-} from '../../../../utils/blockchain';
+import { getLogoForChainId } from '../../../../utils/blockchain';
 import GlobeIcon from '../../assets/globe-icon.svg';
 import SelectedIcon from '../../assets/selected-icon.svg';
 import { MobulaChainNames } from '../../utils/constants';
@@ -38,9 +35,6 @@ const ChainOverlay = React.forwardRef<HTMLDivElement, ChainOverlayProps>(
         >
           <div className="px-3 py-3 h-full overflow-y-auto">
             {Object.values(MobulaChainNames)
-              .filter(
-                (chain) => isGnosisEnabled || chain !== MobulaChainNames.XDAI
-              ) // Remove XDAI if Gnosis is not enabled
               .sort((a, b) => {
                 // Put "All" first, then alphabetical
                 if (a === MobulaChainNames.All) return -1;

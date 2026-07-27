@@ -20,6 +20,7 @@ import { readCachedHomeTokenList } from '../../utils/homeTokenCache';
 import HomeTokenSection from './components/HomeTokenSection/HomeTokenSection';
 import WalletPortfolioTile from './components/WalletPortfolioTile/WalletPortfolioTile';
 import PerpsTile from './components/PerpsTile/PerpsTile';
+import SettingsModal from './components/SettingsModal/SettingsModal';
 
 // images
 import PillarXLogo from './components/PillarXLogo/PillarXLogo';
@@ -30,6 +31,7 @@ const App = () => {
   const [isRefreshingTrendingTokens, setIsRefreshingTrendingTokens] =
     useState(false);
   const [isRefreshingFreshTokens, setIsRefreshingFreshTokens] = useState(false);
+  const [isWalletSettingsOpen, setIsWalletSettingsOpen] = useState(false);
 
   // Import wallets
   const { walletAddress } = useTransactionKit();
@@ -161,21 +163,29 @@ const App = () => {
           className="object-contain h-[20px] mobile:h-[18px]"
         />
       </HeaderContainer>
-      {/* Search Bar */}
-      <button
-        type="button"
-        onClick={handleSearchClick}
-        className="flex items-center w-full max-w-[645px] h-8 mx-auto mb-5 mobile:mb-4 bg-[rgba(30,29,36,0.3)] border-2 border-[#1e1d24] shadow-[inset_0px_2px_0px_2px_#121116] rounded-[10px] px-[10px] cursor-pointer"
-      >
-        <img
-          src={searchIcon}
-          alt="search"
-          className="w-[14px] h-[14px] opacity-60"
-        />
-        <span className="font-normal text-[13px] leading-[13px] tracking-[-0.02em] text-white opacity-50 ml-3 mt-[1px] select-none">
-          Search
-        </span>
-      </button>
+      <SearchActions>
+        <button
+          type="button"
+          onClick={handleSearchClick}
+          className="flex min-w-0 w-full items-center h-8 bg-[rgba(30,29,36,0.3)] border-2 border-[#1e1d24] shadow-[inset_0px_2px_0px_2px_#121116] rounded-[10px] pl-[10px] pr-[54px] cursor-pointer"
+        >
+          <img
+            src={searchIcon}
+            alt="search"
+            className="w-[14px] h-[14px] opacity-60"
+          />
+          <span className="font-normal text-[13px] leading-[13px] tracking-[-0.02em] text-white opacity-50 ml-3 mt-[1px] select-none">
+            Search
+          </span>
+        </button>
+        <WalletSettingsButton
+          type="button"
+          onClick={() => setIsWalletSettingsOpen(true)}
+          aria-label="Open wallet settings"
+        >
+          <Setting2 size={18} variant="Outline" />
+        </WalletSettingsButton>
+      </SearchActions>
       <div className="flex flex-col gap-[40px] tablet:gap-[28px] mobile:gap-[32px]">
         <WalletPortfolioTile />
         <PerpsTile />
@@ -200,6 +210,9 @@ const App = () => {
           onRefresh={handleRefreshFreshTokens}
         />
       </div>
+      {isWalletSettingsOpen && (
+        <SettingsModal onClose={() => setIsWalletSettingsOpen(false)} />
+      )}
     </Wrapper>
   );
 };
@@ -234,6 +247,34 @@ const HeaderContainer = styled.div`
   @media (max-width: 768px) {
     margin-bottom: 16px;
   }
+`;
+
+const SearchActions = styled.div`
+  position: relative;
+  width: 100%;
+  max-width: 645px;
+  margin: 0 auto 20px;
+
+  @media (max-width: 768px) {
+    margin-bottom: 16px;
+  }
+`;
+
+const WalletSettingsButton = styled.button`
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: 36px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #1e1d24;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 0 2px #121116;
+  background: rgba(30, 29, 36, 0.3);
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
 `;
 
 const SettingsButton = styled.button`

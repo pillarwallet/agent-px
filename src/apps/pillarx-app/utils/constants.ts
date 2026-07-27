@@ -1,12 +1,9 @@
 import { PrimeAssetType } from '../../../types/api';
 
-const isGnosisEnabled = import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true';
-
 export const PAGE_LIMIT: number = 4;
 
-const allPrimeAssetsMobula: PrimeAssetType[] = [
+export const PRIME_ASSETS_MOBULA: PrimeAssetType[] = [
   { name: 'Ethereum', symbol: 'ETH' },
-  { name: 'XDAI', symbol: 'XDAI' },
   { name: 'USDC', symbol: 'USDC' },
   { name: 'Binance Bridged USDC (BNB Smart Chain)', symbol: 'USDC' },
   { name: 'Tether', symbol: 'USDT' },
@@ -17,7 +14,3 @@ const allPrimeAssetsMobula: PrimeAssetType[] = [
   { name: 'BNB', symbol: 'BNB' },
   { name: 'Dai', symbol: 'DAI' },
 ];
-
-export const PRIME_ASSETS_MOBULA = allPrimeAssetsMobula.filter(
-  (asset) => isGnosisEnabled || asset.name !== 'XDAI'
-);

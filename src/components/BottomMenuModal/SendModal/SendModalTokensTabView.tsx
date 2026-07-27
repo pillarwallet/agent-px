@@ -56,9 +56,9 @@ import {
   ARC_TESTNET_CHAIN_ID,
   buildTransactionData,
   getNativeAssetForChainId,
+  isSupportedChainId,
   isValidEthereumAddress,
   safeBigIntConversion,
-  supportedChains,
 } from '../../../utils/blockchain';
 import {
   pasteFromClipboard,
@@ -68,6 +68,7 @@ import {
   OUR_EIP7702_IMPLEMENTATION_ADDRESS,
   getEIP7702AuthorizationIfNeeded,
 } from '../../../utils/eip7702Authorization';
+import { getCustomChainById } from '../../../utils/customChains';
 import type { TransactionEstimateResult } from '../../../utils/nativeTransactionKit';
 import { formatAmountDisplay, isValidAmount } from '../../../utils/number';
 
@@ -479,6 +480,14 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   useEffect(() => {
     const getDeploymentCost = async () => {
       if (!accountAddress || !selectedAsset?.chainId) return;
+      const customChain = getCustomChainById(selectedAsset.chainId);
+
+      if (customChain && !customChain.bundlerUrl) {
+        setDeploymentCost(0);
+        setIsDeploymentCostLoading(false);
+        return;
+      }
+
       setIsDeploymentCostLoading(true);
       const cost = await getWalletDeploymentCost({
         accountAddress,
@@ -1080,7 +1089,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
         if (
           !firstChainId ||
           typeof firstChainId !== 'number' ||
-          !supportedChains.some((chain) => chain.id === firstChainId)
+          !isSupportedChainId(firstChainId)
         ) {
           handleError(
             'Invalid or unsupported chain ID in batch payload. Cannot proceed with transaction.'
@@ -1324,7 +1333,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
         if (
           !chainIdToUse ||
           typeof chainIdToUse !== 'number' ||
-          !supportedChains.some((chain) => chain.id === chainIdToUse)
+          !isSupportedChainId(chainIdToUse)
         ) {
           handleError(
             'Invalid or unsupported chain ID in transaction payload. Cannot proceed with transaction.'
@@ -1398,7 +1407,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
             },
           });
           handleError(
-            'Something went wrong while estimating the asset transfer. Please try again later. If the problem persists, contact the PillarX team for support.'
+            estimated.errorMessage ||
+              'Something went wrong while estimating the asset transfer. Please try again later. If the problem persists, contact the PillarX team for support.'
           );
           return;
         }
@@ -1470,7 +1480,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
             },
           });
           handleError(
-            'Something went wrong while sending the assets, please try again later. If the problem persists, contact the PillarX team for support.'
+            sent.errorMessage ||
+              'Something went wrong while sending the assets, please try again later. If the problem persists, contact the PillarX team for support.'
           );
           return;
         }
@@ -1861,7 +1872,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       if (
         !feeChainId ||
         typeof feeChainId !== 'number' ||
-        !supportedChains.some((chain) => chain.id === feeChainId)
+        !isSupportedChainId(feeChainId)
       ) {
         handleError(
           'Invalid or unsupported chain ID for selected asset. Cannot proceed with transaction.'
@@ -1966,7 +1977,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
             },
           });
           handleError(
-            'Something went wrong while estimating the asset transfer. Please try again later. If the problem persists, contact the PillarX team for support.'
+            directEstimate.errorMessage ||
+              'Something went wrong while estimating the asset transfer. Please try again later. If the problem persists, contact the PillarX team for support.'
           );
           return;
         }
@@ -2052,7 +2064,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
             },
           });
           handleError(
-            'Something went wrong while sending the assets, please try again later. If the problem persists, contact the PillarX team for support.'
+            sent.errorMessage ||
+              'Something went wrong while sending the assets, please try again later. If the problem persists, contact the PillarX team for support.'
           );
           return;
         }
@@ -2207,7 +2220,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           },
         });
         handleError(
-          'Something went wrong while estimating the asset transfer. Please try again later. If the problem persists, contact the PillarX team for support.'
+          estimated.errorMessage ||
+            'Something went wrong while estimating the asset transfer. Please try again later. If the problem persists, contact the PillarX team for support.'
         );
         return;
       }
@@ -2394,7 +2408,9 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       });
 
       handleError(
-        'Something went wrong while sending the assets, please try again later. If the problem persists, contact the PillarX team for support.'
+        error instanceof Error && error.message
+          ? error.message
+          : 'Something went wrong while sending the assets, please try again later. If the problem persists, contact the PillarX team for support.'
       );
     } finally {
       setIsSending(false);

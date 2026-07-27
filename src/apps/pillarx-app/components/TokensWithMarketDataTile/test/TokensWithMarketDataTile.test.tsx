@@ -11,9 +11,6 @@ import {
   TokensMarketData,
 } from '../../../../../types/api';
 
-// Mock the environment variable
-const originalEnv = import.meta.env;
-
 const mockTokensMarketData: Projection = {
   id: 'tokens-with-market-data',
   layout: ApiLayout.TOKENS_WITH_MARKET_DATA,
@@ -63,8 +60,8 @@ const mockTokensMarketData: Projection = {
               'https://cryptologos.cc/logos/optimism-ethereum-op-logo.svg?v=040',
           },
           line1: {
-            text1: 'XDAI',
-            text2: 'XDAI',
+            text1: 'BASE',
+            text2: 'Base',
             copyLink: '0xD76b5c2A23ef78368d8E34288B5b65D616B746aE',
           },
           line2: {
@@ -89,22 +86,6 @@ const mockTokensMarketData: Projection = {
 };
 
 describe('<TokensWithMarketDataTile />', () => {
-  beforeEach(() => {
-    // Reset environment
-    Object.defineProperty(import.meta, 'env', {
-      value: { ...originalEnv, VITE_FEATURE_FLAG_GNOSIS: 'true' },
-      writable: true,
-    });
-  });
-
-  afterEach(() => {
-    // Reset environment
-    Object.defineProperty(import.meta, 'env', {
-      value: originalEnv,
-      writable: true,
-    });
-  });
-
   it('renders and matches snapshot', () => {
     const tree = render(
       <MemoryRouter>
@@ -158,15 +139,13 @@ describe('<TokensWithMarketDataTile />', () => {
     expect(mobileScreen.getByText('20.1%')).toBeInTheDocument();
     expect(mobileScreen.getByText('1823')).toBeInTheDocument();
 
-    // XDAI should only be present when Gnosis feature flag is enabled
-    if (import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true') {
-      expect(mobileScreen.getAllByText('XDAI')).toHaveLength(2);
-      expect(mobileScreen.getByText('$1.4m')).toBeInTheDocument();
-      expect(mobileScreen.getByText('$3,123')).toBeInTheDocument();
-      expect(mobileScreen.getByText('$1.0622')).toBeInTheDocument(); // rounded up with limitDigitsNumber helper function
-      expect(mobileScreen.getByText('3.1%')).toBeInTheDocument();
-      expect(mobileScreen.getByText('1423')).toBeInTheDocument();
-    }
+    expect(mobileScreen.getByText('Base')).toBeInTheDocument();
+    expect(mobileScreen.getByText('BASE')).toBeInTheDocument();
+    expect(mobileScreen.getByText('$1.4m')).toBeInTheDocument();
+    expect(mobileScreen.getByText('$3,123')).toBeInTheDocument();
+    expect(mobileScreen.getByText('$1.0622')).toBeInTheDocument(); // rounded up with limitDigitsNumber helper function
+    expect(mobileScreen.getByText('3.1%')).toBeInTheDocument();
+    expect(mobileScreen.getByText('1423')).toBeInTheDocument();
   });
 
   it('does not render anything while loading', () => {

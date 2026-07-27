@@ -25,7 +25,6 @@ import {
   getChainName,
   getLogoForChainId,
   truncateAddress,
-  visibleChains,
 } from '../../utils/blockchain';
 import { useComprehensiveLogout } from '../../utils/logout';
 import { formatAmountDisplay } from '../../utils/number';
@@ -93,11 +92,10 @@ const AccountModal = ({ isContentVisible }: AccountModalProps) => {
             const chainId = Number(contract.chainId.split(':')[1]); // Handle chainId format like "eip155:1"
             return {
               balance: contract.balance,
-              chain: visibleChains.find((chain) => chain.id === chainId)!,
+              chainId,
               address: contract.address,
             };
-          })
-          .filter((item) => item.chain); // Remove items where chain wasn't found
+          });
 
         return {
           asset,
@@ -106,7 +104,7 @@ const AccountModal = ({ isContentVisible }: AccountModalProps) => {
           symbol: asset.asset.symbol,
         };
       })
-      .filter((token) => token.chains.length > 0); // Only include tokens with supported chains
+      .filter((token) => token.chains.length > 0);
   }, [
     accountAddress,
     isWalletPortfolioDataSuccess,
@@ -307,14 +305,14 @@ const AccountModal = ({ isContentVisible }: AccountModalProps) => {
                     id="token-chains-account-modal"
                     $visible={expanded[`${symbol}-${asset.asset.id}`]}
                   >
-                    {chains.map(({ balance, chain, address }) => {
+                    {chains.map(({ balance, chainId, address }) => {
                       return (
                         <TokenItemChain
-                          key={`${symbol}-${chain.id}-${address}`}
-                          id={`action-bar-account-token-${symbol}-${chain.id}`}
+                          key={`${symbol}-${chainId}-${address}`}
+                          id={`action-bar-account-token-${symbol}-${chainId}`}
                         >
-                          <ChainIcon src={getLogoForChainId(chain.id)} />
-                          <p>{getChainName(Number(chain.id))}</p>
+                          <ChainIcon src={getLogoForChainId(chainId)} />
+                          <p>{getChainName(chainId)}</p>
                           <p>{formatAmountDisplay(balance)}</p>
                         </TokenItemChain>
                       );

@@ -51,7 +51,6 @@ Key Wallet supports all chains that PillarX supports:
 - BNB Smart Chain
 - Optimism
 - Arbitrum
-- Gnosis (if enabled)
 
 ## Technical Details
 

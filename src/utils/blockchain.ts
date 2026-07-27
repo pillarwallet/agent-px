@@ -6,7 +6,6 @@ import {
   avalanche,
   base,
   bsc,
-  gnosis,
   mainnet,
   optimism,
   polygon,
@@ -19,6 +18,12 @@ import { isNativeToken } from '../apps/the-exchange/utils/wrappedTokens';
 // types
 import { TokenListToken } from '../types/blockchain';
 import { getEtherspotBundlerUrl } from './bundler';
+import {
+  CUSTOM_NATIVE_TOKEN_ADDRESS,
+  getCustomChainById,
+  getCustomChainName,
+  readCustomChains,
+} from './customChains';
 
 // images
 import logoArbitrum from '../assets/images/logo-arbitrum.png';
@@ -27,7 +32,6 @@ import logoBase from '../assets/images/logo-base.png';
 import logoBsc from '../assets/images/logo-bsc.png';
 import logoEthereum from '../assets/images/logo-ethereum.png';
 import logoEvm from '../assets/images/logo-evm.png';
-import logoGnosis from '../assets/images/logo-gnosis.png';
 import logoOptimism from '../assets/images/logo-optimism.png';
 import logoPolygon from '../assets/images/logo-polygon.png';
 
@@ -77,9 +81,6 @@ export const isTestnet = (() => {
   return storedIsTestnet === 'true';
 })();
 
-export const isGnosisEnabled =
-  import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true';
-
 export const isValidEthereumAddress = (
   address: string | undefined
 ): boolean => {
@@ -108,6 +109,19 @@ export const isPolygonAssetNative = (address: string, chainId: number) =>
  * - https://etherspot.fyi/prime-sdk/chains-supported
  */
 export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
+  const customChain = getCustomChainById(chainId);
+
+  if (customChain) {
+    return {
+      chainId,
+      address: CUSTOM_NATIVE_TOKEN_ADDRESS,
+      name: `${customChain.chainName} Native Token`,
+      symbol: customChain.nativeTokenSymbol,
+      decimals: customChain.nativeTokenDecimals,
+      logoURI: logoEvm,
+    };
+  }
+
   // return different native asset for chains where it's not POL (POL), otherwise return POL (POL)
   // only mumbai testnet is supported on Prime SDK
   const nativeAsset = {
@@ -127,13 +141,6 @@ export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
     nativeAsset.symbol = 'ETH';
     nativeAsset.logoURI =
       'https://public.etherspot.io/buidler/chain_logos/ethereum.png';
-  }
-
-  if (isGnosisEnabled && chainId === gnosis.id) {
-    nativeAsset.name = 'XDAI';
-    nativeAsset.symbol = 'XDAI';
-    nativeAsset.logoURI =
-      'https://public.etherspot.io/buidler/chain_logos/native_tokens/xdai.png';
   }
 
   if (chainId === avalanche.id) {
@@ -192,7 +199,6 @@ export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
 const allSupportedChains = [
   mainnet,
   polygon,
-  gnosis,
   base,
   bsc,
   optimism,
@@ -201,9 +207,46 @@ const allSupportedChains = [
   arcTestnetChain,
 ];
 
-export const supportedChains = allSupportedChains.filter(
-  (chain) => isGnosisEnabled || chain.id !== 100
-);
+export const supportedChains = allSupportedChains;
+
+export const getCustomViemChains = () =>
+  readCustomChains().map((customChain) =>
+    defineChain({
+      id: customChain.chainId,
+      name: customChain.chainName,
+      nativeCurrency: {
+        name: customChain.nativeTokenSymbol,
+        symbol: customChain.nativeTokenSymbol,
+        decimals: customChain.nativeTokenDecimals,
+      },
+      rpcUrls: {
+        default: {
+          http: [customChain.rpcUrl],
+        },
+        public: {
+          http: [customChain.rpcUrl],
+        },
+      },
+      testnet: true,
+    })
+  );
+
+export const getSupportedChains = () => {
+  const supportedChainIds = new Set(
+    allSupportedChains.map((chain) => chain.id)
+  );
+  const customChains = getCustomViemChains().filter(
+    (chain) => !supportedChainIds.has(chain.id)
+  );
+
+  return [...allSupportedChains, ...customChains];
+};
+
+export const getSupportedChainById = (chainId: number) =>
+  getSupportedChains().find((chain) => chain.id === chainId);
+
+export const isSupportedChainId = (chainId: number | undefined): boolean =>
+  typeof chainId === 'number' && Boolean(getSupportedChainById(chainId));
 
 export const visibleChains = supportedChains.filter((chain) =>
   isTestnet ? chain.testnet : !chain.testnet
@@ -216,10 +259,6 @@ export const getLogoForChainId = (chainId: number): string => {
 
   if (chainId === polygon.id) {
     return logoPolygon;
-  }
-
-  if (isGnosisEnabled && chainId === gnosis.id) {
-    return logoGnosis;
   }
 
   if (chainId === avalanche.id) {
@@ -281,10 +320,6 @@ export const getBlockScan = (chain: number, isAddress: boolean = false) => {
       return `https://polygonscan.com/${isAddress ? 'address' : 'tx'}/`;
     case 8453:
       return `https://basescan.org/${isAddress ? 'address' : 'tx'}/`;
-    case 100:
-      return isGnosisEnabled
-        ? `https://gnosisscan.io/${isAddress ? 'address' : 'tx'}/`
-        : '';
     case 56:
       return `https://bscscan.com/${isAddress ? 'address' : 'tx'}/`;
     case 10:
@@ -306,8 +341,6 @@ export const getBlockScanName = (chain: number) => {
       return 'Polygonscan';
     case 8453:
       return 'Basescan';
-    case 100:
-      return isGnosisEnabled ? 'Gnosisscan' : '';
     case 56:
       return 'Bscscan';
     case 10:
@@ -329,8 +362,6 @@ export const getChainName = (chain: number) => {
       return 'Polygon';
     case 8453:
       return 'Base';
-    case 100:
-      return isGnosisEnabled ? 'Gnosis' : `${chain}`;
     case 56:
       return 'BNB Smart Chain';
     case 10:
@@ -342,7 +373,7 @@ export const getChainName = (chain: number) => {
     case 5042002:
       return 'Arc Testnet';
     default:
-      return `${chain}`;
+      return getCustomChainName(chain) || `${chain}`;
   }
 };
 
@@ -358,10 +389,6 @@ export const allCompatibleChains = [
   {
     chainId: 8453,
     chainName: 'Base',
-  },
-  {
-    chainId: 100,
-    chainName: 'Gnosis',
   },
   {
     chainId: 56,
@@ -387,7 +414,7 @@ const testnetCompatibleChains = [
 export const CompatibleChains = [
   ...allCompatibleChains,
   ...(isTestnet ? testnetCompatibleChains : []),
-].filter((chain) => isGnosisEnabled || chain.chainId !== 100);
+];
 
 const allStablecoinAddresses: Record<number, Set<string>> = {
   1: new Set([
@@ -404,11 +431,6 @@ const allStablecoinAddresses: Record<number, Set<string>> = {
     // Base
     '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
     '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2', // Bridged USDT
-  ]),
-  100: new Set([
-    // Gnosis
-    '0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83', // USDC
-    '0x4ecaba5870353805a9f068101a40e0f32ed605c6', // USDT
   ]),
   56: new Set([
     // BNB Smart Chain
@@ -427,11 +449,7 @@ const allStablecoinAddresses: Record<number, Set<string>> = {
   ]),
 };
 
-const STABLECOIN_ADDRESSES = Object.fromEntries(
-  Object.entries(allStablecoinAddresses).filter(
-    ([chainId]) => isGnosisEnabled || chainId !== '100'
-  )
-) as Record<number, Set<string>>;
+const STABLECOIN_ADDRESSES = allStablecoinAddresses;
 
 export function isStableCoin(address: string, chainId: number): boolean {
   if (!address || !chainId) return false;
