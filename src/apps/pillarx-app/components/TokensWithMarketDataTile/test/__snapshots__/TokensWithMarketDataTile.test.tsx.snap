@@ -233,7 +233,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                       <p
                         class="text-base font-medium font-normal text-white desktop:text-base tablet:text-base mobile:text-sm truncate whitespace-nowrap overflow-hidden min-w-[30px]"
                       >
-                        XDAI
+                        BASE
                       </p>
                       <div
                         class="whitespace-nowrap overflow-hidden max-w-full"
@@ -241,7 +241,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                         <p
                           class="text-base font-medium font-normal text-white/[.5] desktop:text-base tablet:text-base mobile:text-sm truncate"
                         >
-                          XDAI
+                          Base
                         </p>
                       </div>
                       <div
@@ -557,7 +557,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                         <p
                           class="text-base font-medium font-normal text-white desktop:text-base tablet:text-base mobile:text-sm truncate whitespace-nowrap overflow-hidden min-w-[30px]"
                         >
-                          XDAI
+                          BASE
                         </p>
                         <div
                           class="whitespace-nowrap overflow-hidden max-w-full"
@@ -565,7 +565,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                           <p
                             class="text-base font-medium font-normal text-white/[.5] desktop:text-base tablet:text-base mobile:text-sm truncate"
                           >
-                            XDAI
+                            Base
                           </p>
                         </div>
                         <div
@@ -910,7 +910,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                     <p
                       class="text-base font-medium font-normal text-white desktop:text-base tablet:text-base mobile:text-sm truncate whitespace-nowrap overflow-hidden min-w-[30px]"
                     >
-                      XDAI
+                      BASE
                     </p>
                     <div
                       class="whitespace-nowrap overflow-hidden max-w-full"
@@ -918,7 +918,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                       <p
                         class="text-base font-medium font-normal text-white/[.5] desktop:text-base tablet:text-base mobile:text-sm truncate"
                       >
-                        XDAI
+                        Base
                       </p>
                     </div>
                     <div
@@ -1234,7 +1234,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                       <p
                         class="text-base font-medium font-normal text-white desktop:text-base tablet:text-base mobile:text-sm truncate whitespace-nowrap overflow-hidden min-w-[30px]"
                       >
-                        XDAI
+                        BASE
                       </p>
                       <div
                         class="whitespace-nowrap overflow-hidden max-w-full"
@@ -1242,7 +1242,7 @@ exports[`<TokensWithMarketDataTile /> > renders and matches snapshot 1`] = `
                         <p
                           class="text-base font-medium font-normal text-white/[.5] desktop:text-base tablet:text-base mobile:text-sm truncate"
                         >
-                          XDAI
+                          Base
                         </p>
                       </div>
                       <div

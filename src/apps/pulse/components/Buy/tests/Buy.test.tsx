@@ -49,7 +49,6 @@ vi.mock('../../../../../services/pillarXApiSearchTokens', () => ({
 
 vi.mock('../../../../../utils/blockchain', () => ({
   getLogoForChainId: vi.fn(() => '/src/assets/images/logo-ethereum.png'),
-  isGnosisEnabled: false,
   CompatibleChains: [
     { chainId: 1, chainName: 'Ethereum' },
     { chainId: 137, chainName: 'Polygon' },

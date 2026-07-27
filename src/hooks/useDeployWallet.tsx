@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { formatEther } from 'viem';
 import { getEtherspotBundlerUrl } from '../utils/bundler';
+import { getCustomChainById } from '../utils/customChains';
 
 const useDeployWallet = () => {
   // This is to easily get the right localStorage key to retrieve
@@ -56,12 +57,22 @@ const useDeployWallet = () => {
       return undefined;
     }
 
-    if (!apiKey) {
+    const customChain = getCustomChainById(chainId);
+
+    if (customChain && !customChain.bundlerUrl) {
+      return undefined;
+    }
+
+    if (!apiKey && !customChain?.bundlerUrl) {
       console.error('getGasPrice: API key is missing');
       return undefined;
     }
 
-    const url = getEtherspotBundlerUrl({ chainId, apiKey });
+    const url = getEtherspotBundlerUrl({
+      chainId,
+      apiKey: customChain?.bundlerUrl ? undefined : apiKey,
+      bundlerUrl: customChain?.bundlerUrl,
+    });
 
     try {
       const response = await axios.post(
@@ -120,7 +131,13 @@ const useDeployWallet = () => {
       return undefined;
     }
 
-    if (!apiKey) {
+    const customChain = getCustomChainById(chainId);
+
+    if (customChain && !customChain.bundlerUrl) {
+      return true;
+    }
+
+    if (!apiKey && !customChain?.bundlerUrl) {
       console.error('isWalletDeployed: API key is missing');
       return undefined;
     }
@@ -137,7 +154,11 @@ const useDeployWallet = () => {
     }
 
     // If wallet has not deployed, then we will check on chain
-    const url = getEtherspotBundlerUrl({ chainId, apiKey });
+    const url = getEtherspotBundlerUrl({
+      chainId,
+      apiKey: customChain?.bundlerUrl ? undefined : apiKey,
+      bundlerUrl: customChain?.bundlerUrl,
+    });
 
     try {
       const response = await axios.post(

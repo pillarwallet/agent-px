@@ -30,7 +30,6 @@ import ArbitrumList from '../../utils/tokens/arbitrum-tokens.json';
 import BaseList from '../../utils/tokens/base-tokens.json';
 import BNBList from '../../utils/tokens/bnb-tokens.json';
 import EthereumList from '../../utils/tokens/ethereum-tokens.json';
-import GnosisList from '../../utils/tokens/gnosis-tokens.json';
 import OptimismList from '../../utils/tokens/optimism-tokens.json';
 import PolygonList from '../../utils/tokens/polygon-tokens.json';
 
@@ -38,23 +37,14 @@ import PolygonList from '../../utils/tokens/polygon-tokens.json';
 import SkeletonLoader from '../../../../components/SkeletonLoader';
 import Asset from '../Asset/Asset';
 
-const isGnosisEnabled = import.meta.env.VITE_FEATURE_FLAG_GNOSIS === 'true';
-
-const allTokenLists = {
+const tokenLists = {
   1: EthereumList,
   137: PolygonList,
-  100: GnosisList,
   8453: BaseList,
   56: BNBList,
   10: OptimismList,
   42161: ArbitrumList,
 };
-
-const tokenLists = Object.fromEntries(
-  Object.entries(allTokenLists).filter(
-    ([chainId]) => isGnosisEnabled || chainId !== '100'
-  )
-);
 
 type AssetsListProps = {
   accountAddress: string;

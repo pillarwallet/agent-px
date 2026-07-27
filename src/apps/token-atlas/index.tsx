@@ -106,8 +106,7 @@ export const App = () => {
     isNativeToken ||
     (selectedToken.name === 'POL' && selectedToken.symbol === 'POL') ||
     (selectedToken.name === 'Wrapped Ether' &&
-      selectedToken.symbol === 'WETH') ||
-    (selectedToken.name === 'Wrapped XDAI' && selectedToken.symbol === 'WXDAI');
+      selectedToken.symbol === 'WETH');
 
   /**
    * If the user selected a wrapped token it will get its
@@ -119,9 +118,6 @@ export const App = () => {
   const getSymbol = (symbol: string) => {
     if (isWrappedOrNativeToken && symbol === 'WETH') {
       return 'ETH';
-    }
-    if (isWrappedOrNativeToken && symbol === 'WXDAI') {
-      return 'XDAI';
     }
     return symbol;
   };

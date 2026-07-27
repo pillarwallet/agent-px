@@ -5,7 +5,6 @@ const chainIdToName: Record<number, string> = {
   1: 'Ethereum',
   137: 'Polygon',
   8453: 'Base',
-  100: 'Gnosis',
   56: 'BNB Smart Chain',
   10: 'Optimism',
   42161: 'Arbitrum',

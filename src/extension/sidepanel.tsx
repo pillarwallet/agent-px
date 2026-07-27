@@ -1,6 +1,7 @@
 import { startPillarXBackgroundKeepAlive } from './keepAlive';
 
 window.pillarXExtensionView = 'sidePanel';
+document.documentElement.classList.add('pillarx-extension-shell');
 
 startPillarXBackgroundKeepAlive('sidePanel');
 

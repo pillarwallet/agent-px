@@ -1,5 +1,3 @@
-import { isGnosisEnabled } from '../../../utils/blockchain';
-
 export const allStableCurrencies = [
   {
     chainId: 1,
@@ -31,13 +29,6 @@ export const allStableCurrencies = [
     address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
     decimals: 18,
   }, // USDC on BNB Smart Chain
-  {
-    chainId: 100,
-    address: '0x2a22f9c3b484c3629090FeED35F17Ff8F88f76F0',
-    decimals: 6,
-  }, // USDC on Gnosis
 ];
 
-export const STABLE_CURRENCIES = allStableCurrencies.filter(
-  (currency) => isGnosisEnabled || currency.chainId !== 100
-);
+export const STABLE_CURRENCIES = allStableCurrencies;

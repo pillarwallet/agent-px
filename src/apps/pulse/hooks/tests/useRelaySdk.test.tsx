@@ -18,7 +18,6 @@ vi.mock('viem/chains', () => ({
   arbitrum: { id: 42161, name: 'Arbitrum' },
   base: { id: 8453, name: 'Base' },
   bsc: { id: 56, name: 'BSC' },
-  gnosis: { id: 100, name: 'Gnosis' },
   mainnet: { id: 1, name: 'Ethereum' },
   optimism: { id: 10, name: 'Optimism' },
   polygon: { id: 137, name: 'Polygon' },
@@ -88,7 +87,7 @@ describe('useRelaySdk', () => {
     const { result } = renderHook(() => useRelaySdk());
 
     await waitFor(() => {
-      expect(convertViemChainToRelayChain).toHaveBeenCalledTimes(7); // Called for each chain
+      expect(convertViemChainToRelayChain).toHaveBeenCalledTimes(6); // Called for each chain
     });
 
     await waitFor(() => {
@@ -102,7 +101,6 @@ describe('useRelaySdk', () => {
           expect.objectContaining({ id: 42161, name: 'Arbitrum' }),
           expect.objectContaining({ id: 10, name: 'Optimism' }),
           expect.objectContaining({ id: 56, name: 'BSC' }),
-          expect.objectContaining({ id: 100, name: 'Gnosis' }),
         ]),
       });
     });
@@ -304,11 +302,6 @@ describe('useRelaySdk', () => {
       );
     });
 
-    await waitFor(() => {
-      expect(convertViemChainToRelayChain).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 100, name: 'Gnosis' })
-      );
-    });
   });
 
   it('uses correct client configuration', async () => {

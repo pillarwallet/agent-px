@@ -40,8 +40,9 @@ import { privateKeyToAccount } from 'viem/accounts';
 import type { SignAuthorizationReturnType } from 'viem/accounts';
 
 import type { WalletProviderLike } from '../types/walletProvider';
-import { supportedChains } from './blockchain';
+import { getSupportedChainById } from './blockchain';
 import { getEtherspotBundlerUrl } from './bundler';
+import { getCustomChainById } from './customChains';
 import {
   encodePillarValidatorInstallData,
   encodePillarExecuteCall,
@@ -331,13 +332,18 @@ const summarizeError = (error: unknown) => ({
 });
 
 const getChainById = (chainId: number): Chain => {
-  const chain = supportedChains.find((supported) => supported.id === chainId);
+  const chain = getSupportedChainById(chainId);
 
   if (!chain) {
     throw new Error(`Unsupported chain ID ${chainId}`);
   }
 
   return chain;
+};
+
+const getDirectTransport = (chainId: number) => {
+  const customRpcUrl = getCustomChainById(chainId)?.rpcUrl;
+  return customRpcUrl ? http(customRpcUrl) : http();
 };
 
 const getProviderAccountAddress = async (
@@ -685,17 +691,21 @@ export class PillarTransactionProvider {
   }
 
   getBundlerUrl(chainId = this.config.chainId): string {
+    const customChain = getCustomChainById(chainId);
+    const configuredBundlerUrl =
+      this.config.bundlerUrl || customChain?.bundlerUrl;
     const bundlerUrl = getEtherspotBundlerUrl({
       chainId,
       apiKey: this.config.bundlerApiKey,
-      bundlerUrl: this.config.bundlerUrl,
+      bundlerUrl: configuredBundlerUrl,
       apiKeyFormat: this.config.bundlerApiKeyFormat,
     });
 
     transactionDebugLog('[TransactionKit] resolved bundler URL', {
       chainId,
       bundlerUrl: redactBundlerUrl(bundlerUrl),
-      hasConfiguredBundlerUrl: Boolean(this.config.bundlerUrl),
+      hasConfiguredBundlerUrl: Boolean(configuredBundlerUrl),
+      isCustomChain: Boolean(customChain),
       hasBundlerApiKey: Boolean(this.config.bundlerApiKey),
     });
 
@@ -768,7 +778,7 @@ export class PillarTransactionProvider {
 
     return createPublicClient({
       chain: getChainById(chainId),
-      transport: http(),
+      transport: getDirectTransport(chainId),
     });
   }
 
@@ -790,7 +800,7 @@ export class PillarTransactionProvider {
       return createWalletClient({
         account: owner,
         chain,
-        transport: http(),
+        transport: getDirectTransport(chainId),
       });
     }
 
@@ -1533,7 +1543,8 @@ export class EtherspotTransactionKit {
     transactionDebugLog('[TransactionKit] checking EOA delegation code', {
       chainId,
     });
-    const publicClient = await this.etherspotProvider.getPublicClient(chainId);
+    const publicClient =
+      await this.etherspotProvider.getDirectPublicClient(chainId);
     const walletAddress = await this.getWalletAddress(chainId);
 
     if (!walletAddress) {

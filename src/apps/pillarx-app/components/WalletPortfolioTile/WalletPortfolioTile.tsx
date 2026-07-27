@@ -20,6 +20,7 @@ import {
 } from '../../utils/portfolio';
 import { readCachedWalletHistory } from '../../../../utils/walletHistoryCache';
 import { readCachedWalletPortfolio } from '../../../../utils/walletPortfolioCache';
+import { CUSTOM_CHAINS_UPDATED_EVENT } from '../../../../utils/customChains';
 
 // hooks
 import useTransactionKit from '../../../../hooks/useTransactionKit';
@@ -320,6 +321,35 @@ const WalletPortfolioTile = () => {
     setIsTopTokenUnrealizedPnLErroring,
     { preserveDataOnError: true }
   );
+
+  useEffect(() => {
+    if (!accountAddress) return undefined;
+
+    const handleCustomChainsUpdated = () => {
+      refetchWalletPortfolioData();
+
+      if (shouldFetchPnl) {
+        refetchWalletPortfolioWithPnlData();
+      }
+    };
+
+    window.addEventListener(
+      CUSTOM_CHAINS_UPDATED_EVENT,
+      handleCustomChainsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        CUSTOM_CHAINS_UPDATED_EVENT,
+        handleCustomChainsUpdated
+      );
+    };
+  }, [
+    accountAddress,
+    refetchWalletPortfolioData,
+    refetchWalletPortfolioWithPnlData,
+    shouldFetchPnl,
+  ]);
 
   useEffect(() => {
     if (!isRefreshAll) return undefined;

@@ -16,6 +16,10 @@ import {
   CompatibleChains,
   getNativeAssetForChainId,
 } from '../utils/blockchain';
+import {
+  getCustomChainIdByName,
+  getCustomChainName,
+} from '../utils/customChains';
 
 export type Token = {
   id: number;
@@ -56,10 +60,6 @@ export const chainNameDataCompatibility = (chainName: string) => {
 
   const chain = chainName.toLowerCase();
 
-  if (chain === 'xdai') {
-    return 'Gnosis';
-  }
-
   if (chain === 'bnb smart chain (bep20)') {
     return 'BNB Smart Chain';
   }
@@ -76,10 +76,6 @@ export const chainNameDataCompatibility = (chainName: string) => {
 };
 
 export const chainNameFromViemToMobula = (chainName: string) => {
-  if (chainName === 'Gnosis') {
-    return 'XDAI';
-  }
-
   if (chainName === 'BNB Smart Chain') {
     return 'BNB Smart Chain (BEP20)';
   }
@@ -224,8 +220,6 @@ export const chainIdToChainNameTokensData = (chainId: number | undefined) => {
       return 'Polygon';
     case 8453:
       return 'Base';
-    case 100:
-      return 'XDAI';
     case 56:
       return 'BNB Smart Chain (BEP20)';
     case 10:
@@ -239,7 +233,7 @@ export const chainIdToChainNameTokensData = (chainId: number | undefined) => {
     case undefined:
       return '';
     default:
-      return '';
+      return getCustomChainName(chainId) || '';
   }
 };
 
@@ -252,8 +246,6 @@ export const chainNameToChainIdTokensData = (chain: string | undefined) => {
       return 137;
     case 'Base':
       return 8453;
-    case 'XDAI':
-      return 100;
     case 'BNB Smart Chain (BEP20)':
       return 56;
     case 'Optimistic':
@@ -268,7 +260,13 @@ export const chainNameToChainIdTokensData = (chain: string | undefined) => {
     case undefined:
       return 0;
     default:
-      return 0;
+      return (
+        CompatibleChains.find(
+          (compatibleChain) => compatibleChain.chainName === chain
+        )?.chainId ||
+        getCustomChainIdByName(chain) ||
+        0
+      );
   }
 };
 
@@ -301,12 +299,6 @@ export const convertAPIResponseToTokens = (
           .map((blockchain, index) => {
             let { name, symbol } = item;
             const contract = item.contracts[index];
-
-            // Rename Wrapped tokens
-            if (name === 'XDAI' && symbol === 'XDAI') {
-              name = 'Wrapped XDAI';
-              symbol = 'WXDAI';
-            }
 
             if (
               name === 'Ethereum' &&

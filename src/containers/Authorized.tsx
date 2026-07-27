@@ -146,7 +146,9 @@ export default function Authorized({
       walletMode: 'delegatedEoa',
     } as EtherspotTransactionKitConfig;
   }, [provider, chainId, customAccount]);
-  const isExtensionSidePanelMode = getExtensionViewContext() === 'sidePanel';
+  const isExtensionPanelMode = ['popup', 'sidePanel'].includes(
+    getExtensionViewContext() ?? ''
+  );
 
   if (showAnimation) {
     return <Loading type="enter" />;
@@ -159,7 +161,7 @@ export default function Authorized({
           <BottomMenuModalProvider>
             <SelectedChainsHistoryProvider>
               <AuthContentWrapper
-                $isExtensionSidePanelMode={isExtensionSidePanelMode}
+                $isExtensionPanelMode={isExtensionPanelMode}
               >
                 <Outlet />
               </AuthContentWrapper>
@@ -186,12 +188,12 @@ export default function Authorized({
 }
 
 const AuthContentWrapper = styled.div<{
-  $isExtensionSidePanelMode?: boolean;
+  $isExtensionPanelMode?: boolean;
 }>`
   margin: 0 auto;
 
-  ${({ $isExtensionSidePanelMode }) =>
-    $isExtensionSidePanelMode &&
+  ${({ $isExtensionPanelMode }) =>
+    $isExtensionPanelMode &&
     `
       width: 100%;
       height: 100dvh;

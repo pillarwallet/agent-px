@@ -13,7 +13,6 @@ import {
   arbitrum,
   base,
   bsc,
-  gnosis,
   mainnet,
   optimism,
   polygon,
@@ -21,17 +20,13 @@ import {
 
 // types
 import { Asset } from '../types';
-import { getBlockScan, isGnosisEnabled } from '../../../utils/blockchain';
+import { getBlockScan } from '../../../utils/blockchain';
 import type {
   WalletProviderLike,
   Eip1193LikeProvider,
 } from '../../../types/walletProvider';
 
-const allChains = [mainnet, polygon, gnosis, base, bsc, optimism, arbitrum];
-
-export const chains = allChains.filter(
-  (chain) => isGnosisEnabled || chain.id !== 100
-);
+export const chains = [mainnet, polygon, base, bsc, optimism, arbitrum];
 
 const isViemWalletClient = (provider: unknown): provider is WalletClient => {
   return Boolean(

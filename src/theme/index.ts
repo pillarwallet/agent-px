@@ -231,6 +231,16 @@ export const GlobalStyle = createGlobalStyle`
     scrollbar-width: thin;
   }
 
+  html.pillarx-extension-shell,
+  html.pillarx-extension-shell body,
+  html.pillarx-extension-shell #root {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   html.pillarx-no-page-scroll,
   html.pillarx-no-page-scroll body,
   html.pillarx-no-page-scroll #root {
@@ -262,8 +272,8 @@ export const GlobalStyle = createGlobalStyle`
   }
 
   *::-webkit-scrollbar {
-    width: 1px;
-    height: 1px;
+    width: 0.5px;
+    height: 0.5px;
   }
 
   *::-webkit-scrollbar-track {
