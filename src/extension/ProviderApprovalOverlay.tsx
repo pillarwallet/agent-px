@@ -202,6 +202,14 @@ const getTransactionExplorer = (chainId: number, transactionHash?: string) => {
   };
 };
 
+const getRequestChainName = (request: ProviderApprovalRequestView) =>
+  request.chainName ?? CHAIN_NAMES[request.chainId] ?? 'Unknown';
+
+const getRequestNativeSymbol = (request: ProviderApprovalRequestView) =>
+  request.nativeCurrencySymbol ??
+  CHAIN_NATIVE_SYMBOLS[request.chainId] ??
+  'native';
+
 const getFeePaymentOptionSubtitle = (option: FeePaymentOption) => {
   if (option.type === 'native') {
     return option.value ? `Network gas in ${option.value}` : 'Network gas';
@@ -248,14 +256,19 @@ const FeePaymentOptionIcon = ({
   );
 };
 
-const formatValue = (value: unknown, chainId: number) => {
+const formatValue = (
+  value: unknown,
+  request: ProviderApprovalRequestView
+) => {
+  const nativeSymbol = getRequestNativeSymbol(request);
+
   if (
     value === undefined ||
     value === null ||
     value === '' ||
     value === '0x0'
   ) {
-    return `0 ${CHAIN_NATIVE_SYMBOLS[chainId] ?? 'native'}`;
+    return `0 ${nativeSymbol}`;
   }
 
   try {
@@ -266,7 +279,7 @@ const formatValue = (value: unknown, chainId: number) => {
       ? formatted.replace(/\.?0+$/, '')
       : formatted;
 
-    return `${trimmed || '0'} ${CHAIN_NATIVE_SYMBOLS[chainId] ?? 'native'}`;
+    return `${trimmed || '0'} ${nativeSymbol}`;
   } catch {
     return String(value);
   }
@@ -406,7 +419,7 @@ const getApprovalSummary = (
         : 'Unlock PillarX and allow this site to view your wallet address',
       icon: <Globe2 size={22} strokeWidth={2.2} />,
       rows: [
-        { label: 'Network', value: CHAIN_NAMES[request.chainId] ?? 'Unknown' },
+        { label: 'Network', value: getRequestChainName(request) },
         {
           label: 'Account',
           value: request.account ? shortAddress(request.account) : 'Locked',
@@ -451,7 +464,7 @@ const getApprovalSummary = (
         ? [
             {
               label: 'Network',
-              value: CHAIN_NAMES[request.chainId] ?? 'Unknown',
+              value: getRequestChainName(request),
             },
             {
               label: 'From',
@@ -460,7 +473,7 @@ const getApprovalSummary = (
             { label: 'Calls', value: String(batch?.callCount ?? 0) },
             {
               label: 'Total value',
-              value: formatValue(batch?.totalValue ?? 0n, request.chainId),
+              value: formatValue(batch?.totalValue ?? 0n, request),
             },
             {
               label: 'Estimated fee',
@@ -478,11 +491,11 @@ const getApprovalSummary = (
         : [
             {
               label: 'Network',
-              value: CHAIN_NAMES[request.chainId] ?? 'Unknown',
+              value: getRequestChainName(request),
             },
             { label: 'From', value: shortAddress(tx?.from ?? request.account) },
             { label: 'To', value: shortAddress(tx?.to) },
-            { label: 'Value', value: formatValue(tx?.value, request.chainId) },
+            { label: 'Value', value: formatValue(tx?.value, request) },
             {
               label: 'Estimated fee',
               value: request.estimatedFee?.formatted ?? 'Unavailable',
@@ -506,7 +519,7 @@ const getApprovalSummary = (
       description: 'Review the structured data request',
       icon: <FileSignature size={22} strokeWidth={2.2} />,
       rows: [
-        { label: 'Network', value: CHAIN_NAMES[request.chainId] ?? 'Unknown' },
+        { label: 'Network', value: getRequestChainName(request) },
         { label: 'Account', value: shortAddress(request.account) },
         { label: 'Payload', value: getTypedDataName(request) },
         { label: 'Method', value: request.method },
@@ -520,7 +533,7 @@ const getApprovalSummary = (
     description: 'Review the message request',
     icon: <FileSignature size={22} strokeWidth={2.2} />,
     rows: [
-      { label: 'Network', value: CHAIN_NAMES[request.chainId] ?? 'Unknown' },
+      { label: 'Network', value: getRequestChainName(request) },
       { label: 'Account', value: shortAddress(request.account) },
       { label: 'Message', value: getMessagePreview(request) },
       { label: 'Method', value: request.method },
@@ -972,7 +985,7 @@ export default function ProviderApprovalOverlay({
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Network</span>
               <span style={styles.detailValue}>
-                {CHAIN_NAMES[activeRequest.chainId] ?? 'Unknown'}
+                {getRequestChainName(activeRequest)}
               </span>
             </div>
             <div style={styles.detailRow}>

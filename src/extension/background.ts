@@ -2,6 +2,7 @@ import {
   concatHex,
   createPublicClient,
   createWalletClient,
+  defineChain,
   encodeFunctionData,
   erc20Abi,
   formatEther,
@@ -75,6 +76,10 @@ import {
   GASLESS_TOKEN_APPROVAL_AMOUNT,
   getAllGaslessPaymasters,
 } from '../services/gasless';
+import {
+  CUSTOM_CHAINS_STORAGE_KEY,
+  type CustomChain,
+} from '../utils/customChains';
 
 type ExtensionInstallReason = {
   reason?: string;
@@ -260,6 +265,147 @@ const chainById: Record<number, Chain> = {
   [sepolia.id]: sepolia,
 };
 
+const isCustomChainRecord = (value: unknown): value is CustomChain => {
+  const chain = value as CustomChain;
+
+  return (
+    !!chain &&
+    Number.isInteger(chain.chainId) &&
+    chain.chainId > 0 &&
+    typeof chain.chainName === 'string' &&
+    typeof chain.rpcUrl === 'string' &&
+    Number.isInteger(chain.nativeTokenDecimals) &&
+    typeof chain.nativeTokenSymbol === 'string' &&
+    Array.isArray(chain.tokens)
+  );
+};
+
+const getProviderCustomChains = async () => {
+  const customChains = await chromeStorageGet<unknown>(
+    chromeLike?.storage?.local,
+    CUSTOM_CHAINS_STORAGE_KEY,
+    []
+  );
+
+  return Array.isArray(customChains)
+    ? customChains.filter(isCustomChainRecord)
+    : [];
+};
+
+const getProviderCustomChainById = async (chainId: number) =>
+  (await getProviderCustomChains()).find((chain) => chain.chainId === chainId);
+
+const customChainToViemChain = (customChain: CustomChain): Chain =>
+  defineChain({
+    id: customChain.chainId,
+    name: customChain.chainName,
+    nativeCurrency: {
+      name: customChain.nativeTokenSymbol,
+      symbol: customChain.nativeTokenSymbol,
+      decimals: customChain.nativeTokenDecimals,
+    },
+    rpcUrls: {
+      default: {
+        http: [customChain.rpcUrl],
+      },
+      public: {
+        http: [customChain.rpcUrl],
+      },
+    },
+    testnet: true,
+  });
+
+const setProviderCustomChains = async (customChains: CustomChain[]) =>
+  chromeStorageSet(
+    chromeLike?.storage?.local,
+    CUSTOM_CHAINS_STORAGE_KEY,
+    customChains
+  );
+
+const getFirstString = (value: unknown) =>
+  Array.isArray(value) && typeof value[0] === 'string' ? value[0] : undefined;
+
+const getWalletAddEthereumChainCustomChain = (
+  request: WalletAddEthereumChainRequest
+): CustomChain => {
+  const chainId = parseChainId(request.chainId);
+  const rpcUrl = getFirstString(request.rpcUrls);
+  const nativeCurrency = isObject(request.nativeCurrency)
+    ? request.nativeCurrency
+    : {};
+  const nativeTokenSymbol =
+    typeof nativeCurrency.symbol === 'string'
+      ? nativeCurrency.symbol.trim()
+      : '';
+  const nativeTokenDecimals =
+    typeof nativeCurrency.decimals === 'number'
+      ? nativeCurrency.decimals
+      : undefined;
+
+  if (!chainId) {
+    throw providerError(4901, 'Missing chainId for wallet add chain request.');
+  }
+
+  if (!rpcUrl) {
+    throw providerError(-32602, 'Missing rpcUrls for wallet add chain request.');
+  }
+
+  if (!nativeTokenSymbol) {
+    throw providerError(
+      -32602,
+      'Missing native currency symbol for wallet add chain request.'
+    );
+  }
+
+  if (!Number.isInteger(nativeTokenDecimals)) {
+    throw providerError(
+      -32602,
+      'Missing native currency decimals for wallet add chain request.'
+    );
+  }
+
+  const now = Date.now();
+
+  return {
+    chainId,
+    chainName:
+      typeof request.chainName === 'string' && request.chainName.trim()
+        ? request.chainName.trim()
+        : `Chain ${chainId}`,
+    createdAt: now,
+    gaslessEnabled: false,
+    nativeTokenDecimals,
+    nativeTokenSymbol,
+    rpcUrl,
+    tokens: [],
+    updatedAt: now,
+  };
+};
+
+const upsertProviderCustomChain = async (customChain: CustomChain) => {
+  const customChains = await getProviderCustomChains();
+  const existingIndex = customChains.findIndex(
+    (chain) => chain.chainId === customChain.chainId
+  );
+
+  if (existingIndex < 0) {
+    await setProviderCustomChains([...customChains, customChain]);
+    return;
+  }
+
+  await setProviderCustomChains(
+    customChains.map((chain, index) =>
+      index === existingIndex
+        ? {
+            ...customChain,
+            createdAt: chain.createdAt,
+            tokens: chain.tokens,
+          }
+        : chain
+    )
+  );
+};
+
 type ConnectedDapp = {
   origin: string;
   address: string;
@@ -286,6 +432,13 @@ type DappTransactionRequest = {
   to?: unknown;
   type?: unknown;
   value?: unknown;
+};
+
+type WalletAddEthereumChainRequest = {
+  chainId?: unknown;
+  chainName?: unknown;
+  nativeCurrency?: unknown;
+  rpcUrls?: unknown;
 };
 
 type ParsedWalletSendCallsCall = {
@@ -448,6 +601,26 @@ const getChainById = (chainId: number): Chain => {
   return chain;
 };
 
+const isProviderSupportedChainId = async (chainId: number) =>
+  supportedChainIds.has(chainId) ||
+  Boolean(await getProviderCustomChainById(chainId));
+
+const getProviderChainById = async (chainId: number): Promise<Chain> => {
+  if (supportedChainIds.has(chainId)) {
+    return getChainById(chainId);
+  }
+
+  const customChain = await getProviderCustomChainById(chainId);
+  if (customChain) {
+    return customChainToViemChain(customChain);
+  }
+
+  throw providerError(4901, `PillarX is not connected to chain ${chainId}.`);
+};
+
+const getProviderRpcUrl = async (chainId: number) =>
+  (await getProviderCustomChainById(chainId))?.rpcUrl ?? getRpcUrl(chainId);
+
 const isHex = (value: unknown): value is Hex =>
   typeof value === 'string' && /^0x[0-9a-fA-F]*$/.test(value);
 
@@ -503,8 +676,12 @@ const parseNonce = (value: unknown): number | undefined => {
   return nonce;
 };
 
-const formatNativeFee = (wei: bigint, chainId: number) => {
-  const symbol = chainNativeSymbols[chainId] ?? 'native';
+const formatNativeFee = (
+  wei: bigint,
+  chainId: number,
+  nativeSymbol = chainNativeSymbols[chainId] ?? 'native'
+) => {
+  const symbol = nativeSymbol;
   const formatted = formatEther(wei);
   const [integer, decimal = ''] = formatted.split('.');
 
@@ -756,7 +933,7 @@ const getSelectedChainId = async (origin: string) => {
   const selectedChains = await getSelectedChains();
   const selectedChainId = selectedChains[origin] ?? defaultChainId;
 
-  if (supportedChainIds.has(selectedChainId)) {
+  if (await isProviderSupportedChainId(selectedChainId)) {
     return selectedChainId;
   }
 
@@ -764,7 +941,7 @@ const getSelectedChainId = async (origin: string) => {
 };
 
 const setSelectedChainId = async (origin: string, chainId: number) => {
-  if (!supportedChainIds.has(chainId)) {
+  if (!(await isProviderSupportedChainId(chainId))) {
     throw providerError(4901, `PillarX is not connected to chain ${chainId}.`);
   }
 
@@ -1069,12 +1246,15 @@ const getDappFeePaymentOptions = async ({
   account: UnlockedAccount;
   chainId: number;
 }): Promise<ProviderApprovalFeePaymentOption[]> => {
+  const customChain = await getProviderCustomChainById(chainId);
   const nativeOption: ProviderApprovalFeePaymentOption = {
     id: NATIVE_FEE_OPTION_ID,
     title: 'Native Token',
     type: 'native',
-    value: chainNativeSymbols[chainId],
+    value: customChain?.nativeTokenSymbol ?? chainNativeSymbols[chainId],
   };
+
+  if (customChain) return [nativeOption];
 
   try {
     const tokens = await fetchWalletPortfolioTokens(account.address);
@@ -1256,7 +1436,13 @@ const signTypedDataForDapp = async ({
   typedData: TypedDataDefinition;
 }) => {
   const rawTypedDataSignature = () => account.signTypedData(typedData);
-  const chain = getChainById(chainId);
+  const customChain = await getProviderCustomChainById(chainId);
+
+  if (customChain) {
+    return rawTypedDataSignature();
+  }
+
+  const chain = await getProviderChainById(chainId);
   const publicClient = createPublicClient({
     chain,
     transport: http(getRpcUrl(chain.id)),
@@ -1319,7 +1505,7 @@ const buildDappTransactionRequest = async ({
   chainId: number;
   transaction: DappTransactionRequest;
 }) => {
-  const chain = getChainById(chainId);
+  const chain = await getProviderChainById(chainId);
   const requestedChainId = parseChainId(transaction.chainId);
 
   if (requestedChainId && requestedChainId !== chainId) {
@@ -1338,56 +1524,89 @@ const buildDappTransactionRequest = async ({
     );
   }
 
-  const authorization = await getDelegationAuthorization({
-    account,
-    chain,
-  });
+  const customChain = await getProviderCustomChainById(chainId);
+  const authorization = customChain
+    ? undefined
+    : await getDelegationAuthorization({
+        account,
+        chain,
+      });
   const gas = parseQuantity(transaction.gas ?? transaction.gasLimit);
   const innerCall = {
     to: getAddress(transaction.to),
     value: parseQuantity(transaction.value) ?? BigInt(0),
     data: normalizeHexData(transaction.data),
   };
+  const transactionOverrides = {
+    ...(gas !== undefined ? { gas } : {}),
+    ...(transaction.gasPrice !== undefined
+      ? { gasPrice: parseQuantity(transaction.gasPrice) }
+      : {}),
+    ...(transaction.maxFeePerGas !== undefined
+      ? { maxFeePerGas: parseQuantity(transaction.maxFeePerGas) }
+      : {}),
+    ...(transaction.maxPriorityFeePerGas !== undefined
+      ? {
+          maxPriorityFeePerGas: parseQuantity(transaction.maxPriorityFeePerGas),
+        }
+      : {}),
+    ...(transaction.nonce !== undefined
+      ? { nonce: parseNonce(transaction.nonce) }
+      : {}),
+  };
   const publicClient = createPublicClient({
     chain,
-    transport: http(getRpcUrl(chainId)),
+    transport: http(customChain?.rpcUrl ?? getRpcUrl(chainId)),
   });
   const walletClient = createWalletClient({
     account,
     chain,
-    transport: http(getRpcUrl(chainId)),
+    transport: http(customChain?.rpcUrl ?? getRpcUrl(chainId)),
   });
 
   return {
     chainId,
-    request: {
-      account,
-      chain,
-      to: account.address,
-      value: BigInt(0),
-      data: encodePillarExecuteCall(innerCall),
-      ...(authorization ? { authorizationList: [authorization] } : {}),
-      ...(gas !== undefined ? { gas } : {}),
-      ...(transaction.gasPrice !== undefined
-        ? { gasPrice: parseQuantity(transaction.gasPrice) }
-        : {}),
-      ...(transaction.maxFeePerGas !== undefined
-        ? { maxFeePerGas: parseQuantity(transaction.maxFeePerGas) }
-        : {}),
-      ...(transaction.maxPriorityFeePerGas !== undefined
-        ? {
-            maxPriorityFeePerGas: parseQuantity(
-              transaction.maxPriorityFeePerGas
-            ),
-          }
-        : {}),
-      ...(transaction.nonce !== undefined
-        ? { nonce: parseNonce(transaction.nonce) }
-        : {}),
-    },
+    request: customChain
+      ? {
+          account,
+          chain,
+          to: innerCall.to,
+          value: innerCall.value,
+          data: innerCall.data,
+          ...transactionOverrides,
+        }
+      : {
+          account,
+          chain,
+          to: account.address,
+          value: BigInt(0),
+          data: encodePillarExecuteCall(innerCall),
+          ...(authorization ? { authorizationList: [authorization] } : {}),
+          ...transactionOverrides,
+        },
     publicClient,
     walletClient,
   };
+};
+
+const getEffectiveDappTransactionChainId = async ({
+  fallbackChainId,
+  transaction,
+}: {
+  fallbackChainId: number;
+  transaction: DappTransactionRequest;
+}) => {
+  const requestedChainId = parseChainId(transaction.chainId);
+  if (!requestedChainId) return fallbackChainId;
+
+  if (!(await isProviderSupportedChainId(requestedChainId))) {
+    throw providerError(
+      4901,
+      `PillarX is not connected to chain ${requestedChainId}.`
+    );
+  }
+
+  return requestedChainId;
 };
 
 const buildDappBatchTransactionRequest = async ({
@@ -1399,19 +1618,30 @@ const buildDappBatchTransactionRequest = async ({
   calls: ParsedWalletSendCallsCall[];
   chainId: number;
 }) => {
-  const chain = getChainById(chainId);
-  const authorization = await getDelegationAuthorization({
-    account,
-    chain,
-  });
+  const chain = await getProviderChainById(chainId);
+  const customChain = await getProviderCustomChainById(chainId);
+
+  if (customChain && calls.length !== 1) {
+    throw providerError(
+      4200,
+      'PillarX only supports a single wallet_sendCalls call on custom chains.'
+    );
+  }
+
+  const authorization = customChain
+    ? undefined
+    : await getDelegationAuthorization({
+        account,
+        chain,
+      });
   const publicClient = createPublicClient({
     chain,
-    transport: http(getRpcUrl(chainId)),
+    transport: http(customChain?.rpcUrl ?? getRpcUrl(chainId)),
   });
   const walletClient = createWalletClient({
     account,
     chain,
-    transport: http(getRpcUrl(chainId)),
+    transport: http(customChain?.rpcUrl ?? getRpcUrl(chainId)),
   });
   const pillarCalls = calls.map(({ data, to, value }) => ({
     data,
@@ -1421,17 +1651,25 @@ const buildDappBatchTransactionRequest = async ({
 
   return {
     chainId,
-    request: {
-      account,
-      chain,
-      to: account.address,
-      value: BigInt(0),
-      data:
-        pillarCalls.length === 1
-          ? encodePillarExecuteCall(pillarCalls[0])
-          : encodePillarExecuteBatch(pillarCalls),
-      ...(authorization ? { authorizationList: [authorization] } : {}),
-    },
+    request: customChain
+      ? {
+          account,
+          chain,
+          to: pillarCalls[0].to,
+          value: pillarCalls[0].value,
+          data: pillarCalls[0].data,
+        }
+      : {
+          account,
+          chain,
+          to: account.address,
+          value: BigInt(0),
+          data:
+            pillarCalls.length === 1
+              ? encodePillarExecuteCall(pillarCalls[0])
+              : encodePillarExecuteBatch(pillarCalls),
+          ...(authorization ? { authorizationList: [authorization] } : {}),
+        },
     publicClient,
     walletClient,
   };
@@ -1468,7 +1706,11 @@ const getDappTransactionFeeEstimate = async ({
 
   return {
     feePerGas: feePerGas.toString(),
-    formatted: formatNativeFee(totalWei, chainId),
+    formatted: formatNativeFee(
+      totalWei,
+      chainId,
+      request.chain?.nativeCurrency.symbol
+    ),
     gas: gas.toString(),
     totalWei: totalWei.toString(),
   };
@@ -2047,7 +2289,7 @@ const requestRpc = async ({
   method: string;
   params: ProviderRequestArguments['params'];
 }) => {
-  const response = await fetch(getRpcUrl(chainId), {
+  const response = await fetch(await getProviderRpcUrl(chainId), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2120,12 +2362,13 @@ const getWalletCallsStatus = async ({
     return baseStatus;
   }
 
-  const publicClient = createPublicClient({
-    chain: getChainById(storedStatus.chainId),
-    transport: http(getRpcUrl(storedStatus.chainId)),
-  });
-
   try {
+    const chain = await getProviderChainById(storedStatus.chainId);
+    const rpcUrl = await getProviderRpcUrl(storedStatus.chainId);
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(rpcUrl),
+    });
     const receipt = await publicClient.getTransactionReceipt({
       hash: storedStatus.transactionHash,
     });
@@ -2193,20 +2436,19 @@ const getWalletCapabilities = async ({
     ? chainIds.map(parseChainId).filter((id): id is number => Boolean(id))
     : [await getSelectedChainId(origin)];
 
-  return requestedChainIds.reduce<
-    Record<string, { atomic: { status: string } }>
-  >((capabilities, requestedChainId) => {
-    if (!supportedChainIds.has(requestedChainId)) return capabilities;
+  const capabilities: Record<string, { atomic: { status: string } }> = {};
 
-    return {
-      ...capabilities,
-      [numberToChainHex(requestedChainId)]: {
-        atomic: {
-          status: 'supported',
-        },
+  for (const requestedChainId of requestedChainIds) {
+    if (!(await isProviderSupportedChainId(requestedChainId))) continue;
+
+    capabilities[numberToChainHex(requestedChainId)] = {
+      atomic: {
+        status: 'supported',
       },
     };
-  }, {});
+  }
+
+  return capabilities;
 };
 
 const unsupportedMethods = new Set<string>();
@@ -2454,8 +2696,12 @@ const requestProviderApproval = async ({
   message: ProviderRuntimeRequestMessage;
   method: ProviderApprovalKind;
   simulation?: TransactionSimulationView;
-}) =>
-  new Promise<{ feePayment?: ProviderApprovalFeePayment } | undefined>(
+}) => {
+  const approvalChain = await getProviderChainById(chainId).catch(
+    () => undefined
+  );
+
+  return new Promise<{ feePayment?: ProviderApprovalFeePayment } | undefined>(
     (resolve, reject) => {
       const timeoutId = setTimeout(
         () => {
@@ -2475,11 +2721,13 @@ const requestProviderApproval = async ({
           id: message.id,
           account: account?.address ?? accountAddress,
           chainId,
+          chainName: approvalChain?.name,
           createdAt: Date.now(),
           estimatedFee,
           feePaymentOptions,
           favicon: message.favicon,
           method,
+          nativeCurrencySymbol: approvalChain?.nativeCurrency.symbol,
           origin: message.origin,
           params: message.args.params,
           simulation,
@@ -2502,6 +2750,7 @@ const requestProviderApproval = async ({
       });
     }
   );
+};
 
 const getPendingProviderApprovalViews = () =>
   Array.from(pendingProviderApprovals.values())
@@ -2865,12 +3114,25 @@ const handleProviderRequest = async (
     }
 
     case 'wallet_addEthereumChain': {
-      const requestedChainId = parseChainId(requestFirstParam(params)?.chainId);
+      const firstParam = requestFirstParam(params) as
+        | WalletAddEthereumChainRequest
+        | undefined;
+      const requestedChainId = parseChainId(firstParam?.chainId);
 
-      if (!requestedChainId || !supportedChainIds.has(requestedChainId)) {
+      if (!requestedChainId) {
         throw providerError(
           4901,
-          'PillarX does not support adding this chain yet.'
+          'Missing chainId for wallet add chain request.'
+        );
+      }
+
+      if (!supportedChainIds.has(requestedChainId)) {
+        if (!firstParam) {
+          throw providerError(-32602, 'Missing wallet add chain request.');
+        }
+
+        await upsertProviderCustomChain(
+          getWalletAddEthereumChainCustomChain(firstParam)
         );
       }
 
@@ -2958,9 +3220,13 @@ const handleProviderRequest = async (
         throw providerError(-32602, 'Missing transaction request.');
       }
 
+      const effectiveChainId = await getEffectiveDappTransactionChainId({
+        fallbackChainId: chainId,
+        transaction,
+      });
       const preparedTransaction = await buildDappTransactionRequest({
         account,
-        chainId,
+        chainId: effectiveChainId,
         transaction,
       });
       const estimatedFee = await getDappTransactionFeeEstimate(
@@ -2968,7 +3234,7 @@ const handleProviderRequest = async (
       ).catch(() => undefined);
       const simulation = await getDappTransactionSimulation({
         account,
-        chainId,
+        chainId: effectiveChainId,
         estimatedFee,
         transaction,
       }).catch((error) =>
@@ -2985,7 +3251,7 @@ const handleProviderRequest = async (
 
       await requestProviderApproval({
         account,
-        chainId,
+        chainId: effectiveChainId,
         estimatedFee,
         message,
         method,
@@ -3007,9 +3273,13 @@ const handleProviderRequest = async (
         throw providerError(-32602, 'Missing transaction request.');
       }
 
+      const effectiveChainId = await getEffectiveDappTransactionChainId({
+        fallbackChainId: chainId,
+        transaction,
+      });
       const preparedTransaction = await buildDappTransactionRequest({
         account,
-        chainId,
+        chainId: effectiveChainId,
         transaction,
       });
       const estimatedFee = await getDappTransactionFeeEstimate(
@@ -3017,7 +3287,7 @@ const handleProviderRequest = async (
       ).catch(() => undefined);
       const simulation = await getDappTransactionSimulation({
         account,
-        chainId,
+        chainId: effectiveChainId,
         estimatedFee,
         transaction,
       }).catch((error) =>
@@ -3033,12 +3303,12 @@ const handleProviderRequest = async (
       );
       const feePaymentOptions = await getDappFeePaymentOptions({
         account,
-        chainId,
+        chainId: effectiveChainId,
       });
 
       const approvalResponse = await requestProviderApproval({
         account,
-        chainId,
+        chainId: effectiveChainId,
         estimatedFee,
         feePaymentOptions,
         message,
@@ -3052,7 +3322,7 @@ const handleProviderRequest = async (
         )
           ? await sendGaslessDappTransaction({
               account,
-              chainId,
+              chainId: effectiveChainId,
               feePayment: approvalResponse.feePayment,
               transaction,
             })
@@ -3101,7 +3371,7 @@ const handleProviderRequest = async (
         account.address
       );
 
-      if (!supportedChainIds.has(sendCallsRequest.chainId)) {
+      if (!(await isProviderSupportedChainId(sendCallsRequest.chainId))) {
         throw providerError(
           4901,
           `PillarX is not connected to chain ${sendCallsRequest.chainId}.`
