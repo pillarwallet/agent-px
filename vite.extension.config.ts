@@ -27,7 +27,6 @@ const extensionManifest = {
   },
   action: {
     default_title: 'PillarX',
-    default_popup: 'extension/popup.html',
     default_icon: {
       16: 'icons/icon16.png',
       32: 'icons/icon32.png',

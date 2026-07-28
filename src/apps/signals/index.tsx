@@ -7,9 +7,14 @@ import {
   researchTokens,
 } from './api/mcpClient';
 import ChainSelect from './components/ChainSelect';
+import SignalsDisclaimer from './components/SignalsDisclaimer';
 import SignalsPromptOverlay from './components/SignalsPromptOverlay';
 import TokenSignalsTable from './components/TokenSignalsTable';
 import type { TokenSignal } from './types';
+import {
+  readSignalsDisclaimerAccepted,
+  writeSignalsDisclaimerAccepted,
+} from './utils/disclaimer';
 import { parseTokensFromMcpResponse } from './utils/mcpParsing';
 import RefreshIcon from '../pillarx-app/images/refresh-button.png';
 import { defaultTheme } from '../../theme';
@@ -20,6 +25,9 @@ const PROGRESS_TICK_MS = 1_000;
 const SignalsApp = () => {
   const [tokens, setTokens] = useState<TokenSignal[]>([]);
   const [selectedChain] = useState('base');
+  const [hasAcceptedDisclaimer, setHasAcceptedDisclaimer] = useState(
+    readSignalsDisclaimerAccepted
+  );
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isPromptSubmitting, setIsPromptSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -124,7 +132,15 @@ const SignalsApp = () => {
     setIsPromptOpen(false);
   }, [loadSignals, prompt]);
 
+  const acceptDisclaimer = useCallback(() => {
+    writeSignalsDisclaimerAccepted();
+    setHasAcceptedDisclaimer(true);
+    setRefreshCycleStartedAt(Date.now());
+  }, []);
+
   useEffect(() => {
+    if (!hasAcceptedDisclaimer) return;
+
     isMountedRef.current = true;
     const controller = new AbortController();
 
@@ -138,7 +154,7 @@ const SignalsApp = () => {
       controller.abort();
       window.clearInterval(refreshIntervalId);
     };
-  }, [loadSignals]);
+  }, [hasAcceptedDisclaimer, loadSignals]);
 
   useEffect(() => {
     const updateProgress = () => {
@@ -178,127 +194,133 @@ const SignalsApp = () => {
         width: '100%',
       }}
     >
-      <header
-        style={{
-          alignItems: 'center',
-          display: 'flex',
-          gap: 12,
-          justifyContent: 'space-between',
-          minWidth: 0,
-        }}
-      >
-        <ChainSelect value={selectedChain} />
-        <div
-          style={{
-            display: 'flex',
-            flexShrink: 0,
-            gap: 8,
-          }}
-        >
-          <button
-            aria-label="Open signals prompt"
-            onClick={() => {
-              setIsPromptOpen(true);
-            }}
+      {hasAcceptedDisclaimer ? (
+        <>
+          <header
             style={{
               alignItems: 'center',
-              appearance: 'none',
-              background: '#050509',
-              border: '2px solid #121116',
-              borderBottomWidth: 4,
-              borderRadius: 10,
-              color: '#cfc9df',
-              cursor: 'pointer',
               display: 'flex',
-              height: 42,
-              justifyContent: 'center',
-              padding: 0,
-              width: 44,
-            }}
-            type="button"
-          >
-            <MessageCircle aria-hidden size={21} strokeWidth={2.4} />
-          </button>
-          <div
-            style={{
-              background: `conic-gradient(from -90deg, #8b5cf6 ${refreshProgressDegrees}deg, #30283d ${refreshProgressDegrees}deg 360deg)`,
-              borderRadius: 12,
-              display: 'flex',
-              flexShrink: 0,
-              padding: 2,
+              gap: 12,
+              justifyContent: 'space-between',
+              minWidth: 0,
             }}
           >
-            <button
-              aria-label="Refresh signals"
-              disabled={isRefreshing}
-              onClick={() => {
-                loadSignals({ showBusyMessage: true });
-              }}
+            <ChainSelect value={selectedChain} />
+            <div
               style={{
-                alignItems: 'center',
-                appearance: 'none',
-                background: '#050509',
-                border: '2px solid #121116',
-                borderBottomWidth: 4,
-                borderRadius: 10,
-                cursor: isRefreshing ? 'not-allowed' : 'pointer',
                 display: 'flex',
-                height: 38,
-                justifyContent: 'center',
-                opacity: 1,
-                padding: 0,
-                width: 40,
+                flexShrink: 0,
+                gap: 8,
               }}
-              type="button"
             >
-              <img
-                alt="refresh-button"
-                src={RefreshIcon}
-                style={{
-                  height: 34,
-                  opacity: isRefreshing ? 0.82 : 1,
-                  width: 36,
+              <button
+                aria-label="Open signals prompt"
+                onClick={() => {
+                  setIsPromptOpen(true);
                 }}
-              />
-            </button>
-          </div>
-        </div>
-      </header>
+                style={{
+                  alignItems: 'center',
+                  appearance: 'none',
+                  background: '#050509',
+                  border: '2px solid #121116',
+                  borderBottomWidth: 4,
+                  borderRadius: 10,
+                  color: '#cfc9df',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  height: 42,
+                  justifyContent: 'center',
+                  padding: 0,
+                  width: 44,
+                }}
+                type="button"
+              >
+                <MessageCircle aria-hidden size={21} strokeWidth={2.4} />
+              </button>
+              <div
+                style={{
+                  background: `conic-gradient(from -90deg, #8b5cf6 ${refreshProgressDegrees}deg, #30283d ${refreshProgressDegrees}deg 360deg)`,
+                  borderRadius: 12,
+                  display: 'flex',
+                  flexShrink: 0,
+                  padding: 2,
+                }}
+              >
+                <button
+                  aria-label="Refresh signals"
+                  disabled={isRefreshing}
+                  onClick={() => {
+                    loadSignals({ showBusyMessage: true });
+                  }}
+                  style={{
+                    alignItems: 'center',
+                    appearance: 'none',
+                    background: '#050509',
+                    border: '2px solid #121116',
+                    borderBottomWidth: 4,
+                    borderRadius: 10,
+                    cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    height: 38,
+                    justifyContent: 'center',
+                    opacity: 1,
+                    padding: 0,
+                    width: 40,
+                  }}
+                  type="button"
+                >
+                  <img
+                    alt="refresh-button"
+                    src={RefreshIcon}
+                    style={{
+                      height: 34,
+                      opacity: isRefreshing ? 0.82 : 1,
+                      width: 36,
+                    }}
+                  />
+                </button>
+              </div>
+            </div>
+          </header>
 
-      {message ? (
-        <div
-          style={{
-            background:
-              messageTone === 'error'
-                ? 'rgba(255, 196, 87, 0.12)'
-                : 'rgba(139, 92, 246, 0.14)',
-            border:
-              messageTone === 'error'
-                ? '1px solid rgba(255, 196, 87, 0.36)'
-                : '1px solid rgba(139, 92, 246, 0.36)',
-            borderRadius: 10,
-            color: messageTone === 'error' ? '#ffd28a' : '#d8ccff',
-            fontSize: 12,
-            fontWeight: 500,
-            lineHeight: 1.35,
-            padding: '9px 10px',
-          }}
-        >
-          {message}
-        </div>
-      ) : null}
+          {message ? (
+            <div
+              style={{
+                background:
+                  messageTone === 'error'
+                    ? 'rgba(255, 196, 87, 0.12)'
+                    : 'rgba(139, 92, 246, 0.14)',
+                border:
+                  messageTone === 'error'
+                    ? '1px solid rgba(255, 196, 87, 0.36)'
+                    : '1px solid rgba(139, 92, 246, 0.36)',
+                borderRadius: 10,
+                color: messageTone === 'error' ? '#ffd28a' : '#d8ccff',
+                fontSize: 12,
+                fontWeight: 500,
+                lineHeight: 1.35,
+                padding: '9px 10px',
+              }}
+            >
+              {message}
+            </div>
+          ) : null}
 
-      <TokenSignalsTable tokens={tokens} />
+          <TokenSignalsTable tokens={tokens} />
 
-      {isPromptOpen ? (
-        <SignalsPromptOverlay
-          isSubmitting={isPromptSubmitting}
-          onClose={() => setIsPromptOpen(false)}
-          onPromptChange={setPrompt}
-          onSubmit={submitPrompt}
-          prompt={prompt}
-        />
-      ) : null}
+          {isPromptOpen ? (
+            <SignalsPromptOverlay
+              isSubmitting={isPromptSubmitting}
+              onClose={() => setIsPromptOpen(false)}
+              onPromptChange={setPrompt}
+              onSubmit={submitPrompt}
+              prompt={prompt}
+            />
+          ) : null}
+        </>
+      ) : (
+        <SignalsDisclaimer onAccept={acceptDisclaimer} />
+      )}
     </main>
   );
 };
