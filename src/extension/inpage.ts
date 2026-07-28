@@ -127,7 +127,10 @@ class PillarXInjectedProvider {
           this.emit('accountsChanged', message.result);
         }
 
-        if (args.method === 'wallet_switchEthereumChain') {
+        if (
+          args.method === 'wallet_switchEthereumChain' ||
+          args.method === 'wallet_addEthereumChain'
+        ) {
           const firstParam = Array.isArray(args.params)
             ? args.params[0]
             : undefined;

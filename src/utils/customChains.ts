@@ -6,7 +6,7 @@ import {
   parseAbi,
 } from 'viem';
 
-const CUSTOM_CHAINS_STORAGE_KEY = 'customChains';
+export const CUSTOM_CHAINS_STORAGE_KEY = 'customChains';
 export const CUSTOM_CHAINS_UPDATED_EVENT = 'pillarx:customChainsUpdated';
 export const CUSTOM_NATIVE_TOKEN_ADDRESS =
   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
@@ -45,6 +45,10 @@ type JsonRpcResponse<T> = {
   };
 };
 
+type ChromeStorageAreaLike = {
+  set?: (items: Record<string, unknown>, callback?: () => void) => void;
+};
+
 const getStorage = () => {
   if (typeof window === 'undefined') return undefined;
 
@@ -52,6 +56,19 @@ const getStorage = () => {
     return window.localStorage;
   } catch {
     return undefined;
+  }
+};
+
+const getChromeLocalStorage = () =>
+  (globalThis as {
+    chrome?: { storage?: { local?: ChromeStorageAreaLike } };
+  }).chrome?.storage?.local;
+
+const syncCustomChainsToChromeStorage = (chains: CustomChain[]) => {
+  try {
+    getChromeLocalStorage()?.set?.({ [CUSTOM_CHAINS_STORAGE_KEY]: chains });
+  } catch {
+    // Best-effort mirror for extension background access.
   }
 };
 
@@ -109,10 +126,14 @@ export const readCustomChains = (): CustomChain[] => {
     const parsedValue = JSON.parse(rawValue);
     if (!Array.isArray(parsedValue)) return [];
 
-    return parsedValue.filter(isCustomChain).map((chain) => ({
+    const customChains = parsedValue.filter(isCustomChain).map((chain) => ({
       ...chain,
       nativeTokenSymbol: normalizeNativeTokenSymbol(chain.nativeTokenSymbol),
     }));
+
+    syncCustomChainsToChromeStorage(customChains);
+
+    return customChains;
   } catch {
     storage.removeItem(CUSTOM_CHAINS_STORAGE_KEY);
     return [];
@@ -124,6 +145,7 @@ export const writeCustomChains = (chains: CustomChain[]) => {
   if (!storage) return;
 
   storage.setItem(CUSTOM_CHAINS_STORAGE_KEY, JSON.stringify(chains));
+  syncCustomChainsToChromeStorage(chains);
 
   window.dispatchEvent(new Event(CUSTOM_CHAINS_UPDATED_EVENT));
 };

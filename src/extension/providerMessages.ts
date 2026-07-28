@@ -122,6 +122,7 @@ export type ProviderApprovalRequestView = {
   id: string;
   account?: string;
   chainId: number;
+  chainName?: string;
   createdAt: number;
   estimatedFee?: {
     formatted: string;
@@ -132,6 +133,7 @@ export type ProviderApprovalRequestView = {
   feePaymentOptions?: ProviderApprovalFeePaymentOption[];
   favicon?: string;
   method: ProviderApprovalKind;
+  nativeCurrencySymbol?: string;
   origin: string;
   params?: ProviderRequestArguments['params'];
   simulation?: {
