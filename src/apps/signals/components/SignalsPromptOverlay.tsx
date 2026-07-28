@@ -1,6 +1,8 @@
 import { SendHorizontal, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { defaultTheme } from '../../../theme';
+
 type SignalsPromptOverlayProps = {
   isSubmitting: boolean;
   onClose: () => void;
@@ -88,6 +90,7 @@ const SignalsPromptOverlay = ({
         color: '#ffffff',
         display: 'flex',
         flexDirection: 'column',
+        fontFamily: defaultTheme.font.primary.family,
         gap: 16,
         height: '100dvh',
         left: 0,
@@ -112,7 +115,7 @@ const SignalsPromptOverlay = ({
           style={{
             color: '#b8b2c5',
             fontSize: 22,
-            fontWeight: 900,
+            fontWeight: 500,
             letterSpacing: 0,
             lineHeight: 1,
             margin: 0,
@@ -160,7 +163,7 @@ const SignalsPromptOverlay = ({
           flex: 1,
           fontFamily: 'inherit',
           fontSize: 17,
-          fontWeight: 850,
+          fontWeight: 400,
           lineHeight: 1.42,
           minHeight: 0,
           outline: 'none',
@@ -188,7 +191,7 @@ const SignalsPromptOverlay = ({
           display: 'flex',
           flexShrink: 0,
           fontSize: 15,
-          fontWeight: 900,
+          fontWeight: 500,
           gap: 9,
           height: 48,
           justifyContent: 'center',

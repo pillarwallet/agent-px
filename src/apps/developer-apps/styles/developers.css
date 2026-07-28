@@ -9,22 +9,23 @@
 
 /* Custom scrollbar */
 .developers-app ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .developers-app ::-webkit-scrollbar-track {
-  background: rgba(17, 24, 39, 0.5);
-  border-radius: 4px;
+  background: transparent;
+  border-radius: 999px;
 }
 
 .developers-app ::-webkit-scrollbar-thumb {
-  background: rgba(147, 51, 234, 0.5);
-  border-radius: 4px;
+  background: transparent;
+  border-radius: 999px;
 }
 
 .developers-app ::-webkit-scrollbar-thumb:hover {
-  background: rgba(147, 51, 234, 0.7);
+  background: transparent;
 }
 
 /* Form inputs focus ring */
@@ -130,4 +131,3 @@
     display: none;
   }
 }
-

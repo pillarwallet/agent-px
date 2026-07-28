@@ -38,7 +38,7 @@ const ChainSelect = ({ value }: ChainSelectProps) => {
           cursor: 'pointer',
           display: 'inline-flex',
           fontSize: 13,
-          fontWeight: 900,
+          fontWeight: 500,
           gap: 8,
           height: 38,
           padding: '0 11px',
@@ -93,7 +93,7 @@ const ChainSelect = ({ value }: ChainSelectProps) => {
                 cursor: chain.enabled ? 'pointer' : 'not-allowed',
                 display: 'flex',
                 fontSize: 13,
-                fontWeight: 900,
+                fontWeight: 500,
                 gap: 9,
                 opacity: chain.enabled ? 1 : 0.56,
                 padding: '9px 10px',
@@ -113,7 +113,7 @@ const ChainSelect = ({ value }: ChainSelectProps) => {
                   style={{
                     color: '#8f8a9d',
                     fontSize: 10,
-                    fontWeight: 800,
+                    fontWeight: 500,
                   }}
                 >
                   Soon

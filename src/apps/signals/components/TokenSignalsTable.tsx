@@ -27,7 +27,7 @@ const TokenSignalsTable = ({ tokens }: TokenSignalsTableProps) => (
           borderRadius: 8,
           color: '#8f8a9d',
           fontSize: 13,
-          fontWeight: 800,
+          fontWeight: 400,
           padding: '42px 16px',
           textAlign: 'center',
         }}

@@ -12,6 +12,7 @@ import TokenSignalsTable from './components/TokenSignalsTable';
 import type { TokenSignal } from './types';
 import { parseTokensFromMcpResponse } from './utils/mcpParsing';
 import RefreshIcon from '../pillarx-app/images/refresh-button.png';
+import { defaultTheme } from '../../theme';
 
 const REFRESH_INTERVAL_MS = 30_000;
 const PROGRESS_TICK_MS = 1_000;
@@ -168,6 +169,7 @@ const SignalsApp = () => {
         color: '#ffffff',
         display: 'flex',
         flexDirection: 'column',
+        fontFamily: defaultTheme.font.primary.family,
         gap: 14,
         height: 'auto',
         minHeight: 'calc(100dvh - 112px)',
@@ -251,7 +253,6 @@ const SignalsApp = () => {
             >
               <img
                 alt="refresh-button"
-                className={isRefreshing ? 'animate-spin' : undefined}
                 src={RefreshIcon}
                 style={{
                   height: 34,
@@ -278,7 +279,7 @@ const SignalsApp = () => {
             borderRadius: 10,
             color: messageTone === 'error' ? '#ffd28a' : '#d8ccff',
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 500,
             lineHeight: 1.35,
             padding: '9px 10px',
           }}

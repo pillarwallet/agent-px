@@ -64,7 +64,7 @@ const ScoreBar = ({
             color: '#918b9f',
             display: 'inline-flex',
             fontSize: 10,
-            fontWeight: 800,
+            fontWeight: 500,
             gap: 4,
           }}
         >
@@ -95,7 +95,7 @@ const ScoreBar = ({
             </button>
           ) : null}
         </span>
-        <span style={{ color, fontSize: 11, fontWeight: 900 }}>
+        <span style={{ color, fontSize: 11, fontWeight: 500 }}>
           {formatScore(score)}
         </span>
       </div>
@@ -109,7 +109,7 @@ const ScoreBar = ({
             boxShadow: '0 12px 30px rgba(0, 0, 0, 0.32)',
             color: '#d8d3e5',
             fontSize: 10,
-            fontWeight: 700,
+            fontWeight: 400,
             lineHeight: 1.35,
             padding: '8px 9px',
             position: 'absolute',

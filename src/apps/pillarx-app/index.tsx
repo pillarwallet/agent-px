@@ -250,7 +250,9 @@ const HeaderContainer = styled.div`
 `;
 
 const SearchActions = styled.div`
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   max-width: 645px;
   margin: 0 auto 20px;
@@ -261,10 +263,8 @@ const SearchActions = styled.div`
 `;
 
 const WalletSettingsButton = styled.button`
-  position: absolute;
-  top: 0;
-  right: 0;
   display: flex;
+  flex: 0 0 36px;
   width: 36px;
   height: 32px;
   align-items: center;
