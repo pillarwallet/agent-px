@@ -92,7 +92,7 @@ const TokenSignalCard = ({ token }: TokenSignalCardProps) => {
         background: '#0d0c12',
         border: '1px solid #292633',
         borderRadius: 8,
-        overflow: 'hidden',
+        overflow: 'visible',
       }}
     >
       <div
@@ -278,11 +278,15 @@ const TokenSignalCard = ({ token }: TokenSignalCardProps) => {
             color={getRiskColor(token.riskScore)}
             label="Risk"
             score={token.riskScore}
+            tooltip="Risk is scored from 0 to 10. Lower is safer; it weighs suspicious warnings, liquidity quality, pool age, volatility, and whether volume looks real."
+            tooltipAlign="left"
           />
           <ScoreBar
             color={getOpportunityColor(token.opportunityScore)}
             label="Opportunity"
             score={token.opportunityScore}
+            tooltip="Opportunity is scored from 0 to 10. Higher is stronger; it weighs real volume, liquidity, buyer activity, momentum, and how clean the setup looks."
+            tooltipAlign="right"
           />
         </div>
       </div>
