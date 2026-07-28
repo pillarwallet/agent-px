@@ -7,6 +7,12 @@ import {
   getLogoForChainId,
 } from '../../../../utils/blockchain';
 import { CustomChain, readCustomChains } from '../../../../utils/customChains';
+import {
+  DEFAULT_EXTENSION_DISPLAY_MODE,
+  ExtensionDisplayMode,
+  readExtensionDisplayMode,
+  writeExtensionDisplayMode,
+} from '../../../../utils/extensionDisplayMode';
 import CustomChainForm from './CustomChainForm';
 
 type SettingsModalProps = {
@@ -21,6 +27,9 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
     useState<CustomChain | null>(null);
   const [customChains, setCustomChains] = useState<CustomChain[]>(() =>
     readCustomChains()
+  );
+  const [displayMode, setDisplayMode] = useState<ExtensionDisplayMode>(
+    DEFAULT_EXTENSION_DISPLAY_MODE
   );
 
   useEffect(() => {
@@ -43,6 +52,20 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
       if (!hadBodyScrollLock) {
         document.body.classList.remove('pillarx-no-page-scroll');
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    readExtensionDisplayMode().then((mode) => {
+      if (!cancelled) {
+        setDisplayMode(mode);
+      }
+    });
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -75,6 +98,14 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
     window.setTimeout(onClose, 160);
   };
 
+  const handleDisplayModeChange = (mode: ExtensionDisplayMode) => {
+    setDisplayMode(mode);
+    writeExtensionDisplayMode(mode).catch((error) => {
+      console.error('Failed to save extension display mode', error);
+      setDisplayMode(DEFAULT_EXTENSION_DISPLAY_MODE);
+    });
+  };
+
   return (
     <Overlay $isClosing={isClosing} ref={overlayRef}>
       <Content>
@@ -97,6 +128,26 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
           />
         ) : (
           <>
+            <SectionGroup>
+              <DisplayModeRow>
+                <DisplayModeLabel>Side Panel</DisplayModeLabel>
+                <ModeSwitch
+                  type="button"
+                  role="switch"
+                  aria-checked={displayMode === 'sidePanel'}
+                  aria-label="Open wallet in side panel"
+                  $active={displayMode === 'sidePanel'}
+                  onClick={() =>
+                    handleDisplayModeChange(
+                      displayMode === 'sidePanel' ? 'popup' : 'sidePanel'
+                    )
+                  }
+                >
+                  <ModeSwitchKnob $active={displayMode === 'sidePanel'} />
+                </ModeSwitch>
+              </DisplayModeRow>
+            </SectionGroup>
+
             <SectionTitle>Supported chains</SectionTitle>
             <ChainList>
               {allCompatibleChains.map((chain) => (
@@ -240,6 +291,57 @@ const SectionTitle = styled.h2`
   font-size: 16px;
   font-weight: 500;
   line-height: 1.2;
+`;
+
+const SectionGroup = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const DisplayModeRow = styled.div`
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  border: 2px solid #292533;
+  border-radius: 14px;
+  background: #0d0b12;
+  padding: 12px 14px;
+`;
+
+const DisplayModeLabel = styled.span`
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
+`;
+
+const ModeSwitch = styled.button<{ $active: boolean }>`
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: ${({ $active }) => ($active ? '#6d55d8' : '#292533')};
+  cursor: pointer;
+  padding: 3px;
+  transition: background 160ms ease;
+
+  &:hover {
+    background: ${({ $active }) => ($active ? '#7d63f0' : '#342f40')};
+  }
+`;
+
+const ModeSwitchKnob = styled.span<{ $active: boolean }>`
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 28%);
+  transform: translateX(${({ $active }) => ($active ? '22px' : '0')});
+  transition: transform 160ms ease;
 `;
 
 const ChainList = styled.div`

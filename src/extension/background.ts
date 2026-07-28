@@ -80,6 +80,12 @@ import {
   CUSTOM_CHAINS_STORAGE_KEY,
   type CustomChain,
 } from '../utils/customChains';
+import {
+  DEFAULT_EXTENSION_DISPLAY_MODE,
+  EXTENSION_DISPLAY_MODE_STORAGE_KEY,
+  type ExtensionDisplayMode,
+  readExtensionDisplayMode,
+} from '../utils/extensionDisplayMode';
 
 type ExtensionInstallReason = {
   reason?: string;
@@ -150,7 +156,14 @@ type ChromeWindowUpdateOptions = {
 
 type ChromeLike = {
   action?: {
+    onClicked?: {
+      addListener: (listener: () => void) => void;
+    };
     openPopup?: (options?: { windowId?: number }) => Promise<void>;
+    setPopup?: (
+      options: { popup: string },
+      callback?: () => void
+    ) => void | Promise<void>;
   };
   offscreen?: {
     createDocument?: (parameters: {
@@ -163,6 +176,10 @@ type ChromeLike = {
   runtime?: ChromeRuntimeLike;
   sidePanel?: {
     open?: (options: { windowId: number }) => Promise<void>;
+    setPanelBehavior?: (
+      behavior: { openPanelOnActionClick: boolean },
+      callback?: () => void
+    ) => void | Promise<void>;
   };
   windows?: {
     create?: (
@@ -181,6 +198,14 @@ type ChromeLike = {
   };
   storage?: {
     local?: ChromeStorageAreaLike;
+    onChanged?: {
+      addListener: (
+        listener: (
+          changes: Record<string, { newValue?: unknown; oldValue?: unknown }>,
+          areaName: string
+        ) => void
+      ) => void;
+    };
     session?: ChromeStorageAreaLike;
   };
 };
@@ -193,6 +218,7 @@ const LEGACY_UNLOCKED_PRIVATE_KEY_SESSION_KEY =
   'PILLARX_LOCAL_PRIVATE_KEY_UNLOCKED_SESSION_V1';
 const KEYRING_HOST_DOCUMENT_PATH = 'extension/keyring.html';
 const OPEN_SIDE_PANEL_MESSAGE_TYPE = 'PILLARX_OPEN_SIDE_PANEL';
+const POPUP_PAGE_PATH = 'extension/popup.html';
 const keepAlivePorts = new Set<ChromePortLike>();
 let keyringHostCreationPromise: Promise<void> | undefined;
 
@@ -2558,11 +2584,90 @@ async function openSidePanel() {
   await chromeLike.sidePanel.open({ windowId });
 }
 
+const callChromeVoidApi = (
+  run: (callback: () => void) => void | Promise<void>
+) =>
+  new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    try {
+      const result = run(finish);
+
+      if (result && typeof (result as Promise<void>).then === 'function') {
+        (result as Promise<void>).then(finish).catch(finish);
+      }
+    } catch {
+      finish();
+    }
+  });
+
+const setActionPopup = (popup: string) => {
+  if (!chromeLike?.action?.setPopup) {
+    return Promise.resolve();
+  }
+
+  return callChromeVoidApi((callback) =>
+    chromeLike.action?.setPopup?.({ popup }, callback)
+  );
+};
+
+const setSidePanelActionBehavior = (openPanelOnActionClick: boolean) => {
+  if (!chromeLike?.sidePanel?.setPanelBehavior) {
+    return Promise.resolve();
+  }
+
+  return callChromeVoidApi((callback) =>
+    chromeLike.sidePanel?.setPanelBehavior?.(
+      { openPanelOnActionClick },
+      callback
+    )
+  );
+};
+
+const applyExtensionDisplayMode = async (mode: ExtensionDisplayMode) => {
+  if (mode === 'sidePanel') {
+    await setActionPopup('');
+    await setSidePanelActionBehavior(true);
+    return;
+  }
+
+  await setSidePanelActionBehavior(false);
+  await setActionPopup(POPUP_PAGE_PATH);
+};
+
+const getExtensionDisplayMode = async () =>
+  readExtensionDisplayMode().catch(() => DEFAULT_EXTENSION_DISPLAY_MODE);
+
+void getExtensionDisplayMode().then(applyExtensionDisplayMode);
+
+chromeLike?.storage?.onChanged?.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+
+  const nextMode = changes[EXTENSION_DISPLAY_MODE_STORAGE_KEY]?.newValue;
+
+  if (nextMode !== 'popup' && nextMode !== 'sidePanel') return;
+
+  void applyExtensionDisplayMode(nextMode);
+});
+
 async function openWalletSurface() {
   const windowId = await getLastFocusedWindowId();
+  const displayMode = await getExtensionDisplayMode();
+
+  if (displayMode === 'sidePanel' && chromeLike?.sidePanel?.open) {
+    await applyExtensionDisplayMode('sidePanel');
+    await chromeLike.sidePanel.open({ windowId });
+    return;
+  }
 
   if (chromeLike?.action?.openPopup) {
     try {
+      await applyExtensionDisplayMode('popup');
       await chromeLike.action.openPopup({ windowId });
       return;
     } catch {
@@ -2577,6 +2682,12 @@ async function openWalletSurface() {
 
   throw new Error('No PillarX wallet surface is available.');
 }
+
+chromeLike?.action?.onClicked?.addListener(() => {
+  void openWalletSurface().catch((error) => {
+    console.error('Failed to open PillarX wallet surface', error);
+  });
+});
 
 const createChromeWindow = (
   options: ChromeWindowCreateOptions
