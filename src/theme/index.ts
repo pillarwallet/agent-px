@@ -227,8 +227,8 @@ export const animation = {
 
 export const GlobalStyle = createGlobalStyle`
   html {
-    scrollbar-color: rgba(255, 255, 255, 0.72) transparent;
-    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    scrollbar-width: none;
   }
 
   html.pillarx-extension-shell,
@@ -267,13 +267,14 @@ export const GlobalStyle = createGlobalStyle`
   }
 
   * {
-    scrollbar-color: rgba(255, 255, 255, 0.72) transparent;
-    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    scrollbar-width: none;
   }
 
   *::-webkit-scrollbar {
-    width: 0.5px;
-    height: 0.5px;
+    display: none;
+    width: 0;
+    height: 0;
   }
 
   *::-webkit-scrollbar-track {
@@ -281,7 +282,7 @@ export const GlobalStyle = createGlobalStyle`
   }
 
   *::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.72);
+    background-color: transparent;
     border-radius: 999px;
   }
 

@@ -1,5 +1,5 @@
-import { Add, CloseCircle } from 'iconsax-react';
-import { useEffect, useState } from 'react';
+import { Add } from 'iconsax-react';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -14,8 +14,11 @@ type SettingsModalProps = {
 };
 
 const SettingsModal = ({ onClose }: SettingsModalProps) => {
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [isAddingCustomChain, setIsAddingCustomChain] = useState(false);
+  const [editingCustomChain, setEditingCustomChain] =
+    useState<CustomChain | null>(null);
   const [customChains, setCustomChains] = useState<CustomChain[]>(() =>
     readCustomChains()
   );
@@ -43,13 +46,28 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isAddingCustomChain && !editingCustomChain) return;
+
+    requestAnimationFrame(() => {
+      overlayRef.current?.scrollTo({ top: 0 });
+    });
+  }, [editingCustomChain, isAddingCustomChain]);
+
   const handleAddCustomChain = () => {
+    setEditingCustomChain(null);
     setIsAddingCustomChain(true);
   };
 
   const handleCustomChainAdded = () => {
     setCustomChains(readCustomChains());
     setIsAddingCustomChain(false);
+    setEditingCustomChain(null);
+  };
+
+  const handleCustomChainCancel = () => {
+    setIsAddingCustomChain(false);
+    setEditingCustomChain(null);
   };
 
   const handleClose = () => {
@@ -58,7 +76,7 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
   };
 
   return (
-    <Overlay $isClosing={isClosing}>
+    <Overlay $isClosing={isClosing} ref={overlayRef}>
       <Content>
         <Header>
           <Title>Settings</Title>
@@ -67,13 +85,14 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
             onClick={handleClose}
             aria-label="Close settings"
           >
-            <CloseCircle size={28} variant="Outline" />
+            ×
           </CloseButton>
         </Header>
 
-        {isAddingCustomChain ? (
+        {isAddingCustomChain || editingCustomChain ? (
           <CustomChainForm
-            onCancel={() => setIsAddingCustomChain(false)}
+            initialChain={editingCustomChain || undefined}
+            onCancel={handleCustomChainCancel}
             onChainAdded={handleCustomChainAdded}
           />
         ) : (
@@ -88,7 +107,7 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
                   />
                   <ChainInfo>
                     <ChainName>{chain.chainName}</ChainName>
-                    <ChainId>Chain ID {chain.chainId}</ChainId>
+                    <ChainId>{chain.chainId}</ChainId>
                   </ChainInfo>
                 </ChainRow>
               ))}
@@ -102,20 +121,22 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
                   <ChainInfo>
                     <ChainName>{chain.chainName}</ChainName>
                     <ChainId>
-                      Chain ID {chain.chainId} · Native{' '}
-                      {chain.nativeTokenSymbol} ·{' '}
-                      {chain.gaslessEnabled
-                        ? 'Gasless enabled'
-                        : 'Gasless disabled'}
+                      {chain.chainId} · {chain.nativeTokenSymbol}
                     </ChainId>
                   </ChainInfo>
+                  <EditChainButton
+                    type="button"
+                    onClick={() => setEditingCustomChain(chain)}
+                  >
+                    Edit
+                  </EditChainButton>
                 </ChainRow>
               ))}
             </ChainList>
 
             <AddChainButton type="button" onClick={handleAddCustomChain}>
               <Add size={22} variant="Outline" />
-              <span>Add custom chain</span>
+              <span>Add chain</span>
             </AddChainButton>
           </>
         )}
@@ -137,6 +158,7 @@ const Overlay = styled.div<{ $isClosing: boolean }>`
   overscroll-behavior: contain;
   background: #030306;
   color: #ffffff;
+  font-family: ${({ theme }) => theme.font.primary.family};
   animation: ${({ $isClosing }) =>
     $isClosing
       ? 'settingsPageOut 160ms ease-in forwards'
@@ -187,28 +209,36 @@ const Title = styled.h1`
   margin: 0;
   color: #ffffff;
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1;
 `;
 
 const CloseButton = styled.button`
   display: flex;
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
   align-items: center;
   justify-content: center;
-  border: 2px solid #322d3f;
-  border-radius: 14px;
-  background: #17131f;
-  color: #d8cdf8;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #d8d2e6;
   cursor: pointer;
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1;
+  padding: 0 0 4px;
+
+  &:hover {
+    background: #17131f;
+  }
 `;
 
 const SectionTitle = styled.h2`
   margin: 0;
   color: #a9a0b7;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.2;
 `;
 
@@ -240,6 +270,7 @@ const ChainIcon = styled.img`
 const ChainInfo = styled.div`
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 4px;
 `;
@@ -247,15 +278,30 @@ const ChainInfo = styled.div`
 const ChainName = styled.span`
   color: #ffffff;
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1.15;
 `;
 
 const ChainId = styled.span`
   color: #a9a0b7;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.2;
+`;
+
+const EditChainButton = styled.button`
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #393245;
+  border-radius: 10px;
+  background: #17131f;
+  color: #d8cdf8;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 12px;
 `;
 
 const AddChainButton = styled.button`
@@ -265,13 +311,14 @@ const AddChainButton = styled.button`
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border: 2px solid #5d41a8;
+  border: 2px solid #7f63ff;
   border-radius: 14px;
-  background: #2b2143;
+  background: #6d55d8;
   color: #ffffff;
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 500;
   cursor: pointer;
+  opacity: 1;
 `;
 
 export default SettingsModal;

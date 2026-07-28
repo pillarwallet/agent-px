@@ -222,6 +222,32 @@ const callContract = async ({
     'latest',
   ]);
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Unknown error';
+
+const callErc20Metadata = async ({
+  field,
+  rpcUrl,
+  tokenAddress,
+}: {
+  field: 'decimals' | 'name' | 'symbol';
+  rpcUrl: string;
+  tokenAddress: `0x${string}`;
+}) => {
+  try {
+    return await callContract({
+      rpcUrl,
+      to: tokenAddress,
+      data: encodeFunctionData({
+        abi: erc20MetadataAbi,
+        functionName: field,
+      }),
+    });
+  } catch (error) {
+    throw new Error(`Unable to fetch ERC-20 ${field}: ${getErrorMessage(error)}`);
+  }
+};
+
 export const fetchErc20TokenMetadata = async ({
   rpcUrl,
   tokenAddress,
@@ -236,49 +262,48 @@ export const fetchErc20TokenMetadata = async ({
   const address = tokenAddress as `0x${string}`;
 
   const [decimalsResult, nameResult, symbolResult] = await Promise.all([
-    callContract({
+    callErc20Metadata({
+      field: 'decimals',
       rpcUrl,
-      to: address,
-      data: encodeFunctionData({
-        abi: erc20MetadataAbi,
-        functionName: 'decimals',
-      }),
+      tokenAddress: address,
     }),
-    callContract({
+    callErc20Metadata({
+      field: 'name',
       rpcUrl,
-      to: address,
-      data: encodeFunctionData({
-        abi: erc20MetadataAbi,
-        functionName: 'name',
-      }),
+      tokenAddress: address,
     }),
-    callContract({
+    callErc20Metadata({
+      field: 'symbol',
       rpcUrl,
-      to: address,
-      data: encodeFunctionData({
-        abi: erc20MetadataAbi,
-        functionName: 'symbol',
-      }),
+      tokenAddress: address,
     }),
   ]);
 
-  const decimals = Number(
-    decodeFunctionResult({
+  let decimals: number;
+  let name: unknown;
+  let symbol: unknown;
+
+  try {
+    decimals = Number(
+      decodeFunctionResult({
+        abi: erc20MetadataAbi,
+        functionName: 'decimals',
+        data: decimalsResult,
+      })
+    );
+    name = decodeFunctionResult({
       abi: erc20MetadataAbi,
-      functionName: 'decimals',
-      data: decimalsResult,
-    })
-  );
-  const name = decodeFunctionResult({
-    abi: erc20MetadataAbi,
-    functionName: 'name',
-    data: nameResult,
-  });
-  const symbol = decodeFunctionResult({
-    abi: erc20MetadataAbi,
-    functionName: 'symbol',
-    data: symbolResult,
-  });
+      functionName: 'name',
+      data: nameResult,
+    });
+    symbol = decodeFunctionResult({
+      abi: erc20MetadataAbi,
+      functionName: 'symbol',
+      data: symbolResult,
+    });
+  } catch (error) {
+    throw new Error(`Unable to decode ERC-20 metadata: ${getErrorMessage(error)}`);
+  }
 
   if (
     !Number.isInteger(decimals) ||

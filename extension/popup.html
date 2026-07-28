@@ -34,13 +34,26 @@
         overflow-y: hidden;
       }
 
+      html,
       body,
       #root {
         scrollbar-width: none;
       }
 
+      html::-webkit-scrollbar,
       body::-webkit-scrollbar,
       #root::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+      }
+
+      * {
+        scrollbar-width: none;
+        scrollbar-color: transparent transparent;
+      }
+
+      *::-webkit-scrollbar {
         display: none;
         width: 0;
         height: 0;

@@ -6,31 +6,47 @@ import { isAddress } from 'viem';
 import { CompatibleChains } from '../../../../utils/blockchain';
 import {
   CustomChainToken,
+  CustomChain,
   fetchChainIdFromRpc,
   fetchErc20TokenMetadata,
   readCustomChains,
   upsertCustomChain,
+  writeCustomChains,
 } from '../../../../utils/customChains';
 
 type CustomChainFormProps = {
+  initialChain?: CustomChain;
   onCancel: () => void;
   onChainAdded: () => void;
 };
 
-const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
-  const [rpcUrl, setRpcUrl] = useState('');
-  const [chainId, setChainId] = useState<number | undefined>(undefined);
+const CustomChainForm = ({
+  initialChain,
+  onCancel,
+  onChainAdded,
+}: CustomChainFormProps) => {
+  const [rpcUrl, setRpcUrl] = useState(initialChain?.rpcUrl || '');
+  const [chainId, setChainId] = useState<number | undefined>(
+    initialChain?.chainId
+  );
   const [chainIdError, setChainIdError] = useState('');
   const [isFetchingChainId, setIsFetchingChainId] = useState(false);
-  const [chainName, setChainName] = useState('');
-  const [nativeTokenDecimals, setNativeTokenDecimals] = useState('18');
-  const [nativeTokenSymbol, setNativeTokenSymbol] = useState('');
-  const [bundlerUrl, setBundlerUrl] = useState('');
+  const [chainName, setChainName] = useState(initialChain?.chainName || '');
+  const [nativeTokenDecimals, setNativeTokenDecimals] = useState(
+    initialChain ? String(initialChain.nativeTokenDecimals) : '18'
+  );
+  const [nativeTokenSymbol, setNativeTokenSymbol] = useState(
+    initialChain?.nativeTokenSymbol || ''
+  );
   const [tokenAddress, setTokenAddress] = useState('');
-  const [tokens, setTokens] = useState<CustomChainToken[]>([]);
+  const [tokens, setTokens] = useState<CustomChainToken[]>(
+    initialChain?.tokens || []
+  );
   const [tokenError, setTokenError] = useState('');
   const [formError, setFormError] = useState('');
   const [isFetchingToken, setIsFetchingToken] = useState(false);
+  const [hasTouchedNativeTokenSymbol, setHasTouchedNativeTokenSymbol] =
+    useState(Boolean(initialChain?.nativeTokenSymbol));
 
   const alreadySupportedChain = useMemo(
     () =>
@@ -113,7 +129,6 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
     setChainName(alreadyAddedCustomChain.chainName);
     setNativeTokenDecimals(String(alreadyAddedCustomChain.nativeTokenDecimals));
     setNativeTokenSymbol(alreadyAddedCustomChain.nativeTokenSymbol);
-    setBundlerUrl(alreadyAddedCustomChain.bundlerUrl || '');
     setTokens(alreadyAddedCustomChain.tokens);
   }, [alreadyAddedCustomChain]);
 
@@ -152,8 +167,17 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
 
       setTokens((currentTokens) => [...currentTokens, tokenMetadata]);
       setTokenAddress('');
-    } catch {
-      setTokenError('This does not look like a valid ERC-20 contract address.');
+    } catch (error) {
+      console.error('Failed to fetch custom ERC-20 token metadata', {
+        error,
+        rpcUrl: rpcUrl.trim(),
+        tokenAddress: trimmedTokenAddress,
+      });
+      setTokenError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to fetch ERC-20 token metadata.'
+      );
     } finally {
       setIsFetchingToken(false);
     }
@@ -169,6 +193,7 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
 
   const handleAddChain = () => {
     setFormError('');
+    setHasTouchedNativeTokenSymbol(true);
 
     if (!canAddChain || !chainId) {
       setFormError('Resolve the chain details before adding this chain.');
@@ -177,37 +202,46 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
 
     const now = Date.now();
 
-    upsertCustomChain({
+    const nextChain: CustomChain = {
       chainId,
       chainName: chainName.trim(),
       rpcUrl: rpcUrl.trim(),
       nativeTokenDecimals: parsedNativeTokenDecimals,
       nativeTokenSymbol: normalizedNativeTokenSymbol,
-      bundlerUrl: bundlerUrl.trim() || undefined,
-      gaslessEnabled: Boolean(bundlerUrl.trim()),
+      bundlerUrl: undefined,
+      gaslessEnabled: false,
       tokens,
-      createdAt: alreadyAddedCustomChain?.createdAt || now,
+      createdAt:
+        alreadyAddedCustomChain?.createdAt || initialChain?.createdAt || now,
       updatedAt: now,
-    });
+    };
+
+    if (initialChain) {
+      const customChains = readCustomChains().filter(
+        (chain) => chain.chainId !== initialChain.chainId
+      );
+      const existingChainIndex = customChains.findIndex(
+        (chain) => chain.chainId === nextChain.chainId
+      );
+
+      if (existingChainIndex >= 0) {
+        writeCustomChains(
+          customChains.map((chain, index) =>
+            index === existingChainIndex ? nextChain : chain
+          )
+        );
+      } else {
+        writeCustomChains([...customChains, nextChain]);
+      }
+    } else {
+      upsertCustomChain(nextChain);
+    }
 
     onChainAdded();
   };
 
   return (
     <FormShell>
-      <SectionHeader>
-        <div>
-          <FormTitle>Add custom chain</FormTitle>
-          <FormSubtitle>
-            Custom chains are stored locally and balances are fetched from the
-            RPC URL.
-          </FormSubtitle>
-        </div>
-        <SecondaryButton type="button" onClick={onCancel}>
-          Cancel
-        </SecondaryButton>
-      </SectionHeader>
-
       <FieldGroup>
         <Label htmlFor="custom-chain-rpc-url">RPC URL</Label>
         <Input
@@ -220,7 +254,7 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
           <HelperText>Fetching chain id...</HelperText>
         ) : chainId ? (
           <HelperText>
-            Chain ID {chainId}
+            {chainId}
             {alreadySupportedChain
               ? ` · ${alreadySupportedChain.chainName} is already supported.`
               : ''}
@@ -237,7 +271,7 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
           id="custom-chain-name"
           value={chainName}
           onChange={(event) => setChainName(event.target.value)}
-          placeholder="My Chain"
+          placeholder="Ethereum"
         />
         <HelperText>This name will be used across the wallet UI.</HelperText>
       </FieldGroup>
@@ -263,33 +297,28 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
         <Input
           id="custom-chain-native-symbol"
           value={nativeTokenSymbol}
-          onChange={(event) => setNativeTokenSymbol(event.target.value)}
-          placeholder="ZTH"
+          onBlur={() => setHasTouchedNativeTokenSymbol(true)}
+          onChange={(event) => {
+            setNativeTokenSymbol(event.target.value);
+            if (!hasTouchedNativeTokenSymbol) {
+              setHasTouchedNativeTokenSymbol(true);
+            }
+          }}
+          placeholder="ETH"
         />
         {isNativeTokenSymbolValid ? (
           <HelperText>
             This symbol will be used for the native balance display.
           </HelperText>
-        ) : (
+        ) : hasTouchedNativeTokenSymbol ? (
           <ErrorText>
             Enter a token symbol between 1 and 16 characters.
           </ErrorText>
+        ) : (
+          <HelperText>
+            Enter the native token ticker used by this chain.
+          </HelperText>
         )}
-      </FieldGroup>
-
-      <FieldGroup>
-        <Label htmlFor="custom-chain-bundler-url">Bundler URL</Label>
-        <Input
-          id="custom-chain-bundler-url"
-          value={bundlerUrl}
-          onChange={(event) => setBundlerUrl(event.target.value)}
-          placeholder="Optional"
-        />
-        <HelperText>
-          {bundlerUrl.trim()
-            ? 'Gasless can be enabled for this chain.'
-            : 'Gasless will be disabled for this chain.'}
-        </HelperText>
       </FieldGroup>
 
       <FieldGroup>
@@ -343,13 +372,18 @@ const CustomChainForm = ({ onCancel, onChainAdded }: CustomChainFormProps) => {
 
       {formError && <ErrorText>{formError}</ErrorText>}
 
-      <PrimaryButton
-        type="button"
-        disabled={!canAddChain}
-        onClick={handleAddChain}
-      >
-        {alreadyAddedCustomChain ? 'Update chain' : 'Add chain'}
-      </PrimaryButton>
+      <ActionRow>
+        <SecondaryActionButton type="button" onClick={onCancel}>
+          Cancel
+        </SecondaryActionButton>
+        <PrimaryButton
+          type="button"
+          disabled={!canAddChain}
+          onClick={handleAddChain}
+        >
+          {alreadyAddedCustomChain ? 'Update chain' : 'Add chain'}
+        </PrimaryButton>
+      </ActionRow>
     </FormShell>
   );
 };
@@ -358,29 +392,6 @@ const FormShell = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
-`;
-
-const SectionHeader = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-`;
-
-const FormTitle = styled.h2`
-  margin: 0;
-  color: #ffffff;
-  font-size: 21px;
-  font-weight: 800;
-  line-height: 1.1;
-`;
-
-const FormSubtitle = styled.p`
-  margin: 8px 0 0;
-  color: #a9a0b7;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.35;
 `;
 
 const FieldGroup = styled.div`
@@ -392,7 +403,7 @@ const FieldGroup = styled.div`
 const Label = styled.label`
   color: #ffffff;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 500;
 `;
 
 const Input = styled.input`
@@ -404,7 +415,7 @@ const Input = styled.input`
   background: #0d0b12;
   color: #ffffff;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
   outline: none;
   padding: 0 12px;
 
@@ -445,7 +456,7 @@ const HelperText = styled.p`
   margin: 0;
   color: #a9a0b7;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.35;
 `;
 
@@ -453,7 +464,7 @@ const ErrorText = styled.p`
   margin: 0;
   color: #ff6b8a;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1.35;
 `;
 
@@ -485,14 +496,14 @@ const TokenInfo = styled.div`
 const TokenName = styled.span`
   color: #ffffff;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1.15;
 `;
 
 const TokenMeta = styled.span`
   color: #a9a0b7;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.2;
 `;
 
@@ -506,9 +517,30 @@ const SecondaryButton = styled.button`
   background: #17131f;
   color: #d8cdf8;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 500;
   cursor: pointer;
   padding: 0 12px;
+`;
+
+const ActionRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+`;
+
+const SecondaryActionButton = styled.button`
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #292533;
+  border-radius: 14px;
+  background: #17131f;
+  color: #d8cdf8;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
 `;
 
 const PrimaryButton = styled.button`
@@ -522,7 +554,7 @@ const PrimaryButton = styled.button`
   background: #6d55d8;
   color: #ffffff;
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 500;
   cursor: pointer;
 
   &:disabled {
