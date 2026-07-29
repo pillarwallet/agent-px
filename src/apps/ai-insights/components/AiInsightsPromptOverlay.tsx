@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { defaultTheme } from '../../../theme';
 
-type SignalsPromptOverlayProps = {
+type AiInsightsPromptOverlayProps = {
   isSubmitting: boolean;
   onClose: () => void;
   onPromptChange: (prompt: string) => void;
@@ -26,13 +26,13 @@ const TYPING_SPEED_MS = 42;
 const DELETING_SPEED_MS = 20;
 const PROMPT_PAUSE_MS = 1300;
 
-const SignalsPromptOverlay = ({
+const AiInsightsPromptOverlay = ({
   isSubmitting,
   onClose,
   onPromptChange,
   onSubmit,
   prompt,
-}: SignalsPromptOverlayProps) => {
+}: AiInsightsPromptOverlayProps) => {
   const [ideaIndex, setIdeaIndex] = useState(0);
   const [typedLength, setTypedLength] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -122,7 +122,7 @@ const SignalsPromptOverlay = ({
             textTransform: 'uppercase',
           }}
         >
-          Ask Signals
+          Ask AI Insights
         </p>
         <button
           aria-label="Close prompt"
@@ -220,4 +220,4 @@ const SignalsPromptOverlay = ({
   );
 };
 
-export default SignalsPromptOverlay;
+export default AiInsightsPromptOverlay;

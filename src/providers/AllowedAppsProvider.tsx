@@ -99,13 +99,13 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
             tags: 'trading,derivatives',
           } as ApiAllowedApp,
           {
-            id: 'signals-local',
-            appId: 'signals',
+            id: 'ai-insights-local',
+            appId: 'ai-insights',
             type: 'app',
-            title: 'Signals',
-            name: 'Signals',
-            shortDescription: 'Trading signals',
-            tags: 'signals,trading',
+            title: 'AI Insights',
+            name: 'AI Insights',
+            shortDescription: 'AI-powered token insights',
+            tags: 'ai,insights,trading',
           } as ApiAllowedApp,
         ];
         setAllowed(appsWithPerps);
@@ -123,13 +123,13 @@ const AllowedAppsProvider = ({ children }: { children: React.ReactNode }) => {
             tags: 'trading,derivatives',
           } as ApiAllowedApp,
           {
-            id: 'signals-local',
-            appId: 'signals',
+            id: 'ai-insights-local',
+            appId: 'ai-insights',
             type: 'app',
-            title: 'Signals',
-            name: 'Signals',
-            shortDescription: 'Trading signals',
-            tags: 'signals,trading',
+            title: 'AI Insights',
+            name: 'AI Insights',
+            shortDescription: 'AI-powered token insights',
+            tags: 'ai,insights,trading',
           } as ApiAllowedApp,
         ]);
       }

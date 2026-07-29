@@ -1,4 +1,4 @@
-import type { TokenSignal } from '../types';
+import type { TokenInsight } from '../types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -195,7 +195,7 @@ const findTokenArray = (value: unknown, depth = 0): unknown[] | undefined => {
 const normalizeToken = (
   token: unknown,
   index: number
-): TokenSignal | undefined => {
+): TokenInsight | undefined => {
   if (!isRecord(token)) return undefined;
 
   const address = getString(
@@ -300,5 +300,5 @@ export const parseTokensFromMcpResponse = (body: string) => {
 
   return tokenArray
     .map(normalizeToken)
-    .filter((token): token is TokenSignal => Boolean(token));
+    .filter((token): token is TokenInsight => Boolean(token));
 };

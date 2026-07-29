@@ -1,18 +1,18 @@
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 
-type SignalsDisclaimerProps = {
+type AiInsightsDisclaimerProps = {
   onAccept: () => void;
 };
 
 const disclaimerItems = [
-  'Signals is an informational research tool only. It is not financial, investment, legal, or tax advice.',
+  'AI Insights is an informational research tool only. It is not financial, investment, legal, or tax advice.',
   'Token research can be incomplete, delayed, inaccurate, or wrong. Crypto markets are highly volatile.',
   'You are solely responsible for reviewing every token, contract, pool, and trade before acting.',
   'PillarX does not guarantee profitability, execution quality, liquidity, or loss protection.',
 ];
 
-const SignalsDisclaimer = ({ onAccept }: SignalsDisclaimerProps) => {
+const AiInsightsDisclaimer = ({ onAccept }: AiInsightsDisclaimerProps) => {
   const [hasCheckedAgreement, setHasCheckedAgreement] = useState(false);
 
   return (
@@ -132,7 +132,7 @@ const SignalsDisclaimer = ({ onAccept }: SignalsDisclaimerProps) => {
           }}
           type="checkbox"
         />
-        I understand and agree that I am using Signals at my own risk.
+        I understand and agree that I am using AI Insights at my own risk.
       </label>
 
       <button
@@ -162,4 +162,4 @@ const SignalsDisclaimer = ({ onAccept }: SignalsDisclaimerProps) => {
   );
 };
 
-export default SignalsDisclaimer;
+export default AiInsightsDisclaimer;

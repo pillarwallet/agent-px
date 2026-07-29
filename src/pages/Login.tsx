@@ -51,6 +51,7 @@ const COUNTRY_CODE_OPTIONS: CountryCodeOption[] = [
   { code: '+1', label: 'United States (+1)' },
   { code: '+1', label: 'Canada (+1)' },
   { code: '+7', label: 'Kazakhstan (+7)' },
+  { code: '+7', label: 'Russia (+7)' },
   { code: '+20', label: 'Egypt (+20)' },
   { code: '+27', label: 'South Africa (+27)' },
   { code: '+30', label: 'Greece (+30)' },
@@ -135,11 +136,15 @@ const COUNTRY_CODE_OPTIONS: CountryCodeOption[] = [
 const COUNTRY_FLAG_BY_LABEL: Record<string, string> = {
   'United States (+1)': '🇺🇸',
   'Canada (+1)': '🇨🇦',
+  'Kazakhstan (+7)': '🇰🇿',
+  'Russia (+7)': '🇷🇺',
 };
 
 const COUNTRY_OPTION_LABEL_BY_REGION: Record<string, string> = {
   US: 'United States (+1)',
   CA: 'Canada (+1)',
+  KZ: 'Kazakhstan (+7)',
+  RU: 'Russia (+7)',
 };
 
 const AVAILABLE_COUNTRY_CODES = new Set(

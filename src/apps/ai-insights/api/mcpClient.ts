@@ -1,5 +1,5 @@
-const SIGNALS_AGENT_BASE_URL = 'https://agent.pillarx.app';
-const MCP_URL = `${SIGNALS_AGENT_BASE_URL}/mcp/`;
+const AI_INSIGHTS_AGENT_BASE_URL = 'https://agent.pillarx.app';
+const MCP_URL = `${AI_INSIGHTS_AGENT_BASE_URL}/mcp/`;
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 const MCP_HEADERS = {
@@ -22,7 +22,7 @@ const INITIALIZE_PAYLOAD = {
   },
 };
 
-export const DEFAULT_SIGNALS_QUERY =
+export const DEFAULT_AI_INSIGHTS_QUERY =
   'Show safer momentum Base tokens with low risk, decent liquidity, and positive buyer activity.';
 
 const createResearchTokensPayload = (query: string) => ({
@@ -52,7 +52,7 @@ export const initializeMcpSession = async (signal: AbortSignal) => {
     response.headers.get('Mcp-Session-Id') ??
     '';
 
-  console.log('----Signals MCP Initialize----', {
+  console.log('----AI Insights MCP Initialize----', {
     body,
     sessionId,
     status: response.status,
@@ -72,7 +72,7 @@ export const initializeMcpSession = async (signal: AbortSignal) => {
 export const researchTokens = async (
   sessionId: string,
   signal: AbortSignal,
-  query = DEFAULT_SIGNALS_QUERY
+  query = DEFAULT_AI_INSIGHTS_QUERY
 ) => {
   const response = await fetch(MCP_URL, {
     body: JSON.stringify(createResearchTokensPayload(query)),
@@ -85,7 +85,7 @@ export const researchTokens = async (
   });
   const body = await response.text();
 
-  console.log('----Signals MCP Research Response----', {
+  console.log('----AI Insights MCP Research Response----', {
     body,
     query,
     status: response.status,

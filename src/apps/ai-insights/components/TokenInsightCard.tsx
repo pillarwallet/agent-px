@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { TokenSignal } from '../types';
+import type { TokenInsight } from '../types';
 import {
   formatCompactUsd,
   formatScore,
@@ -11,8 +11,8 @@ import {
 } from '../utils/format';
 import ScoreBar from './ScoreBar';
 
-type TokenSignalCardProps = {
-  token: TokenSignal;
+type TokenInsightCardProps = {
+  token: TokenInsight;
 };
 
 const Metric = ({ label, value }: { label: string; value: string }) => (
@@ -51,7 +51,7 @@ const Metric = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const TokenSignalCard = ({ token }: TokenSignalCardProps) => {
+const TokenInsightCard = ({ token }: TokenInsightCardProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const copiedTimeoutRef = useRef<number>();
@@ -311,4 +311,4 @@ const TokenSignalCard = ({ token }: TokenSignalCardProps) => {
   );
 };
 
-export default TokenSignalCard;
+export default TokenInsightCard;
