@@ -1,4 +1,4 @@
-export type TokenSignal = {
+export type TokenInsight = {
   address: string;
   age: string;
   chain: string;
@@ -13,4 +13,3 @@ export type TokenSignal = {
   symbol: string;
   volume1hUsd?: number;
 };
-

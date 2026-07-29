@@ -1,11 +1,11 @@
-import type { TokenSignal } from '../types';
-import TokenSignalCard from './TokenSignalCard';
+import type { TokenInsight } from '../types';
+import TokenInsightCard from './TokenInsightCard';
 
-type TokenSignalsTableProps = {
-  tokens: TokenSignal[];
+type TokenInsightsTableProps = {
+  tokens: TokenInsight[];
 };
 
-const TokenSignalsTable = ({ tokens }: TokenSignalsTableProps) => (
+const TokenInsightsTable = ({ tokens }: TokenInsightsTableProps) => (
   <section
     style={{
       display: 'grid',
@@ -15,7 +15,7 @@ const TokenSignalsTable = ({ tokens }: TokenSignalsTableProps) => (
   >
     {tokens.length ? (
       tokens.map((token) => (
-        <TokenSignalCard
+        <TokenInsightCard
           key={`${token.rank}-${token.address}-${token.symbol}`}
           token={token}
         />
@@ -38,4 +38,4 @@ const TokenSignalsTable = ({ tokens }: TokenSignalsTableProps) => (
   </section>
 );
 
-export default TokenSignalsTable;
+export default TokenInsightsTable;

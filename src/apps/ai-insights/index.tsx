@@ -2,18 +2,18 @@ import { MessageCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  DEFAULT_SIGNALS_QUERY,
+  DEFAULT_AI_INSIGHTS_QUERY,
   initializeMcpSession,
   researchTokens,
 } from './api/mcpClient';
 import ChainSelect from './components/ChainSelect';
-import SignalsDisclaimer from './components/SignalsDisclaimer';
-import SignalsPromptOverlay from './components/SignalsPromptOverlay';
-import TokenSignalsTable from './components/TokenSignalsTable';
-import type { TokenSignal } from './types';
+import AiInsightsDisclaimer from './components/AiInsightsDisclaimer';
+import AiInsightsPromptOverlay from './components/AiInsightsPromptOverlay';
+import TokenInsightsTable from './components/TokenInsightsTable';
+import type { TokenInsight } from './types';
 import {
-  readSignalsDisclaimerAccepted,
-  writeSignalsDisclaimerAccepted,
+  readAiInsightsDisclaimerAccepted,
+  writeAiInsightsDisclaimerAccepted,
 } from './utils/disclaimer';
 import { parseTokensFromMcpResponse } from './utils/mcpParsing';
 import RefreshIcon from '../pillarx-app/images/refresh-button.png';
@@ -22,11 +22,11 @@ import { defaultTheme } from '../../theme';
 const REFRESH_INTERVAL_MS = 30_000;
 const PROGRESS_TICK_MS = 1_000;
 
-const SignalsApp = () => {
-  const [tokens, setTokens] = useState<TokenSignal[]>([]);
+const AiInsightsApp = () => {
+  const [tokens, setTokens] = useState<TokenInsight[]>([]);
   const [selectedChain] = useState('base');
   const [hasAcceptedDisclaimer, setHasAcceptedDisclaimer] = useState(
-    readSignalsDisclaimerAccepted
+    readAiInsightsDisclaimerAccepted
   );
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isPromptSubmitting, setIsPromptSubmitting] = useState(false);
@@ -40,11 +40,11 @@ const SignalsApp = () => {
     Date.now()
   );
   const [refreshProgress, setRefreshProgress] = useState(0);
-  const activeQueryRef = useRef(DEFAULT_SIGNALS_QUERY);
+  const activeQueryRef = useRef(DEFAULT_AI_INSIGHTS_QUERY);
   const isLoadingRef = useRef(false);
   const isMountedRef = useRef(true);
 
-  const loadSignals = useCallback(async (
+  const loadInsights = useCallback(async (
     options: {
       commitQuery?: boolean;
       failureMessage?: string;
@@ -56,7 +56,7 @@ const SignalsApp = () => {
   ) => {
     if (isLoadingRef.current) {
       if (options.showBusyMessage) {
-        setMessage('Signals is already researching. Try again in a moment.');
+        setMessage('AI Insights is already researching. Try again in a moment.');
         setMessageTone('error');
       }
 
@@ -78,7 +78,9 @@ const SignalsApp = () => {
       const nextTokens = parseTokensFromMcpResponse(researchBody);
 
       if (!nextTokens.length) {
-        throw new Error('Signals response did not include token opportunities.');
+        throw new Error(
+          'AI Insights response did not include token opportunities.'
+        );
       }
 
       if (!isMountedRef.current || options.signal?.aborted) return false;
@@ -98,10 +100,10 @@ const SignalsApp = () => {
     } catch (error) {
       if (options.signal?.aborted) return false;
 
-      console.error('Unable to load Signals MCP data.', error);
+      console.error('Unable to load AI Insights MCP data.', error);
       setMessage(
         options.failureMessage ??
-          'Unable to load Signals data. Try refreshing again shortly.'
+          'Unable to load AI Insights data. Try refreshing again shortly.'
       );
       setMessageTone('error');
       return false;
@@ -119,21 +121,21 @@ const SignalsApp = () => {
     if (!trimmedPrompt) return;
 
     setIsPromptSubmitting(true);
-    await loadSignals({
+    await loadInsights({
       commitQuery: true,
       failureMessage:
-        'That prompt did not return usable token signals. Try a more specific research request.',
+        'That prompt did not return usable token insights. Try a more specific research request.',
       query: trimmedPrompt,
       showBusyMessage: true,
-      successMessage: 'Signals updated from your prompt.',
+      successMessage: 'AI Insights updated from your prompt.',
     });
 
     setIsPromptSubmitting(false);
     setIsPromptOpen(false);
-  }, [loadSignals, prompt]);
+  }, [loadInsights, prompt]);
 
   const acceptDisclaimer = useCallback(() => {
-    writeSignalsDisclaimerAccepted();
+    writeAiInsightsDisclaimerAccepted();
     setHasAcceptedDisclaimer(true);
     setRefreshCycleStartedAt(Date.now());
   }, []);
@@ -144,9 +146,9 @@ const SignalsApp = () => {
     isMountedRef.current = true;
     const controller = new AbortController();
 
-    loadSignals({ signal: controller.signal });
+    loadInsights({ signal: controller.signal });
     const refreshIntervalId = window.setInterval(() => {
-      loadSignals({ signal: controller.signal });
+      loadInsights({ signal: controller.signal });
     }, REFRESH_INTERVAL_MS);
 
     return () => {
@@ -154,7 +156,7 @@ const SignalsApp = () => {
       controller.abort();
       window.clearInterval(refreshIntervalId);
     };
-  }, [hasAcceptedDisclaimer, loadSignals]);
+  }, [hasAcceptedDisclaimer, loadInsights]);
 
   useEffect(() => {
     const updateProgress = () => {
@@ -214,7 +216,7 @@ const SignalsApp = () => {
               }}
             >
               <button
-                aria-label="Open signals prompt"
+                aria-label="Open AI Insights prompt"
                 onClick={() => {
                   setIsPromptOpen(true);
                 }}
@@ -247,10 +249,10 @@ const SignalsApp = () => {
                 }}
               >
                 <button
-                  aria-label="Refresh signals"
+                  aria-label="Refresh AI Insights"
                   disabled={isRefreshing}
                   onClick={() => {
-                    loadSignals({ showBusyMessage: true });
+                    loadInsights({ showBusyMessage: true });
                   }}
                   style={{
                     alignItems: 'center',
@@ -306,10 +308,10 @@ const SignalsApp = () => {
             </div>
           ) : null}
 
-          <TokenSignalsTable tokens={tokens} />
+          <TokenInsightsTable tokens={tokens} />
 
           {isPromptOpen ? (
-            <SignalsPromptOverlay
+            <AiInsightsPromptOverlay
               isSubmitting={isPromptSubmitting}
               onClose={() => setIsPromptOpen(false)}
               onPromptChange={setPrompt}
@@ -319,10 +321,10 @@ const SignalsApp = () => {
           ) : null}
         </>
       ) : (
-        <SignalsDisclaimer onAccept={acceptDisclaimer} />
+        <AiInsightsDisclaimer onAccept={acceptDisclaimer} />
       )}
     </main>
   );
 };
 
-export default SignalsApp;
+export default AiInsightsApp;
