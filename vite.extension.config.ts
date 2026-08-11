@@ -14,6 +14,8 @@ const packageJson = JSON.parse(
   readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')
 ) as { version?: string };
 
+const providerInjectionMatches = ['http://*/*', 'https://*/*'];
+
 const extensionManifest = {
   manifest_version: 3,
   name: 'PillarX',
@@ -48,7 +50,7 @@ const extensionManifest = {
   host_permissions: ['<all_urls>'],
   content_scripts: [
     {
-      matches: ['<all_urls>'],
+      matches: providerInjectionMatches,
       js: ['assets/contentScript.js'],
       run_at: 'document_start',
     },
@@ -56,7 +58,7 @@ const extensionManifest = {
   web_accessible_resources: [
     {
       resources: ['assets/inpage.js'],
-      matches: ['<all_urls>'],
+      matches: providerInjectionMatches,
     },
   ],
 } satisfies Record<string, unknown>;

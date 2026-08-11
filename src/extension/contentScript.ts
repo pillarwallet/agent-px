@@ -62,14 +62,51 @@ type ChromeLike = {
 };
 
 const chromeLike = (globalThis as { chrome?: ChromeLike }).chrome;
+const PROVIDER_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+const PROVIDER_PROHIBITED_PATH_SUFFIXES = [/\.pdf$/iu, /\.xml$/iu];
+let hasInjectedInpageProvider = false;
+
+const isTopLevelWindow = () => {
+  try {
+    return window.top === window;
+  } catch {
+    return false;
+  }
+};
+
+const shouldInitializeProviderBridge = () => {
+  if (!isTopLevelWindow()) return false;
+  if (!PROVIDER_ALLOWED_PROTOCOLS.has(window.location.protocol)) return false;
+  if (
+    PROVIDER_PROHIBITED_PATH_SUFFIXES.some((suffix) =>
+      suffix.test(window.location.pathname)
+    )
+  ) {
+    return false;
+  }
+
+  const { doctype, documentElement } = window.document;
+  if (doctype && doctype.name !== 'html') return false;
+  if (
+    documentElement?.nodeName &&
+    documentElement.nodeName.toLowerCase() !== 'html'
+  ) {
+    return false;
+  }
+
+  return true;
+};
 
 const injectInpageProvider = () => {
-  if (!chromeLike?.runtime?.getURL) return;
+  if (hasInjectedInpageProvider || !chromeLike?.runtime?.getURL) return;
+
+  hasInjectedInpageProvider = true;
 
   const script = document.createElement('script');
   script.src = chromeLike.runtime.getURL('assets/inpage.js');
   script.async = false;
   script.onload = () => script.remove();
+  script.onerror = () => script.remove();
 
   (document.head || document.documentElement).appendChild(script);
 };
@@ -83,7 +120,7 @@ const getFavicon = () => {
   return icon.href;
 };
 
-window.addEventListener('message', (event) => {
+const handleProviderRequest = (event: MessageEvent) => {
   if (event.source !== window) return;
 
   const message = event.data as Partial<ProviderPageRequestMessage>;
@@ -129,6 +166,9 @@ window.addEventListener('message', (event) => {
 
     window.postMessage(responseMessage, window.location.origin);
   });
-});
+};
 
-injectInpageProvider();
+if (shouldInitializeProviderBridge()) {
+  window.addEventListener('message', handleProviderRequest);
+  window.addEventListener('eip6963:requestProvider', injectInpageProvider);
+}
