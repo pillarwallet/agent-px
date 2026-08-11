@@ -83,6 +83,40 @@ const isProviderRpcError = (error: unknown): error is ProviderRpcError =>
   'code' in error &&
   typeof (error as { code?: unknown }).code === 'number';
 
+const PROVIDER_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+const PROVIDER_PROHIBITED_PATH_SUFFIXES = [/\.pdf$/iu, /\.xml$/iu];
+
+const isTopLevelWindow = () => {
+  try {
+    return window.top === window;
+  } catch {
+    return false;
+  }
+};
+
+const shouldInitializeInjectedProvider = () => {
+  if (!isTopLevelWindow()) return false;
+  if (!PROVIDER_ALLOWED_PROTOCOLS.has(window.location.protocol)) return false;
+  if (
+    PROVIDER_PROHIBITED_PATH_SUFFIXES.some((suffix) =>
+      suffix.test(window.location.pathname)
+    )
+  ) {
+    return false;
+  }
+
+  const { doctype, documentElement } = window.document;
+  if (doctype && doctype.name !== 'html') return false;
+  if (
+    documentElement?.nodeName &&
+    documentElement.nodeName.toLowerCase() !== 'html'
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 class PillarXInjectedProvider {
   readonly isPillarX = true;
 
@@ -223,47 +257,58 @@ class PillarXInjectedProvider {
   }
 }
 
-const provider = new PillarXInjectedProvider();
-const providerInfo = Object.freeze({
-  uuid: createProviderUuid(),
-  name: 'PillarX',
-  icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACABAMAAAAxEHz4AAAAIVBMVEV1Adn///9vANj+/P+XP+LQqPLy6Py8g+2HI96pYOfTrvOQJ1PSAAAA/ElEQVRo3u2XsQrCMBCGQ3HoGkJ1DdIu3UJfQNoirvoEguIuvoSjgyCuPqnX0ErU6XJDEf+Prvn4oNw1VQoAAAAAAESRSM9frVBwqoWC494KBdNaKHDshGTusb2gYidM7p7LUMBOKLVnOwgMN6EwFeFeAs1NKEwXEAi4CV8C7R5SwQaCHxXoEQsmrWcRLaB9kFh6ogWfGwkCCMYR9J+2nghB2gas1jHjXAU4HbtQAiAYS/D2KqUFmnc/KDuBOQTseAW5o1tNlp4DmAPYGG1mNpwo5ghTAgkk19vGyASUUMkElCATUIJQkCyFApVn0l+lm1CgpOcBAAAAAP6WJx1PbDCvJNXfAAAAAElFTkSuQmCC',
-  rdns: 'app.pillarx',
-});
+const initializeInjectedProvider = () => {
+  const provider = new PillarXInjectedProvider();
+  const providerInfo = Object.freeze({
+    uuid: createProviderUuid(),
+    name: 'PillarX',
+    icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACABAMAAAAxEHz4AAAAIVBMVEV1Adn///9vANj+/P+XP+LQqPLy6Py8g+2HI96pYOfTrvOQJ1PSAAAA/ElEQVRo3u2XsQrCMBCGQ3HoGkJ1DdIu3UJfQNoirvoEguIuvoSjgyCuPqnX0ErU6XJDEf+Prvn4oNw1VQoAAAAAAESRSM9frVBwqoWC494KBdNaKHDshGTusb2gYidM7p7LUMBOKLVnOwgMN6EwFeFeAs1NKEwXEAi4CV8C7R5SwQaCHxXoEQsmrWcRLaB9kFh6ogWfGwkCCMYR9J+2nghB2gas1jHjXAU4HbtQAiAYS/D2KqUFmnc/KDuBOQTseAW5o1tNlp4DmAPYGG1mNpwo5ghTAgkk19vGyASUUMkElCATUIJQkCyFApVn0l+lm1CgpOcBAAAAAP6WJx1PbDCvJNXfAAAAAElFTkSuQmCC',
+    rdns: 'app.pillarx',
+  });
 
-const announceProvider = () => {
-  window.dispatchEvent(
-    new CustomEvent('eip6963:announceProvider', {
-      detail: Object.freeze({
-        info: providerInfo,
-        provider,
-      }),
-    })
-  );
+  const setLegacyGlobalProvider = () => {
+    window.pillarXEthereum = provider;
+
+    if (!window.ethereum) {
+      window.ethereum = provider;
+      window.dispatchEvent(new Event('ethereum#initialized'));
+    }
+  };
+
+  const announceProvider = () => {
+    setLegacyGlobalProvider();
+
+    window.dispatchEvent(
+      new CustomEvent('eip6963:announceProvider', {
+        detail: Object.freeze({
+          info: providerInfo,
+          provider,
+        }),
+      })
+    );
+  };
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+
+    const message = event.data as Partial<ProviderEventMessage>;
+    if (
+      !message ||
+      message.target !== 'pillarx-inpage' ||
+      message.type !== PILLARX_PROVIDER_EVENT ||
+      typeof message.event !== 'string'
+    ) {
+      return;
+    }
+
+    provider.emit(message.event, message.data);
+  });
+
+  window.addEventListener('eip6963:requestProvider', announceProvider);
+
+  announceProvider();
 };
 
-window.addEventListener('message', (event) => {
-  if (event.source !== window) return;
-
-  const message = event.data as Partial<ProviderEventMessage>;
-  if (
-    !message ||
-    message.target !== 'pillarx-inpage' ||
-    message.type !== PILLARX_PROVIDER_EVENT ||
-    typeof message.event !== 'string'
-  ) {
-    return;
-  }
-
-  provider.emit(message.event, message.data);
-});
-
-window.addEventListener('eip6963:requestProvider', announceProvider);
-
-window.pillarXEthereum = provider;
-
-if (!window.ethereum) {
-  window.ethereum = provider;
+if (shouldInitializeInjectedProvider()) {
+  initializeInjectedProvider();
 }
-
-announceProvider();
