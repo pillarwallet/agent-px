@@ -54,18 +54,23 @@ const extensionManifest = {
       js: ['assets/contentScript.js'],
       run_at: 'document_start',
     },
-  ],
-  web_accessible_resources: [
     {
-      resources: ['assets/inpage.js'],
       matches: providerInjectionMatches,
+      js: ['assets/inpage.js'],
+      run_at: 'document_start',
+      world: 'MAIN',
     },
   ],
 } satisfies Record<string, unknown>;
 
 const emitManifestPlugin = (): Plugin => ({
   name: 'pillarx-extension-manifest',
-  generateBundle() {
+  generateBundle(_options, bundle) {
+    const inpageChunk = bundle['assets/inpage.js'];
+    if (inpageChunk?.type === 'chunk') {
+      inpageChunk.code = `(() => {\n${inpageChunk.code}\n})();\n`;
+    }
+
     this.emitFile({
       type: 'asset',
       fileName: 'manifest.json',

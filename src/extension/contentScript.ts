@@ -47,7 +47,6 @@ type ProviderRuntimeResponseMessage = {
 };
 
 type ChromeRuntimeLike = {
-  getURL: (path: string) => string;
   lastError?: {
     message?: string;
   };
@@ -64,7 +63,6 @@ type ChromeLike = {
 const chromeLike = (globalThis as { chrome?: ChromeLike }).chrome;
 const PROVIDER_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const PROVIDER_PROHIBITED_PATH_SUFFIXES = [/\.pdf$/iu, /\.xml$/iu];
-let hasInjectedInpageProvider = false;
 
 const isTopLevelWindow = () => {
   try {
@@ -95,20 +93,6 @@ const shouldInitializeProviderBridge = () => {
   }
 
   return true;
-};
-
-const injectInpageProvider = () => {
-  if (hasInjectedInpageProvider || !chromeLike?.runtime?.getURL) return;
-
-  hasInjectedInpageProvider = true;
-
-  const script = document.createElement('script');
-  script.src = chromeLike.runtime.getURL('assets/inpage.js');
-  script.async = false;
-  script.onload = () => script.remove();
-  script.onerror = () => script.remove();
-
-  (document.head || document.documentElement).appendChild(script);
 };
 
 const getFavicon = () => {
@@ -170,5 +154,4 @@ const handleProviderRequest = (event: MessageEvent) => {
 
 if (shouldInitializeProviderBridge()) {
   window.addEventListener('message', handleProviderRequest);
-  window.addEventListener('eip6963:requestProvider', injectInpageProvider);
 }

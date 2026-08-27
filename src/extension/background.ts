@@ -190,6 +190,7 @@ type ChromeLike = {
     onRemoved?: {
       addListener: (listener: (windowId: number) => void) => void;
     };
+    remove?: (windowId: number, callback?: () => void) => void;
     update?: (
       windowId: number,
       options: ChromeWindowUpdateOptions,
@@ -229,6 +230,7 @@ const DEFAULT_MAINNET_CHAIN_ID = 1;
 const DEFAULT_TESTNET_CHAIN_ID = 11155111;
 const APPROVAL_WINDOW_WIDTH = 430;
 const APPROVAL_WINDOW_HEIGHT = 744;
+const DAPP_TRANSACTION_GAS_BUFFER_PERCENT = BigInt(20);
 const NATIVE_FEE_OPTION_ID = 'native-token';
 const WALLET_PORTFOLIO_URL =
   import.meta.env.VITE_USE_TESTNETS === 'true'
@@ -1557,14 +1559,13 @@ const buildDappTransactionRequest = async ({
         account,
         chain,
       });
-  const gas = parseQuantity(transaction.gas ?? transaction.gasLimit);
+  const requestedGas = parseQuantity(transaction.gas ?? transaction.gasLimit);
   const innerCall = {
     to: getAddress(transaction.to),
     value: parseQuantity(transaction.value) ?? BigInt(0),
     data: normalizeHexData(transaction.data),
   };
   const transactionOverrides = {
-    ...(gas !== undefined ? { gas } : {}),
     ...(transaction.gasPrice !== undefined
       ? { gasPrice: parseQuantity(transaction.gasPrice) }
       : {}),
@@ -1589,27 +1590,36 @@ const buildDappTransactionRequest = async ({
     chain,
     transport: http(customChain?.rpcUrl ?? getRpcUrl(chainId)),
   });
+  const request = customChain
+    ? {
+        account,
+        chain,
+        to: innerCall.to,
+        value: innerCall.value,
+        data: innerCall.data,
+        ...(requestedGas !== undefined ? { gas: requestedGas } : {}),
+        ...transactionOverrides,
+      }
+    : {
+        account,
+        chain,
+        to: account.address,
+        value: BigInt(0),
+        data: encodePillarExecuteCall(innerCall),
+        ...(authorization ? { authorizationList: [authorization] } : {}),
+        ...transactionOverrides,
+      };
+
+  if (!customChain) {
+    const estimatedGas = await publicClient.estimateGas(request);
+    request.gas =
+      (estimatedGas * (BigInt(100) + DAPP_TRANSACTION_GAS_BUFFER_PERCENT)) /
+      BigInt(100);
+  }
 
   return {
     chainId,
-    request: customChain
-      ? {
-          account,
-          chain,
-          to: innerCall.to,
-          value: innerCall.value,
-          data: innerCall.data,
-          ...transactionOverrides,
-        }
-      : {
-          account,
-          chain,
-          to: account.address,
-          value: BigInt(0),
-          data: encodePillarExecuteCall(innerCall),
-          ...(authorization ? { authorizationList: [authorization] } : {}),
-          ...transactionOverrides,
-        },
+    request,
     publicClient,
     walletClient,
   };
@@ -2479,6 +2489,7 @@ const getWalletCapabilities = async ({
 
 const unsupportedMethods = new Set<string>();
 const pendingProviderApprovals = new Map<string, PendingProviderApproval>();
+const pendingProviderConnections = new Map<string, Promise<string>>();
 let approvalWindowId: number | undefined;
 
 const approvalStatusPriority = (status?: ProviderApprovalStatus): number => {
@@ -2731,6 +2742,21 @@ const focusChromeWindow = (windowId: number): Promise<void> =>
     );
   });
 
+const closeApprovalSurface = () => {
+  const windowId = approvalWindowId;
+  if (windowId === undefined) return;
+
+  approvalWindowId = undefined;
+  chromeLike?.windows?.remove?.(windowId, () => {
+    if (chromeLike.runtime?.lastError) return;
+  });
+};
+
+const closeApprovalSurfaceIfIdle = () => {
+  if (pendingProviderApprovals.size > 0) return;
+  closeApprovalSurface();
+};
+
 async function openApprovalSurface() {
   const approvalUrl = chromeLike?.runtime?.getURL?.('extension/approval.html');
   if (!approvalUrl) {
@@ -2897,6 +2923,7 @@ const respondToProviderApproval = ({
       });
     } else {
       pendingProviderApprovals.delete(id);
+      closeApprovalSurfaceIfIdle();
     }
 
     pending.resolve({ feePayment });
@@ -2904,8 +2931,62 @@ const respondToProviderApproval = ({
   }
 
   pendingProviderApprovals.delete(id);
+  closeApprovalSurfaceIfIdle();
   pending.reject(providerError(4001, 'User rejected the PillarX request.'));
   return { ok: true };
+};
+
+const requestProviderConnection = ({
+  chainId,
+  message,
+}: {
+  chainId: number;
+  message: ProviderRuntimeRequestMessage;
+}) => {
+  const existingRequest = pendingProviderConnections.get(message.origin);
+  if (existingRequest) return existingRequest;
+
+  const connectionRequest = (async () => {
+    const currentAddress = await getUnlockedAddress();
+    if (
+      currentAddress &&
+      (await isOriginConnected(message.origin, currentAddress))
+    ) {
+      return currentAddress;
+    }
+
+    await requestProviderApproval({
+      accountAddress: currentAddress,
+      chainId,
+      message,
+      method: 'eth_requestAccounts',
+    });
+
+    const address = await getUnlockedAddress();
+    if (!address) {
+      throw providerError(4100, 'Unlock PillarX to connect this site.');
+    }
+
+    await connectOrigin({
+      origin: message.origin,
+      address,
+      title: message.title,
+      favicon: message.favicon,
+    });
+
+    return address;
+  })();
+
+  pendingProviderConnections.set(message.origin, connectionRequest);
+
+  const clearConnectionRequest = () => {
+    if (pendingProviderConnections.get(message.origin) === connectionRequest) {
+      pendingProviderConnections.delete(message.origin);
+    }
+  };
+
+  connectionRequest.then(clearConnectionRequest, clearConnectionRequest);
+  return connectionRequest;
 };
 
 const wait = (milliseconds: number) =>
@@ -3149,30 +3230,7 @@ const handleProviderRequest = async (
     }
 
     case 'eth_requestAccounts': {
-      const currentAddress = await getUnlockedAddress();
-      if (currentAddress && (await isOriginConnected(origin, currentAddress))) {
-        return [currentAddress];
-      }
-
-      await requestProviderApproval({
-        accountAddress: currentAddress,
-        chainId,
-        message,
-        method,
-      });
-
-      const address = await getUnlockedAddress();
-      if (!address) {
-        throw providerError(4100, 'Unlock PillarX to connect this site.');
-      }
-
-      await connectOrigin({
-        origin,
-        address,
-        title: message.title,
-        favicon: message.favicon,
-      });
-
+      const address = await requestProviderConnection({ chainId, message });
       return [address];
     }
 
