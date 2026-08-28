@@ -17,7 +17,7 @@ import { isNativeToken } from '../apps/the-exchange/utils/wrappedTokens';
 
 // types
 import { TokenListToken } from '../types/blockchain';
-import { getEtherspotBundlerUrl } from './bundler';
+import { getEtherspotRpcUrl } from './bundler';
 import {
   CUSTOM_NATIVE_TOKEN_ADDRESS,
   getCustomChainById,
@@ -39,10 +39,7 @@ export const ARC_TESTNET_CHAIN_ID = 5_042_002;
 export const ARC_TESTNET_EXPLORER_URL = 'https://testnet.arcscan.app';
 export const ARC_TESTNET_NATIVE_TOKEN_DECIMALS = 18;
 
-export const ARC_TESTNET_RPC_URL = getEtherspotBundlerUrl({
-  chainId: ARC_TESTNET_CHAIN_ID,
-  apiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
-});
+export const ARC_TESTNET_RPC_URL = getEtherspotRpcUrl(ARC_TESTNET_CHAIN_ID);
 
 export const arcTestnetChain = defineChain({
   id: 5_042_002,
@@ -244,6 +241,9 @@ export const getSupportedChains = () => {
 
 export const getSupportedChainById = (chainId: number) =>
   getSupportedChains().find((chain) => chain.id === chainId);
+
+export const getChainRpcUrl = (chainId: number): string =>
+  getCustomChainById(chainId)?.rpcUrl ?? getEtherspotRpcUrl(chainId);
 
 export const isSupportedChainId = (chainId: number | undefined): boolean =>
   typeof chainId === 'number' && Boolean(getSupportedChainById(chainId));

@@ -20,7 +20,11 @@ import {
 
 // types
 import { Asset } from '../types';
-import { getBlockScan } from '../../../utils/blockchain';
+import {
+  getBlockScan,
+  getChainRpcUrl,
+} from '../../../utils/blockchain';
+import { getEtherspotExternalWalletRpcUrl } from '../../../utils/bundler';
 import type {
   WalletProviderLike,
   Eip1193LikeProvider,
@@ -101,7 +105,7 @@ export const switchChain = async (
               chainId: chainIdHex,
               chainName: targetChain.name,
               nativeCurrency: targetChain.nativeCurrency,
-              rpcUrls: targetChain.rpcUrls.default.http,
+              rpcUrls: [getEtherspotExternalWalletRpcUrl(chainId)],
               blockExplorerUrls: targetChain.blockExplorers?.default?.url
                 ? [targetChain.blockExplorers.default.url]
                 : undefined,
@@ -219,7 +223,7 @@ export const sendTransaction = async (
   // Create public client for gas estimation
   const publicClient = createPublicClient({
     chain,
-    transport: http(),
+    transport: http(getChainRpcUrl(chain.id)),
   });
 
   // Check if native asset

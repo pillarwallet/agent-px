@@ -45,7 +45,6 @@ type ProviderRpcError = Error & {
 
 declare global {
   interface Window {
-    ethereum?: PillarXInjectedProvider;
     pillarXEthereum?: PillarXInjectedProvider;
   }
 }
@@ -266,18 +265,7 @@ const initializeInjectedProvider = () => {
     rdns: 'app.pillarx',
   });
 
-  const setLegacyGlobalProvider = () => {
-    window.pillarXEthereum = provider;
-
-    if (!window.ethereum) {
-      window.ethereum = provider;
-      window.dispatchEvent(new Event('ethereum#initialized'));
-    }
-  };
-
   const announceProvider = () => {
-    setLegacyGlobalProvider();
-
     window.dispatchEvent(
       new CustomEvent('eip6963:announceProvider', {
         detail: Object.freeze({
@@ -304,11 +292,16 @@ const initializeInjectedProvider = () => {
     provider.emit(message.event, message.data);
   });
 
+  window.pillarXEthereum = provider;
   window.addEventListener('eip6963:requestProvider', announceProvider);
 
   announceProvider();
 };
 
 if (shouldInitializeInjectedProvider()) {
-  initializeInjectedProvider();
+  window.addEventListener(
+    'eip6963:requestProvider',
+    () => initializeInjectedProvider(),
+    { once: true }
+  );
 }

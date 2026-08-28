@@ -22,6 +22,7 @@ import { SelectedToken } from '../types/tokens';
 
 // utils
 import { Token } from '../../../services/tokensData';
+import { getChainRpcUrl } from '../../../utils/blockchain';
 import { EtherspotUtils } from '../../../utils/nativeTransactionKit';
 import { getNetworkViem } from '../../deposit/utils/blockchain';
 import {
@@ -86,7 +87,7 @@ export default function useRelaySell() {
       try {
         const publicClient = createPublicClient({
           chain: getNetworkViem(chainId),
-          transport: http(),
+          transport: http(getChainRpcUrl(chainId)),
         });
 
         const allowance = await publicClient.readContract({

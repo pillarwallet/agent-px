@@ -14,8 +14,10 @@ import { toast } from 'sonner';
 import { ethers } from 'ethers';
 import { checkUSDCBalance } from '../lib/hyperliquid/bridge';
 import useTransactionKit from '../../../hooks/useTransactionKit';
+import { getEtherspotExternalWalletRpcUrl } from '../../../utils/bundler';
 import { useHyperliquid } from '../hooks/useHyperliquid';
 import { erc20Abi, parseUnits } from 'viem';
+import { arbitrum } from 'viem/chains';
 import { cn } from '../lib/utils';
 
 // Contract addresses
@@ -90,7 +92,7 @@ export function DepositModal({
               {
                 chainId: '0xa4b1',
                 chainName: 'Arbitrum One',
-                rpcUrls: ['https://arb1.arbitrum.io/rpc'],
+                rpcUrls: [getEtherspotExternalWalletRpcUrl(arbitrum.id)],
                 nativeCurrency: {
                   name: 'Ether',
                   symbol: 'ETH',

@@ -759,12 +759,6 @@ export default function ProviderApprovalOverlay({
   const renderSimulationContent = () => {
     if (!activeRequest.simulation) return null;
 
-    if (activeRequest.simulation.error) {
-      return (
-        <p style={styles.simulationMuted}>{activeRequest.simulation.error}</p>
-      );
-    }
-
     if (!activeRequest.simulation.changes.length) {
       return (
         <p style={styles.simulationMuted}>No wallet token changes detected.</p>
@@ -1128,7 +1122,7 @@ export default function ProviderApprovalOverlay({
                 <p style={styles.errorMessage}>{errorMessage}</p>
               ) : null}
 
-              {activeRequest.simulation ? (
+              {activeRequest.simulation && !activeRequest.simulation.error ? (
                 <section style={styles.simulationPanel}>
                   <div style={styles.simulationHeader}>
                     <span style={styles.detailLabel}>Simulation</span>
