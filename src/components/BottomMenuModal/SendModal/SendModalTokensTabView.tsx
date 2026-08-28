@@ -53,7 +53,6 @@ import { getUserOperationStatus } from '../../../services/userOpStatus';
 // utils
 import { isNativeToken } from '../../../apps/the-exchange/utils/wrappedTokens';
 import {
-  ARC_TESTNET_CHAIN_ID,
   buildTransactionData,
   getNativeAssetForChainId,
   isSupportedChainId,
@@ -436,6 +435,9 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   const nativeSymbol = selectedAsset
     ? getNativeAssetForChainId(selectedAsset.chainId).symbol
     : undefined;
+  const isSelectedCustomChain = selectedAsset
+    ? Boolean(getCustomChainById(selectedAsset.chainId))
+    : false;
 
   const { data: tokenData } = useGetTokenMarketDataQuery(
     {
@@ -443,18 +445,16 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       blockchain: selectedAsset ? String(selectedAsset.chainId) : undefined,
     },
     {
-      skip:
-        !selectedAsset?.chainId ||
-        selectedAsset.chainId === ARC_TESTNET_CHAIN_ID,
+      skip: !selectedAsset?.chainId || isSelectedCustomChain,
     }
   );
 
   useEffect(() => {
     if (!selectedAsset) return;
     if (selectedAsset.type !== 'token') return;
-    if (selectedAsset.chainId === ARC_TESTNET_CHAIN_ID) {
-      setNativeAssetPrice(1);
-      setSelectedAssetPrice(selectedAsset.asset.price || 1);
+    if (isSelectedCustomChain) {
+      setNativeAssetPrice(0);
+      setSelectedAssetPrice(selectedAsset.asset.price || 0);
       return;
     }
     if (
@@ -471,7 +471,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       setSelectedAssetPrice(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAsset, tokenData]);
+  }, [isSelectedCustomChain, selectedAsset, tokenData]);
 
   useEffect(() => {
     setSafetyWarningMessage('');
@@ -512,7 +512,9 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   }, [amount, selectedAssetPrice]);
 
   const shouldUseDirectEoaSend =
-    !payload && selectedFeeType === 'Native Token' && !isPaymaster;
+    !payload &&
+    (isSelectedCustomChain ||
+      (selectedFeeType === 'Native Token' && !isPaymaster));
 
   const maxAmountAvailable = useMemo(() => {
     if (selectedAsset?.type !== 'token' || !selectedAsset.balance) return 0;

@@ -231,6 +231,7 @@ const DEFAULT_TESTNET_CHAIN_ID = 11155111;
 const APPROVAL_WINDOW_WIDTH = 430;
 const APPROVAL_WINDOW_HEIGHT = 744;
 const DAPP_TRANSACTION_GAS_BUFFER_PERCENT = BigInt(20);
+const MIN_DAPP_PRIORITY_FEE_PER_GAS = BigInt(1);
 const NATIVE_FEE_OPTION_ID = 'native-token';
 const WALLET_PORTFOLIO_URL =
   import.meta.env.VITE_USE_TESTNETS === 'true'
@@ -1684,28 +1685,58 @@ const buildDappBatchTransactionRequest = async ({
     to,
     value,
   }));
+  const request = customChain
+    ? {
+        account,
+        chain,
+        to: pillarCalls[0].to,
+        value: pillarCalls[0].value,
+        data: pillarCalls[0].data,
+      }
+    : {
+        account,
+        chain,
+        to: account.address,
+        value: BigInt(0),
+        data:
+          pillarCalls.length === 1
+            ? encodePillarExecuteCall(pillarCalls[0])
+            : encodePillarExecuteBatch(pillarCalls),
+        ...(authorization ? { authorizationList: [authorization] } : {}),
+      };
+
+  if (!customChain) {
+    const estimatedFees = await publicClient.estimateFeesPerGas({
+      type: 'eip1559',
+    });
+    const estimatedPriorityFee =
+      'maxPriorityFeePerGas' in estimatedFees
+        ? estimatedFees.maxPriorityFeePerGas
+        : undefined;
+    const maxPriorityFeePerGas =
+      estimatedPriorityFee &&
+      estimatedPriorityFee > MIN_DAPP_PRIORITY_FEE_PER_GAS
+        ? estimatedPriorityFee
+        : MIN_DAPP_PRIORITY_FEE_PER_GAS;
+    const estimatedMaxFee =
+      'maxFeePerGas' in estimatedFees ? estimatedFees.maxFeePerGas : undefined;
+    const maxFeePerGas =
+      estimatedMaxFee && estimatedMaxFee > maxPriorityFeePerGas
+        ? estimatedMaxFee
+        : maxPriorityFeePerGas;
+
+    request.maxFeePerGas = maxFeePerGas;
+    request.maxPriorityFeePerGas = maxPriorityFeePerGas;
+
+    const estimatedGas = await publicClient.estimateGas(request);
+    request.gas =
+      (estimatedGas * (BigInt(100) + DAPP_TRANSACTION_GAS_BUFFER_PERCENT)) /
+      BigInt(100);
+  }
 
   return {
     chainId,
-    request: customChain
-      ? {
-          account,
-          chain,
-          to: pillarCalls[0].to,
-          value: pillarCalls[0].value,
-          data: pillarCalls[0].data,
-        }
-      : {
-          account,
-          chain,
-          to: account.address,
-          value: BigInt(0),
-          data:
-            pillarCalls.length === 1
-              ? encodePillarExecuteCall(pillarCalls[0])
-              : encodePillarExecuteBatch(pillarCalls),
-          ...(authorization ? { authorizationList: [authorization] } : {}),
-        },
+    request,
     publicClient,
     walletClient,
   };
@@ -2497,6 +2528,7 @@ const approvalStatusPriority = (status?: ProviderApprovalStatus): number => {
     case 'success':
     case 'error':
       return 2;
+    case 'confirming':
     case 'submitting':
       return 1;
     default:
@@ -2545,6 +2577,60 @@ const updateProviderApprovalStatus = (
   if (status.phase === 'success' || status.phase === 'error') {
     scheduleProviderApprovalCleanup(id);
   }
+};
+
+const trackProviderTransactionConfirmation = async ({
+  id,
+  publicClient,
+  transactionHash,
+}: {
+  id: string;
+  publicClient: ReturnType<typeof createPublicClient>;
+  transactionHash: Hex;
+}) => {
+  try {
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: transactionHash,
+    });
+
+    if (receipt.status === 'success') {
+      updateProviderApprovalStatus(id, {
+        phase: 'success',
+        transactionHash,
+      });
+      return;
+    }
+
+    updateProviderApprovalStatus(id, {
+      failureType: 'reverted',
+      message: 'The transaction reverted on-chain.',
+      phase: 'error',
+      transactionHash,
+    });
+  } catch (error) {
+    updateProviderApprovalStatus(id, {
+      failureType: 'confirmation',
+      message:
+        error instanceof Error
+          ? error.message
+          : 'The transaction was submitted, but its confirmation could not be verified.',
+      phase: 'error',
+      transactionHash,
+    });
+  }
+};
+
+const updateProviderApprovalView = (
+  id: string,
+  view: Partial<ProviderApprovalRequestView>
+) => {
+  const pending = pendingProviderApprovals.get(id);
+  if (!pending) return;
+
+  pending.view = {
+    ...pending.view,
+    ...view,
+  };
 };
 
 const buildPermissions = (origin: string, address: string) => [
@@ -2815,7 +2901,7 @@ const getConnectedAccount = async (
   return account;
 };
 
-const requestProviderApproval = async ({
+const requestProviderApproval = ({
   account,
   accountAddress,
   chainId,
@@ -2823,6 +2909,7 @@ const requestProviderApproval = async ({
   feePaymentOptions,
   message,
   method,
+  preparation,
   simulation,
 }: {
   account?: UnlockedAccount;
@@ -2832,61 +2919,98 @@ const requestProviderApproval = async ({
   feePaymentOptions?: ProviderApprovalFeePaymentOption[];
   message: ProviderRuntimeRequestMessage;
   method: ProviderApprovalKind;
+  preparation?: ProviderApprovalRequestView['preparation'];
   simulation?: TransactionSimulationView;
 }) => {
-  const approvalChain = await getProviderChainById(chainId).catch(
-    () => undefined
-  );
-
-  return new Promise<{ feePayment?: ProviderApprovalFeePayment } | undefined>(
-    (resolve, reject) => {
-      const timeoutId = setTimeout(
-        () => {
-          pendingProviderApprovals.delete(message.id);
-          reject(providerError(4001, 'PillarX request approval timed out.'));
-        },
-        5 * 60 * 1000
-      );
-
-      clearSettledProviderApprovals();
-
-      pendingProviderApprovals.set(message.id, {
-        reject,
-        resolve,
-        timeoutId,
-        view: {
-          id: message.id,
-          account: account?.address ?? accountAddress,
-          chainId,
-          chainName: approvalChain?.name,
-          createdAt: Date.now(),
-          estimatedFee,
-          feePaymentOptions,
-          favicon: message.favicon,
-          method,
-          nativeCurrencySymbol: approvalChain?.nativeCurrency.symbol,
-          origin: message.origin,
-          params: message.args.params,
-          simulation,
-          title: message.title,
-          url: message.url,
-        },
-      });
-
-      openApprovalSurface().catch((error) => {
-        clearTimeout(timeoutId);
+  const approvalPromise = new Promise<
+    { feePayment?: ProviderApprovalFeePayment } | undefined
+  >((resolve, reject) => {
+    const timeoutId = setTimeout(
+      () => {
         pendingProviderApprovals.delete(message.id);
-        reject(
-          providerError(
-            4001,
-            error instanceof Error
-              ? error.message
-              : 'Unable to open PillarX approval window.'
-          )
-        );
+        reject(providerError(4001, 'PillarX request approval timed out.'));
+      },
+      5 * 60 * 1000
+    );
+
+    clearSettledProviderApprovals();
+
+    pendingProviderApprovals.set(message.id, {
+      reject,
+      resolve,
+      timeoutId,
+      view: {
+        id: message.id,
+        account: account?.address ?? accountAddress,
+        chainId,
+        createdAt: Date.now(),
+        estimatedFee,
+        feePaymentOptions,
+        favicon: message.favicon,
+        method,
+        origin: message.origin,
+        params: message.args.params,
+        preparation,
+        simulation,
+        title: message.title,
+        url: message.url,
+      },
+    });
+
+    openApprovalSurface().catch((error) => {
+      clearTimeout(timeoutId);
+      pendingProviderApprovals.delete(message.id);
+      reject(
+        providerError(
+          4001,
+          error instanceof Error
+            ? error.message
+            : 'Unable to open PillarX approval window.'
+        )
+      );
+    });
+  });
+
+  getProviderChainById(chainId)
+    .then((approvalChain) => {
+      updateProviderApprovalView(message.id, {
+        chainName: approvalChain.name,
+        nativeCurrencySymbol: approvalChain.nativeCurrency.symbol,
       });
-    }
-  );
+    })
+    .catch(() => undefined);
+
+  return approvalPromise;
+};
+
+const failProviderApprovalPreparation = async ({
+  approvalPromise,
+  error,
+  id,
+}: {
+  approvalPromise: ReturnType<typeof requestProviderApproval>;
+  error: unknown;
+  id: string;
+}): Promise<never> => {
+  const preparationError =
+    error instanceof Error
+      ? error.message
+      : 'Transaction gas estimation failed.';
+
+  updateProviderApprovalView(id, {
+    preparation: {
+      message: preparationError,
+      phase: 'revert',
+    },
+  });
+
+  try {
+    await approvalPromise;
+  } catch {
+    // The failed request remains visible until the user dismisses it.
+  }
+
+  throw error;
 };
 
 const getPendingProviderApprovalViews = () =>
@@ -2912,6 +3036,18 @@ const respondToProviderApproval = ({
   clearTimeout(pending.timeoutId);
 
   if (approved) {
+    if (
+      pending.view.preparation &&
+      pending.view.preparation.phase !== 'ready'
+    ) {
+      throw providerError(
+        -32000,
+        pending.view.preparation.phase === 'revert'
+          ? 'Transaction gas estimation indicates this request will revert.'
+          : 'Transaction gas estimation is still in progress.'
+      );
+    }
+
     pending.approved = true;
     if (
       pending.view.method === 'eth_sendTransaction' ||
@@ -3393,39 +3529,56 @@ const handleProviderRequest = async (
         fallbackChainId: chainId,
         transaction,
       });
-      const preparedTransaction = await buildDappTransactionRequest({
+      const approvalPromise = requestProviderApproval({
         account,
         chainId: effectiveChainId,
-        transaction,
-      });
-      const estimatedFee = await getDappTransactionFeeEstimate(
-        preparedTransaction
-      ).catch(() => undefined);
-      const simulation = await getDappTransactionSimulation({
-        account,
-        chainId: effectiveChainId,
-        estimatedFee,
-        transaction,
-      }).catch((error) =>
-        alchemyApiKey
-          ? {
-              changes: [],
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Alchemy transaction simulation failed.',
-            }
-          : undefined
-      );
-
-      await requestProviderApproval({
-        account,
-        chainId: effectiveChainId,
-        estimatedFee,
         message,
         method,
-        simulation,
+        preparation: { phase: 'estimating' },
       });
+      approvalPromise.catch(() => undefined);
+      const preparedTransaction = await (async () => {
+        try {
+          const prepared = await buildDappTransactionRequest({
+            account,
+            chainId: effectiveChainId,
+            transaction,
+          });
+          const estimatedFee = await getDappTransactionFeeEstimate(prepared);
+          const simulation = await getDappTransactionSimulation({
+            account,
+            chainId: effectiveChainId,
+            estimatedFee,
+            transaction,
+          }).catch((error) =>
+            alchemyApiKey
+              ? {
+                  changes: [],
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : 'Alchemy transaction simulation failed.',
+                }
+              : undefined
+          );
+
+          updateProviderApprovalView(message.id, {
+            estimatedFee,
+            preparation: { phase: 'ready' },
+            simulation,
+          });
+
+          return prepared;
+        } catch (error) {
+          return failProviderApprovalPreparation({
+            approvalPromise,
+            error,
+            id: message.id,
+          });
+        }
+      })();
+
+      await approvalPromise;
 
       return preparedTransaction.walletClient.signTransaction(
         preparedTransaction.request
@@ -3446,44 +3599,62 @@ const handleProviderRequest = async (
         fallbackChainId: chainId,
         transaction,
       });
-      const preparedTransaction = await buildDappTransactionRequest({
+      const approvalPromise = requestProviderApproval({
         account,
         chainId: effectiveChainId,
-        transaction,
-      });
-      const estimatedFee = await getDappTransactionFeeEstimate(
-        preparedTransaction
-      ).catch(() => undefined);
-      const simulation = await getDappTransactionSimulation({
-        account,
-        chainId: effectiveChainId,
-        estimatedFee,
-        transaction,
-      }).catch((error) =>
-        alchemyApiKey
-          ? {
-              changes: [],
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Alchemy transaction simulation failed.',
-            }
-          : undefined
-      );
-      const feePaymentOptions = await getDappFeePaymentOptions({
-        account,
-        chainId: effectiveChainId,
-      });
-
-      const approvalResponse = await requestProviderApproval({
-        account,
-        chainId: effectiveChainId,
-        estimatedFee,
-        feePaymentOptions,
         message,
         method,
-        simulation,
+        preparation: { phase: 'estimating' },
       });
+      approvalPromise.catch(() => undefined);
+      const preparedTransaction = await (async () => {
+        try {
+          const prepared = await buildDappTransactionRequest({
+            account,
+            chainId: effectiveChainId,
+            transaction,
+          });
+          const estimatedFee = await getDappTransactionFeeEstimate(prepared);
+          const [simulation, feePaymentOptions] = await Promise.all([
+            getDappTransactionSimulation({
+              account,
+              chainId: effectiveChainId,
+              estimatedFee,
+              transaction,
+            }).catch((error) =>
+              alchemyApiKey
+                ? {
+                    changes: [],
+                    error:
+                      error instanceof Error
+                        ? error.message
+                        : 'Alchemy transaction simulation failed.',
+                  }
+                : undefined
+            ),
+            getDappFeePaymentOptions({
+              account,
+              chainId: effectiveChainId,
+            }),
+          ]);
+
+          updateProviderApprovalView(message.id, {
+            estimatedFee,
+            feePaymentOptions,
+            preparation: { phase: 'ready' },
+            simulation,
+          });
+
+          return prepared;
+        } catch (error) {
+          return failProviderApprovalPreparation({
+            approvalPromise,
+            error,
+            id: message.id,
+          });
+        }
+      })();
+      const approvalResponse = await approvalPromise;
 
       try {
         const transactionHash = isGaslessFeePayment(
@@ -3500,13 +3671,19 @@ const handleProviderRequest = async (
             );
 
         updateProviderApprovalStatus(message.id, {
-          phase: 'success',
+          phase: 'confirming',
           transactionHash,
         });
+        trackProviderTransactionConfirmation({
+          id: message.id,
+          publicClient: preparedTransaction.publicClient,
+          transactionHash,
+        }).catch(() => undefined);
 
         return transactionHash;
       } catch (error) {
         updateProviderApprovalStatus(message.id, {
+          failureType: 'submission',
           message:
             error instanceof Error
               ? error.message
@@ -3547,50 +3724,72 @@ const handleProviderRequest = async (
         );
       }
 
-      const preparedTransaction = await buildDappBatchTransactionRequest({
-        account,
-        calls: sendCallsRequest.calls,
-        chainId: sendCallsRequest.chainId,
-      });
-      const estimatedFee = await getDappTransactionFeeEstimate(
-        preparedTransaction
-      ).catch(() => undefined);
-      const simulation = await getDappTransactionSimulation({
+      const approvalPromise = requestProviderApproval({
         account,
         chainId: sendCallsRequest.chainId,
-        estimatedFee,
-        transaction: {
-          chainId: numberToChainHex(sendCallsRequest.chainId),
-          data: preparedTransaction.request.data,
-          from: account.address,
-          to: account.address,
-          value: '0x0',
-        },
-      }).catch((error) =>
-        alchemyApiKey
-          ? {
-              changes: [],
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Alchemy transaction simulation failed.',
-            }
-          : undefined
-      );
-      const feePaymentOptions = await getDappFeePaymentOptions({
-        account,
-        chainId: sendCallsRequest.chainId,
-      });
-
-      const approvalResponse = await requestProviderApproval({
-        account,
-        chainId: sendCallsRequest.chainId,
-        estimatedFee,
-        feePaymentOptions,
         message,
         method,
-        simulation,
+        preparation: { phase: 'estimating' },
       });
+      approvalPromise.catch(() => undefined);
+      const preparedTransaction = await (async () => {
+        try {
+          const prepared = await buildDappBatchTransactionRequest({
+            account,
+            calls: sendCallsRequest.calls,
+            chainId: sendCallsRequest.chainId,
+          });
+          const estimatedFee = await getDappTransactionFeeEstimate(prepared);
+          const simulationCall =
+            sendCallsRequest.calls.length === 1
+              ? sendCallsRequest.calls[0]
+              : undefined;
+          const [simulation, feePaymentOptions] = await Promise.all([
+            getDappTransactionSimulation({
+              account,
+              chainId: sendCallsRequest.chainId,
+              estimatedFee,
+              transaction: {
+                chainId: numberToChainHex(sendCallsRequest.chainId),
+                data: simulationCall?.data ?? prepared.request.data,
+                from: account.address,
+                to: simulationCall?.to ?? account.address,
+                value: quantityToHex(simulationCall?.value ?? BigInt(0)),
+              },
+            }).catch((error) =>
+              alchemyApiKey
+                ? {
+                    changes: [],
+                    error:
+                      error instanceof Error
+                        ? error.message
+                        : 'Alchemy transaction simulation failed.',
+                  }
+                : undefined
+            ),
+            getDappFeePaymentOptions({
+              account,
+              chainId: sendCallsRequest.chainId,
+            }),
+          ]);
+
+          updateProviderApprovalView(message.id, {
+            estimatedFee,
+            feePaymentOptions,
+            preparation: { phase: 'ready' },
+            simulation,
+          });
+
+          return prepared;
+        } catch (error) {
+          return failProviderApprovalPreparation({
+            approvalPromise,
+            error,
+            id: message.id,
+          });
+        }
+      })();
+      const approvalResponse = await approvalPromise;
 
       try {
         const transactionHash = isGaslessFeePayment(
@@ -3616,9 +3815,14 @@ const handleProviderRequest = async (
         });
 
         updateProviderApprovalStatus(message.id, {
-          phase: 'success',
+          phase: 'confirming',
           transactionHash,
         });
+        trackProviderTransactionConfirmation({
+          id: message.id,
+          publicClient: preparedTransaction.publicClient,
+          transactionHash,
+        }).catch(() => undefined);
 
         return {
           id: sendCallsRequest.id,
@@ -3637,6 +3841,7 @@ const handleProviderRequest = async (
         });
 
         updateProviderApprovalStatus(message.id, {
+          failureType: 'submission',
           message:
             error instanceof Error
               ? error.message

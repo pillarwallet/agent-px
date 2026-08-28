@@ -35,37 +35,6 @@ import logoEvm from '../assets/images/logo-evm.png';
 import logoOptimism from '../assets/images/logo-optimism.png';
 import logoPolygon from '../assets/images/logo-polygon.png';
 
-export const ARC_TESTNET_CHAIN_ID = 5_042_002;
-export const ARC_TESTNET_EXPLORER_URL = 'https://testnet.arcscan.app';
-export const ARC_TESTNET_NATIVE_TOKEN_DECIMALS = 18;
-
-export const ARC_TESTNET_RPC_URL = getEtherspotRpcUrl(ARC_TESTNET_CHAIN_ID);
-
-export const arcTestnetChain = defineChain({
-  id: 5_042_002,
-  name: 'Arc Testnet',
-  nativeCurrency: {
-    name: 'USDC',
-    symbol: 'USDC',
-    decimals: ARC_TESTNET_NATIVE_TOKEN_DECIMALS,
-  },
-  rpcUrls: {
-    default: {
-      http: [ARC_TESTNET_RPC_URL],
-    },
-    public: {
-      http: [ARC_TESTNET_RPC_URL],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'Arcscan',
-      url: ARC_TESTNET_EXPLORER_URL,
-    },
-  },
-  testnet: true,
-});
-
 export const isTestnet = (() => {
   if (typeof localStorage === 'undefined') {
     return import.meta.env.VITE_USE_TESTNETS === 'true';
@@ -182,14 +151,6 @@ export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
       'https://public.etherspot.io/buidler/chain_logos/ethereum.png';
   }
 
-  if (chainId === arcTestnetChain.id) {
-    nativeAsset.name = 'USDC';
-    nativeAsset.symbol = 'USDC';
-    nativeAsset.decimals = ARC_TESTNET_NATIVE_TOKEN_DECIMALS;
-    nativeAsset.logoURI =
-      'https://public.etherspot.io/buidler/chain_logos/native_tokens/usdc.png';
-  }
-
   return nativeAsset;
 };
 
@@ -201,7 +162,6 @@ const allSupportedChains = [
   optimism,
   arbitrum,
   sepolia,
-  arcTestnetChain,
 ];
 
 export const supportedChains = allSupportedChains;
@@ -281,10 +241,6 @@ export const getLogoForChainId = (chainId: number): string => {
     return logoBase;
   }
 
-  if (chainId === arcTestnetChain.id) {
-    return logoEvm;
-  }
-
   return logoEvm;
 };
 
@@ -326,8 +282,6 @@ export const getBlockScan = (chain: number, isAddress: boolean = false) => {
       return `https://optimistic.etherscan.io/${isAddress ? 'address' : 'tx'}/`;
     case 42161:
       return `https://arbiscan.io/${isAddress ? 'address' : 'tx'}/`;
-    case 5042002:
-      return `https://testnet.arcscan.app/${isAddress ? 'address' : 'tx'}/`;
     default:
       return '';
   }
@@ -347,8 +301,6 @@ export const getBlockScanName = (chain: number) => {
       return 'Optimistic Etherscan';
     case 42161:
       return 'Arbiscan';
-    case 5042002:
-      return 'Arcscan';
     default:
       return '';
   }
@@ -370,8 +322,6 @@ export const getChainName = (chain: number) => {
       return 'Arbitrum';
     case 11155111:
       return 'Sepolia';
-    case 5042002:
-      return 'Arc Testnet';
     default:
       return getCustomChainName(chain) || `${chain}`;
   }

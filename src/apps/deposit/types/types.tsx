@@ -18,15 +18,6 @@ export type AddedAssets = {
   balance: number;
 };
 
-export type Network =
-  | 'ethereum'
-  | 'polygon'
-  | 'base'
-  | 'bnb smart chain'
-  | 'optimism'
-  | 'arbitrum'
-  | 'arc testnet';
-
 export type TokenList = {
   address: string;
   chainId: number;
