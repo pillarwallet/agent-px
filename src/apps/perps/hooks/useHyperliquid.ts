@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { getAgentAddress } from '../lib/hyperliquid/keystore';
 import { createWalletClient, custom, http } from 'viem';
 import { arbitrum } from 'viem/chains';
+import { getChainRpcUrl } from '../../../utils/blockchain';
 
 type SetupStatus = 'unknown' | 'not-setup' | 'setup';
 
@@ -73,7 +74,7 @@ export function useHyperliquid() {
       client = createWalletClient({
         account,
         chain: arbitrum,
-        transport: clientTransport ?? http(),
+        transport: clientTransport ?? http(getChainRpcUrl(arbitrum.id)),
       });
       isImported = true;
     } else {
@@ -210,7 +211,7 @@ export function useHyperliquid() {
       client = createWalletClient({
         account,
         chain: arbitrum,
-        transport: clientTransport ?? http(),
+        transport: clientTransport ?? http(getChainRpcUrl(arbitrum.id)),
       });
     } else if (clientTransport) {
       client = createWalletClient({
@@ -314,7 +315,7 @@ export function useHyperliquid() {
         client = createWalletClient({
           account,
           chain: arbitrum,
-          transport: clientTransport ?? http(),
+          transport: clientTransport ?? http(getChainRpcUrl(arbitrum.id)),
         });
       } else if (clientTransport) {
         client = createWalletClient({

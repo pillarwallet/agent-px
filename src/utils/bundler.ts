@@ -49,3 +49,12 @@ export const getEtherspotBundlerUrl = ({
 
   return `${baseUrl}?api-key=${apiKey}`;
 };
+
+export const getEtherspotRpcUrl = (chainId: number): string =>
+  getEtherspotBundlerUrl({
+    chainId,
+    apiKey: import.meta.env.VITE_ETHERSPOT_BUNDLER_API_KEY,
+  });
+
+export const getEtherspotExternalWalletRpcUrl = (chainId: number): string =>
+  getEtherspotBundlerUrl({ chainId });

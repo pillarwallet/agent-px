@@ -15,6 +15,7 @@ import type {
 
 // Services
 import { pillarXApiWalletPortfolio } from '../../services/pillarXApiWalletPortfolio';
+import { getChainRpcUrl } from '../../utils/blockchain';
 
 // Components
 import AssetsList from './components/AssetsList';
@@ -212,7 +213,10 @@ const App = () => {
 
     // Wait for real on-chain receipt and update status accordingly
     const chain = getChainById(chainId);
-    const publicClient = createPublicClient({ chain, transport: http() });
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(getChainRpcUrl(chainId)),
+    });
 
     (async () => {
       try {

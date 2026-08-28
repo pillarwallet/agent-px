@@ -26,7 +26,7 @@ import {
   Token,
   chainNameToChainIdTokensData,
 } from '../../../services/tokensData';
-import { isStableCoin } from '../../../utils/blockchain';
+import { getChainRpcUrl, isStableCoin } from '../../../utils/blockchain';
 import { EtherspotUtils } from '../../../utils/nativeTransactionKit';
 import { getNetworkViem } from '../../deposit/utils/blockchain';
 import {
@@ -226,7 +226,7 @@ const useOffer = () => {
     try {
       const publicClient = createPublicClient({
         chain: getNetworkViem(chainId),
-        transport: http(),
+        transport: http(getChainRpcUrl(chainId)),
       });
 
       const allowance = await publicClient.readContract({

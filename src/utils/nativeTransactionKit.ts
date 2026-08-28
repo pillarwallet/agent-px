@@ -341,9 +341,9 @@ const getChainById = (chainId: number): Chain => {
   return chain;
 };
 
-const getDirectTransport = (chainId: number) => {
+const getDirectTransport = (chainId: number, etherspotRpcUrl: string) => {
   const customRpcUrl = getCustomChainById(chainId)?.rpcUrl;
-  return customRpcUrl ? http(customRpcUrl) : http();
+  return http(customRpcUrl || etherspotRpcUrl);
 };
 
 const getProviderAccountAddress = async (
@@ -801,7 +801,7 @@ export class PillarTransactionProvider {
 
     return createPublicClient({
       chain: getChainById(chainId),
-      transport: getDirectTransport(chainId),
+      transport: getDirectTransport(chainId, this.getBundlerUrl(chainId)),
     });
   }
 
@@ -823,7 +823,7 @@ export class PillarTransactionProvider {
       return createWalletClient({
         account: owner,
         chain,
-        transport: getDirectTransport(chainId),
+        transport: getDirectTransport(chainId, this.getBundlerUrl(chainId)),
       });
     }
 

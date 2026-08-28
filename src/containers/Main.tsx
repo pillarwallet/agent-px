@@ -33,7 +33,7 @@ import LanguageProvider from '../providers/LanguageProvider';
 
 // utils
 import { getNetworkViem } from '../apps/deposit/utils/blockchain';
-import { visibleChains } from '../utils/blockchain';
+import { getChainRpcUrl, visibleChains } from '../utils/blockchain';
 import {
   signAuthorizationViaWebView,
   signMessageViaWebView,
@@ -417,7 +417,7 @@ const AuthLayout = () => {
           const newProvider = createWalletClient({
             account,
             chain: getNetworkViem(walletChainId),
-            transport: http(),
+            transport: http(getChainRpcUrl(walletChainId)),
           });
           setProvider(newProvider);
         }
@@ -585,7 +585,7 @@ const AuthLayout = () => {
           const newProvider = createWalletClient({
             account,
             chain: getNetworkViem(walletChainId),
-            transport: http(),
+            transport: http(getChainRpcUrl(walletChainId)),
           });
 
           setProvider(newProvider);
@@ -1179,7 +1179,7 @@ export const config = createConfig({
           }),
         ],
   transports: {
-    [mainnet.id]: http(),
+    [mainnet.id]: http(getChainRpcUrl(mainnet.id)),
   },
 });
 

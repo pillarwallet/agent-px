@@ -12,6 +12,7 @@ import { useAppSelector } from './hooks/useReducerHooks';
 
 // utils
 import { supportedChains } from '../../utils/blockchain';
+import { getEtherspotExternalWalletRpcUrl } from '../../utils/bundler';
 import { initSentryForExchange, logExchangeError } from './utils/sentry';
 
 // components
@@ -126,7 +127,9 @@ export const App = () => {
                             chainId: `0x${chainId.toString(16)}`,
                             chainName: targetChain.name,
                             nativeCurrency: targetChain.nativeCurrency,
-                            rpcUrls: targetChain.rpcUrls.default.http,
+                            rpcUrls: [
+                              getEtherspotExternalWalletRpcUrl(chainId),
+                            ],
                             blockExplorerUrls: targetChain.blockExplorers
                               ?.default?.url
                               ? [targetChain.blockExplorers.default.url]

@@ -15,14 +15,7 @@ import {
   http,
   parseUnits,
 } from 'viem';
-import {
-  arbitrum,
-  base,
-  bsc,
-  mainnet,
-  optimism,
-  polygon,
-} from 'viem/chains';
+import { arbitrum, base, bsc, mainnet, optimism, polygon } from 'viem/chains';
 
 // types
 import { AddedAssets, BalanceInfo, Network } from '../types/types';
@@ -31,20 +24,7 @@ import { AddedAssets, BalanceInfo, Network } from '../types/types';
 import ERC1155_ABI from './abis/ERC1155.json';
 import ERC20_ABI from './abis/ERC20Token.json';
 import ERC721_ABI from './abis/ERC721.json';
-import {
-  ARC_TESTNET_RPC_URL,
-  arcTestnetChain,
-} from '../../../utils/blockchain';
-
-const chainMapping = {
-  polygon: 'https://polygon-rpc.com',
-  ethereum: 'https://ethereum-rpc.publicnode.com',
-  base: 'https://base-rpc.publicnode.com',
-  'bnb smart chain': 'https://bsc.drpc.org',
-  optimism: 'https://optimism-rpc.publicnode.com',
-  arbitrum: 'https://arbitrum.drpc.org',
-  'arc testnet': 'https://rpc.testnet.arc.network',
-};
+import { arcTestnetChain, getChainRpcUrl } from '../../../utils/blockchain';
 
 export const allNativeTokens: Record<
   Network,
@@ -112,7 +92,7 @@ export const getBalances = async (
   chainId: number
 ): Promise<{ address: string; balance: string }[]> => {
   const chain = getNetworkViem(chainId);
-  const chainUrl = chainMapping[chain.name.toLowerCase() as Network] || null;
+  const chainUrl = getChainRpcUrl(chainId);
 
   try {
     if (!chainUrl) {
@@ -158,7 +138,7 @@ export const getNativeBalance = async (
   chainId: number
 ): Promise<string> => {
   const chain = getNetworkViem(chainId);
-  const chainUrl = chainMapping[chain.name.toLowerCase() as Network] || null;
+  const chainUrl = getChainRpcUrl(chainId);
 
   try {
     if (!chainUrl) {
@@ -190,7 +170,7 @@ export const getDecimal = async (
   chainId: number
 ): Promise<string | number> => {
   const chain = getNetworkViem(chainId);
-  const chainUrl = chainMapping[chain.name.toLowerCase() as Network] || null;
+  const chainUrl = getChainRpcUrl(chainId);
 
   try {
     if (!chainUrl) {
@@ -216,46 +196,6 @@ export const getDecimal = async (
   }
 };
 
-// // TO DO - use it in future versions
-// export const getNftName = async (
-//   nftAddress: string,
-//   chain: string
-// ): Promise<string | undefined> => {
-//   const chainUrl = chainMapping[chain as Network] || null;
-
-//   if (!chainUrl) {
-//     console.error(`Unsupported chain: ${chain}`);
-//     return '';
-//   }
-
-//   try {
-//     // ERC-721 or ERC-1155 ABI
-//     const abiERC721 = await import(
-//       './contracts/artifacts-etherspot-v1/ERC721.json',
-//       {
-//         with: { type: 'json' },
-//       }
-//     );
-
-//     const provider = createPublicClient({
-//       chain: getNetworkViem(chain as Network),
-//       transport: http(chainUrl),
-//     });
-
-//     const contract = getContract({
-//       address: nftAddress as `0x${string}`,
-//       abi: abiERC721.default,
-//       client: provider,
-//     });
-
-//     const nftName = await contract.read.name();
-//     return nftName as string;
-//   } catch (error) {
-//     console.error(`Unexpected error fetching name for ${nftAddress}: ${error}`);
-//     return undefined;
-//   }
-// };
-
 export const getNftBalance = async (
   accountAddress: string,
   nftAddress: string,
@@ -263,7 +203,7 @@ export const getNftBalance = async (
   chainId: number
 ): Promise<number> => {
   const chain = getNetworkViem(chainId);
-  const chainUrl = chainMapping[chain.name.toLowerCase() as Network] || null;
+  const chainUrl = getChainRpcUrl(chainId);
 
   if (!chainUrl) {
     console.error(`Unsupported chain: ${chain.name}`);
@@ -383,7 +323,7 @@ export const checkContractType = async (
   selectedAsset: AddedAssets
 ) => {
   const chain = getNetworkViem(chainId);
-  const chainUrl = chainMapping[chain.name.toLowerCase() as Network] || null;
+  const chainUrl = getChainRpcUrl(chainId);
 
   if (!chainUrl) {
     throw new Error(`Unsupported chain: ${chain.name}`);

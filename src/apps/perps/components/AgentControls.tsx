@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { createWalletClient, custom } from 'viem';
 import { arbitrum } from 'viem/chains';
 import useTransactionKit from '../../../hooks/useTransactionKit';
+import { getEtherspotExternalWalletRpcUrl } from '../../../utils/bundler';
 import { useHyperliquid } from '../hooks/useHyperliquid';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { Hex } from 'viem';
@@ -577,7 +578,9 @@ export function AgentControls({
                       {
                         chainId: targetChainId,
                         chainName: 'Arbitrum One',
-                        rpcUrls: ['https://arb1.arbitrum.io/rpc'],
+                        rpcUrls: [
+                          getEtherspotExternalWalletRpcUrl(arbitrum.id),
+                        ],
                         nativeCurrency: {
                           name: 'Ether',
                           symbol: 'ETH',
