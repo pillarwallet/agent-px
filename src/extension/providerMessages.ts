@@ -110,12 +110,30 @@ export type ProviderApprovalStatus =
       phase: 'submitting';
     }
   | {
+      phase: 'confirming';
+      transactionHash: string;
+    }
+  | {
       phase: 'success';
       transactionHash: string;
     }
   | {
+      failureType?: 'confirmation' | 'reverted' | 'submission';
       message: string;
       phase: 'error';
+      transactionHash?: string;
+    };
+
+export type ProviderApprovalPreparation =
+  | {
+      phase: 'estimating';
+    }
+  | {
+      phase: 'ready';
+    }
+  | {
+      message: string;
+      phase: 'revert';
     };
 
 export type ProviderApprovalRequestView = {
@@ -136,6 +154,7 @@ export type ProviderApprovalRequestView = {
   nativeCurrencySymbol?: string;
   origin: string;
   params?: ProviderRequestArguments['params'];
+  preparation?: ProviderApprovalPreparation;
   simulation?: {
     changes: {
       amount?: string;

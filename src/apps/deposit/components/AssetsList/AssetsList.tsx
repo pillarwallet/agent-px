@@ -13,7 +13,6 @@ import { setDepositStep, setSelectedAsset } from '../../reducer/depositSlice';
 import {
   AddedAssets,
   BalanceInfo,
-  Network,
   TokenList,
 } from '../../types/types';
 
@@ -69,7 +68,9 @@ const AssetsList = ({ accountAddress, chainId }: AssetsListProps) => {
 
   const [activeTab, setActiveTab] = useState<'tokens' | 'nfts'>('tokens');
 
-  const chainName = getNetworkViem(chainId).name.toLowerCase();
+  const chain = getNetworkViem(chainId);
+  const chainName = chain.name.toLowerCase();
+  const nativeToken = allNativeTokens[chainName] || chain.nativeCurrency;
 
   const getAllBalances = useCallback(
     async (tokenList: TokenList[]): Promise<BalanceInfo[]> => {
@@ -94,10 +95,10 @@ const AssetsList = ({ accountAddress, chainId }: AssetsListProps) => {
           const nativeTokenInfo: BalanceInfo = {
             chain: chainName,
             address: '0x0000000000000000000000000000000000000000',
-            decimals: getNetworkViem(chainId).nativeCurrency.decimals,
+            decimals: chain.nativeCurrency.decimals,
             balance: nativeBalance,
-            name: allNativeTokens[chainName as Network].name,
-            symbol: allNativeTokens[chainName as Network].symbol,
+            name: nativeToken.name,
+            symbol: nativeToken.symbol,
             logoURI: '',
           };
 

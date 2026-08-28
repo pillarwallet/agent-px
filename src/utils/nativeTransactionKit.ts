@@ -341,11 +341,6 @@ const getChainById = (chainId: number): Chain => {
   return chain;
 };
 
-const getDirectTransport = (chainId: number, etherspotRpcUrl: string) => {
-  const customRpcUrl = getCustomChainById(chainId)?.rpcUrl;
-  return http(customRpcUrl || etherspotRpcUrl);
-};
-
 const getProviderAccountAddress = async (
   provider: WalletProviderLike | undefined
 ): Promise<Address> => {
@@ -735,6 +730,20 @@ export class PillarTransactionProvider {
     return bundlerUrl;
   }
 
+  getRpcUrl(chainId = this.config.chainId): string {
+    const customChain = getCustomChainById(chainId);
+
+    if (customChain) {
+      transactionDebugLog('[TransactionKit] resolved custom chain RPC URL', {
+        chainId,
+        isCustomChain: true,
+      });
+      return customChain.rpcUrl;
+    }
+
+    return this.getBundlerUrl(chainId);
+  }
+
   async getOwnerAccount(): Promise<LocalAccount> {
     if (this.config.viemLocalAccount) {
       transactionDebugLog('[TransactionKit] using viem local account owner', {
@@ -766,7 +775,7 @@ export class PillarTransactionProvider {
       this.publicClientPerChain[chainId] = Promise.resolve(
         createPublicClient({
           chain: getChainById(chainId),
-          transport: http(this.getBundlerUrl(chainId)),
+          transport: http(this.getRpcUrl(chainId)),
         })
       );
     }
@@ -784,7 +793,7 @@ export class PillarTransactionProvider {
           createWalletClient({
             account,
             chain: getChainById(chainId),
-            transport: http(this.getBundlerUrl(chainId)),
+            transport: http(this.getRpcUrl(chainId)),
           })
       );
     }
@@ -801,7 +810,7 @@ export class PillarTransactionProvider {
 
     return createPublicClient({
       chain: getChainById(chainId),
-      transport: getDirectTransport(chainId, this.getBundlerUrl(chainId)),
+      transport: http(this.getRpcUrl(chainId)),
     });
   }
 
@@ -823,7 +832,7 @@ export class PillarTransactionProvider {
       return createWalletClient({
         account: owner,
         chain,
-        transport: getDirectTransport(chainId, this.getBundlerUrl(chainId)),
+        transport: http(this.getRpcUrl(chainId)),
       });
     }
 

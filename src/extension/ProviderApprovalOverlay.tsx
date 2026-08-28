@@ -3,6 +3,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Copy,
   ExternalLink,
   FileSignature,
   Globe2,
@@ -285,6 +286,13 @@ const formatValue = (
   }
 };
 
+const getEstimatedFeeValue = (request: ProviderApprovalRequestView) => {
+  if (request.preparation?.phase === 'estimating') return 'Estimating...';
+  if (request.preparation?.phase === 'revert') return 'Revert expected';
+
+  return request.estimatedFee?.formatted ?? 'Unavailable';
+};
+
 const getTransactionPreview = (
   request: ProviderApprovalRequestView
 ): TransactionPreview => {
@@ -477,11 +485,11 @@ const getApprovalSummary = (
             },
             {
               label: 'Estimated fee',
-              value: request.estimatedFee?.formatted ?? 'Unavailable',
+              value: getEstimatedFeeValue(request),
             },
             {
               label: 'Atomic',
-              value: batch?.atomicRequired ? 'Required' : 'Supported',
+              value: batch?.atomicRequired ? 'Required' : 'Not required',
             },
             {
               label: 'Data',
@@ -498,7 +506,7 @@ const getApprovalSummary = (
             { label: 'Value', value: formatValue(tx?.value, request) },
             {
               label: 'Estimated fee',
-              value: request.estimatedFee?.formatted ?? 'Unavailable',
+              value: getEstimatedFeeValue(request),
             },
             {
               label: 'Data',
@@ -586,6 +594,9 @@ export default function ProviderApprovalOverlay({
   const [selectedFeePaymentId, setSelectedFeePaymentId] =
     useState('native-token');
   const [isFeePaymentExpanded, setIsFeePaymentExpanded] = useState(false);
+  const [copiedTransactionHash, setCopiedTransactionHash] = useState<
+    string | undefined
+  >();
   const activeRequest = pending[0];
   const isConnectRequest = activeRequest?.method === 'eth_requestAccounts';
   const isTransactionRequest =
@@ -617,6 +628,11 @@ export default function ProviderApprovalOverlay({
     feePaymentOptions[0];
   const firstFeePaymentOptionId = feePaymentOptions[0]?.id ?? 'native-token';
   const transactionStatus = activeRequest?.status;
+  const isApprovalPreparing =
+    activeRequest?.preparation?.phase === 'estimating';
+  const hasRevertAlert = activeRequest?.preparation?.phase === 'revert';
+  const isApproveDisabled =
+    isResponding || isApprovalPreparing || hasRevertAlert;
   const showTransactionStatusView =
     isTransactionRequest &&
     transactionStatus !== undefined &&
@@ -647,8 +663,19 @@ export default function ProviderApprovalOverlay({
     setPasscode('');
     setErrorMessage(undefined);
     setIsFeePaymentExpanded(false);
+    setCopiedTransactionHash(undefined);
     setSelectedFeePaymentId(firstFeePaymentOptionId);
   }, [activeRequest?.id, firstFeePaymentOptionId]);
+
+  useEffect(() => {
+    if (!copiedTransactionHash) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setCopiedTransactionHash(undefined);
+    }, 1600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [copiedTransactionHash]);
 
   useEffect(() => {
     if (!feePaymentOptions.length) return;
@@ -817,9 +844,25 @@ export default function ProviderApprovalOverlay({
   };
 
   const getApproveButtonLabel = () => {
+    if (isApprovalPreparing) return 'Estimating...';
+    if (hasRevertAlert) return 'Revert Alert';
     if (!isConnectRequest) return 'Approve';
     if (connectNeedsUnlock) return 'Unlock & Connect';
     return 'Connect';
+  };
+
+  const getApproveButtonIcon = () => {
+    if (isApprovalPreparing) {
+      return (
+        <LoaderCircle size={18} strokeWidth={2.4} style={styles.spinnerIcon} />
+      );
+    }
+
+    if (hasRevertAlert) {
+      return <AlertTriangle size={18} strokeWidth={2.4} />;
+    }
+
+    return <Check size={18} strokeWidth={2.4} />;
   };
 
   const renderFeePaymentOption = ({
@@ -830,7 +873,7 @@ export default function ProviderApprovalOverlay({
     selected?: boolean;
   }) => (
     <button
-      disabled={isResponding}
+      disabled={isResponding || isApprovalPreparing || hasRevertAlert}
       key={option.id}
       onClick={() => {
         if (selected) {
@@ -878,8 +921,16 @@ export default function ProviderApprovalOverlay({
       return null;
     }
 
-    let explorer: ReturnType<typeof getTransactionExplorer>;
+    const transactionHash =
+      'transactionHash' in transactionStatus
+        ? transactionStatus.transactionHash
+        : undefined;
+    const explorer = getTransactionExplorer(
+      activeRequest.chainId,
+      transactionHash
+    );
     const isSubmitting = transactionStatus.phase === 'submitting';
+    const isConfirming = transactionStatus.phase === 'confirming';
     const isSuccess = transactionStatus.phase === 'success';
     let statusDescription = transactionStatus.message;
     let statusIcon = <XCircle size={62} strokeWidth={2.1} />;
@@ -897,17 +948,30 @@ export default function ProviderApprovalOverlay({
       statusIconToneStyle = styles.statusIconSubmitting;
       statusLabel = 'Sending';
       statusTitle = 'Sending Transaction';
-    } else if (isSuccess) {
-      explorer = getTransactionExplorer(
-        activeRequest.chainId,
-        transactionStatus.transactionHash
-      );
+    } else if (isConfirming) {
       statusDescription =
-        'The network accepted the transaction and returned a hash.';
+        'Transaction submitted. Waiting for on-chain confirmation.';
+      statusIcon = (
+        <LoaderCircle size={58} strokeWidth={2.4} style={styles.spinnerIcon} />
+      );
+      statusIconToneStyle = styles.statusIconSubmitting;
+      statusLabel = 'Confirming';
+      statusTitle = 'Transaction Sent';
+    } else if (isSuccess) {
+      statusDescription = 'The transaction has been confirmed on-chain.';
       statusIcon = <CheckCircle2 size={62} strokeWidth={2.1} />;
       statusIconToneStyle = styles.statusIconSuccess;
-      statusLabel = 'Hash received';
-      statusTitle = 'Transaction Sent';
+      statusLabel = 'Confirmed';
+      statusTitle = 'Transaction Confirmed';
+    } else if (transactionStatus.phase === 'error') {
+      if (transactionStatus.failureType === 'reverted') {
+        statusLabel = 'Reverted';
+        statusTitle = 'Transaction Reverted';
+      } else if (transactionStatus.failureType === 'confirmation') {
+        statusIcon = <AlertTriangle size={62} strokeWidth={2.1} />;
+        statusLabel = 'Check explorer';
+        statusTitle = 'Confirmation Delayed';
+      }
     }
 
     const renderStatusAction = () => {
@@ -928,7 +992,7 @@ export default function ProviderApprovalOverlay({
         );
       }
 
-      if (isSuccess && explorer) {
+      if ((isConfirming || isSuccess || transactionHash) && explorer) {
         return (
           <button
             onClick={() =>
@@ -986,11 +1050,35 @@ export default function ProviderApprovalOverlay({
               <span style={styles.detailLabel}>Status</span>
               <span style={styles.detailValue}>{statusLabel}</span>
             </div>
-            {transactionStatus.phase === 'success' ? (
+            {transactionHash ? (
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Hash</span>
-                <span style={styles.detailValue}>
-                  {compactHex(transactionStatus.transactionHash)}
+                <span style={styles.hashValueWrap}>
+                  <span style={styles.detailValue}>
+                    {compactHex(transactionHash)}
+                  </span>
+                  <button
+                    aria-label="Copy transaction hash"
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(transactionHash)
+                        .then(() => setCopiedTransactionHash(transactionHash))
+                        .catch(() => undefined);
+                    }}
+                    style={styles.copyHashButton}
+                    title={
+                      copiedTransactionHash === transactionHash
+                        ? 'Copied'
+                        : 'Copy transaction hash'
+                    }
+                    type="button"
+                  >
+                    {copiedTransactionHash === transactionHash ? (
+                      <Check size={15} strokeWidth={2.5} />
+                    ) : (
+                      <Copy size={15} strokeWidth={2.2} />
+                    )}
+                  </button>
                 </span>
               </div>
             ) : null}
@@ -1122,6 +1210,28 @@ export default function ProviderApprovalOverlay({
                 <p style={styles.errorMessage}>{errorMessage}</p>
               ) : null}
 
+              {isApprovalPreparing ? (
+                <div aria-live="polite" style={styles.preparationNotice}>
+                  <LoaderCircle
+                    size={17}
+                    strokeWidth={2.3}
+                    style={styles.spinnerIcon}
+                  />
+                  <span>Estimating gas and checking this request...</span>
+                </div>
+              ) : null}
+
+              {hasRevertAlert ? (
+                <div role="alert" style={styles.revertAlert}>
+                  <AlertTriangle size={17} strokeWidth={2.3} />
+                  <span>
+                    {activeRequest.preparation?.phase === 'revert'
+                      ? activeRequest.preparation.message
+                      : 'Gas estimation indicates this request will revert.'}
+                  </span>
+                </div>
+              ) : null}
+
               {activeRequest.simulation && !activeRequest.simulation.error ? (
                 <section style={styles.simulationPanel}>
                   <div style={styles.simulationHeader}>
@@ -1182,12 +1292,17 @@ export default function ProviderApprovalOverlay({
                 {isConnectRequest ? 'Cancel' : 'Reject'}
               </button>
               <button
-                disabled={isResponding}
+                disabled={isApproveDisabled}
                 onClick={() => handleResponse(true)}
-                style={{ ...styles.button, ...styles.approveButton }}
+                style={{
+                  ...styles.button,
+                  ...styles.approveButton,
+                  ...(isApproveDisabled ? styles.disabledButton : {}),
+                  ...(hasRevertAlert ? styles.revertAlertButton : {}),
+                }}
                 type="button"
               >
-                <Check size={18} strokeWidth={2.4} />
+                {getApproveButtonIcon()}
                 {getApproveButtonLabel()}
               </button>
             </footer>
@@ -1284,6 +1399,20 @@ function getApprovalOverlayStyles({
       fontSize: 12,
       fontWeight: 700,
     },
+    copyHashButton: {
+      alignItems: 'center',
+      background: 'rgba(143, 108, 255, 0.12)',
+      border: '1px solid rgba(143, 108, 255, 0.24)',
+      borderRadius: 6,
+      color: '#dcd2ff',
+      cursor: 'pointer',
+      display: 'flex',
+      flexShrink: 0,
+      height: 28,
+      justifyContent: 'center',
+      padding: 0,
+      width: 28,
+    },
     detailList: {
       borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
       borderTop: '1px solid rgba(255, 255, 255, 0.08)',
@@ -1303,6 +1432,11 @@ function getApprovalOverlayStyles({
       fontWeight: 700,
       overflowWrap: 'anywhere',
       textAlign: 'right',
+    },
+    disabledButton: {
+      boxShadow: 'none',
+      cursor: 'not-allowed',
+      opacity: 0.62,
     },
     emptySheet: {
       minHeight: 280,
@@ -1453,6 +1587,13 @@ function getApprovalOverlayStyles({
       minHeight: 64,
       padding: '12px 16px',
     },
+    hashValueWrap: {
+      alignItems: 'center',
+      display: 'flex',
+      gap: 8,
+      justifyContent: 'flex-end',
+      minWidth: 0,
+    },
     originLabel: {
       color: 'rgba(255, 255, 255, 0.48)',
       fontSize: 11,
@@ -1492,6 +1633,19 @@ function getApprovalOverlayStyles({
       fontSize: 11,
       fontWeight: 800,
       padding: '5px 9px',
+    },
+    preparationNotice: {
+      alignItems: 'center',
+      background: 'rgba(143, 108, 255, 0.1)',
+      border: '1px solid rgba(143, 108, 255, 0.22)',
+      borderRadius: 8,
+      color: '#dcd2ff',
+      display: 'flex',
+      fontSize: 12,
+      fontWeight: 700,
+      gap: 9,
+      lineHeight: 1.4,
+      padding: 10,
     },
     pendingActionButton: {
       background: 'rgba(255, 255, 255, 0.08)',
@@ -1537,6 +1691,24 @@ function getApprovalOverlayStyles({
     rejectButton: {
       background: 'rgba(255, 255, 255, 0.08)',
       color: '#ffffff',
+    },
+    revertAlert: {
+      alignItems: 'flex-start',
+      background: 'rgba(255, 54, 108, 0.1)',
+      border: '1px solid rgba(255, 54, 108, 0.24)',
+      borderRadius: 8,
+      color: '#ff9ab8',
+      display: 'flex',
+      fontSize: 12,
+      fontWeight: 700,
+      gap: 9,
+      lineHeight: 1.4,
+      padding: 10,
+    },
+    revertAlertButton: {
+      background: 'rgba(255, 54, 108, 0.18)',
+      border: '1px solid rgba(255, 54, 108, 0.34)',
+      color: '#ffadc3',
     },
     sheet: {
       background: '#111015',

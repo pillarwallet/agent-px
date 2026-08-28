@@ -15,19 +15,22 @@ import {
   http,
   parseUnits,
 } from 'viem';
-import { arbitrum, base, bsc, mainnet, optimism, polygon } from 'viem/chains';
+import { mainnet } from 'viem/chains';
 
 // types
-import { AddedAssets, BalanceInfo, Network } from '../types/types';
+import { AddedAssets, BalanceInfo } from '../types/types';
 
 // abis
 import ERC1155_ABI from './abis/ERC1155.json';
 import ERC20_ABI from './abis/ERC20Token.json';
 import ERC721_ABI from './abis/ERC721.json';
-import { arcTestnetChain, getChainRpcUrl } from '../../../utils/blockchain';
+import {
+  getChainRpcUrl,
+  getSupportedChainById,
+} from '../../../utils/blockchain';
 
 export const allNativeTokens: Record<
-  Network,
+  string,
   { name: string; symbol: string }
 > = {
   ethereum: { name: 'Ether', symbol: 'ETH' },
@@ -36,29 +39,10 @@ export const allNativeTokens: Record<
   'bnb smart chain': { name: 'BNB', symbol: 'BNB' },
   optimism: { name: 'Ether', symbol: 'ETH' },
   arbitrum: { name: 'Ether', symbol: 'ETH' },
-  'arc testnet': { name: 'USDC', symbol: 'USDC' },
 };
 
-export const getNetworkViem = (chainId: number): Chain => {
-  switch (chainId) {
-    case 1:
-      return mainnet;
-    case 137:
-      return polygon;
-    case 8453:
-      return base;
-    case 56:
-      return bsc;
-    case 10:
-      return optimism;
-    case 42161:
-      return arbitrum;
-    case 5042002:
-      return arcTestnetChain;
-    default:
-      return mainnet;
-  }
-};
+export const getNetworkViem = (chainId: number): Chain =>
+  getSupportedChainById(chainId) || mainnet;
 
 // Function to check if an address is a contract
 // eslint-disable-next-line consistent-return
