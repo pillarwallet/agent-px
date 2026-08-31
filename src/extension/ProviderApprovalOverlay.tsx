@@ -3,6 +3,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Copy,
   ExternalLink,
   FileSignature,
@@ -19,6 +20,7 @@ import { formatEther } from 'viem';
 import {
   PILLARX_PROVIDER_APPROVAL_GET_PENDING,
   PILLARX_PROVIDER_APPROVAL_RESPOND,
+  PILLARX_PROVIDER_APPROVAL_SELECT_FEE,
   ProviderApprovalFeePayment,
   ProviderApprovalRequestView,
 } from './providerMessages';
@@ -50,6 +52,13 @@ type ChromeLike = {
 type PendingResponse = {
   ok?: boolean;
   pending?: ProviderApprovalRequestView[];
+};
+
+type ApprovalActionResponse = {
+  error?: {
+    message?: string;
+  };
+  ok?: boolean;
 };
 
 type TransactionPreview = {
@@ -158,6 +167,23 @@ const respondToApproval = (
     feePayment,
   });
 
+const selectApprovalFee = async (
+  id: string,
+  feePayment: ProviderApprovalFeePayment
+) => {
+  const response = await sendRuntimeMessage<ApprovalActionResponse>({
+    type: PILLARX_PROVIDER_APPROVAL_SELECT_FEE,
+    id,
+    feePayment,
+  });
+
+  if (response?.ok === false) {
+    throw new Error(
+      response.error?.message ?? 'Unable to select this transaction fee.'
+    );
+  }
+};
+
 const stringifyParams = (
   params: ProviderApprovalRequestView['params']
 ): string => {
@@ -226,6 +252,18 @@ const getFeePaymentOptionSubtitle = (option: FeePaymentOption) => {
 const getFeePaymentOptionBadge = (option: FeePaymentOption) =>
   option.type === 'gasless' ? 'Gasless' : 'Native';
 
+const getFeePaymentFromOption = (
+  option: FeePaymentOption
+): ProviderApprovalFeePayment =>
+  option.type === 'gasless'
+    ? {
+        decimals: option.decimals,
+        paymasterAddress: option.paymasterAddress,
+        token: option.token,
+        type: 'gasless',
+      }
+    : { type: 'native' };
+
 const FeePaymentOptionIcon = ({
   option,
   styles,
@@ -257,10 +295,7 @@ const FeePaymentOptionIcon = ({
   );
 };
 
-const formatValue = (
-  value: unknown,
-  request: ProviderApprovalRequestView
-) => {
+const formatValue = (value: unknown, request: ProviderApprovalRequestView) => {
   const nativeSymbol = getRequestNativeSymbol(request);
 
   if (
@@ -288,6 +323,12 @@ const formatValue = (
 
 const getEstimatedFeeValue = (request: ProviderApprovalRequestView) => {
   if (request.preparation?.phase === 'estimating') return 'Estimating...';
+  if (
+    request.preparation?.phase === 'loading-fees' ||
+    request.preparation?.phase === 'selecting-fee'
+  ) {
+    return 'Not estimated';
+  }
   if (request.preparation?.phase === 'revert') return 'Revert expected';
 
   return request.estimatedFee?.formatted ?? 'Unavailable';
@@ -593,7 +634,8 @@ export default function ProviderApprovalOverlay({
   const [showRawPayload, setShowRawPayload] = useState(false);
   const [selectedFeePaymentId, setSelectedFeePaymentId] =
     useState('native-token');
-  const [isFeePaymentExpanded, setIsFeePaymentExpanded] = useState(false);
+  const [isFeeSelectionSubmitting, setIsFeeSelectionSubmitting] =
+    useState(false);
   const [copiedTransactionHash, setCopiedTransactionHash] = useState<
     string | undefined
   >();
@@ -621,15 +663,21 @@ export default function ProviderApprovalOverlay({
     () => activeRequest?.feePaymentOptions ?? [],
     [activeRequest?.feePaymentOptions]
   );
-  const showFeePaymentSelect =
-    isTransactionRequest && feePaymentOptions.length > 1;
   const selectedFeePaymentOption =
     feePaymentOptions.find((option) => option.id === selectedFeePaymentId) ??
     feePaymentOptions[0];
-  const firstFeePaymentOptionId = feePaymentOptions[0]?.id ?? 'native-token';
+  const firstFeePaymentOptionId =
+    activeRequest?.selectedFeePaymentId ??
+    feePaymentOptions[0]?.id ??
+    'native-token';
   const transactionStatus = activeRequest?.status;
   const isApprovalPreparing =
     activeRequest?.preparation?.phase === 'estimating';
+  const showFeeSelectionView =
+    isTransactionRequest &&
+    (activeRequest?.preparation?.phase === 'loading-fees' ||
+      (activeRequest?.preparation?.phase === 'selecting-fee' &&
+        feePaymentOptions.length > 1));
   const hasRevertAlert = activeRequest?.preparation?.phase === 'revert';
   const isApproveDisabled =
     isResponding || isApprovalPreparing || hasRevertAlert;
@@ -662,7 +710,7 @@ export default function ProviderApprovalOverlay({
     setShowRawPayload(false);
     setPasscode('');
     setErrorMessage(undefined);
-    setIsFeePaymentExpanded(false);
+    setIsFeeSelectionSubmitting(false);
     setCopiedTransactionHash(undefined);
     setSelectedFeePaymentId(firstFeePaymentOptionId);
   }, [activeRequest?.id, firstFeePaymentOptionId]);
@@ -686,7 +734,6 @@ export default function ProviderApprovalOverlay({
     }
 
     setSelectedFeePaymentId(feePaymentOptions[0].id);
-    setIsFeePaymentExpanded(false);
   }, [feePaymentOptions, selectedFeePaymentId]);
 
   if (!activeRequest || !approvalSummary) {
@@ -728,16 +775,7 @@ export default function ProviderApprovalOverlay({
 
       let feePayment: ProviderApprovalFeePayment | undefined;
       if (approved && isTransactionRequest && selectedFeePaymentOption) {
-        if (selectedFeePaymentOption.type === 'gasless') {
-          feePayment = {
-            decimals: selectedFeePaymentOption.decimals,
-            paymasterAddress: selectedFeePaymentOption.paymasterAddress,
-            token: selectedFeePaymentOption.token,
-            type: 'gasless',
-          };
-        } else {
-          feePayment = { type: 'native' };
-        }
+        feePayment = getFeePaymentFromOption(selectedFeePaymentOption);
       }
 
       await respondToApproval(activeRequest.id, approved, feePayment);
@@ -865,28 +903,39 @@ export default function ProviderApprovalOverlay({
     return <Check size={18} strokeWidth={2.4} />;
   };
 
-  const renderFeePaymentOption = ({
-    option,
-    selected = false,
-  }: {
-    option: FeePaymentOption;
-    selected?: boolean;
-  }) => (
-    <button
-      disabled={isResponding || isApprovalPreparing || hasRevertAlert}
-      key={option.id}
-      onClick={() => {
-        if (selected) {
-          setIsFeePaymentExpanded((value) => !value);
-          return;
-        }
+  const handleFeeSelection = async (option: FeePaymentOption) => {
+    setSelectedFeePaymentId(option.id);
+    setIsFeeSelectionSubmitting(true);
+    setErrorMessage(undefined);
 
-        setSelectedFeePaymentId(option.id);
-        setIsFeePaymentExpanded(false);
-      }}
+    try {
+      await selectApprovalFee(
+        activeRequest.id,
+        getFeePaymentFromOption(option)
+      );
+      await refreshPending();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to select this transaction fee.'
+      );
+    } finally {
+      setIsFeeSelectionSubmitting(false);
+    }
+  };
+
+  const renderFeePaymentOption = (option: FeePaymentOption) => (
+    <button
+      disabled={isFeeSelectionSubmitting}
+      key={option.id}
+      onClick={() => handleFeeSelection(option)}
       style={{
         ...styles.feePaymentOption,
-        ...(selected ? styles.feePaymentOptionSelected : {}),
+        ...(selectedFeePaymentId === option.id
+          ? styles.feePaymentOptionSelected
+          : {}),
+        ...(isFeeSelectionSubmitting ? styles.disabledButton : {}),
       }}
       type="button"
     >
@@ -901,17 +950,15 @@ export default function ProviderApprovalOverlay({
         <span style={styles.feePaymentOptionBadge}>
           {getFeePaymentOptionBadge(option)}
         </span>
-        {selected ? (
-          <ChevronDown
+        {isFeeSelectionSubmitting && selectedFeePaymentId === option.id ? (
+          <LoaderCircle
             size={17}
-            style={{
-              ...styles.feePaymentOptionToggle,
-              transform: isFeePaymentExpanded
-                ? 'rotate(180deg)'
-                : 'rotate(0deg)',
-            }}
+            strokeWidth={2.3}
+            style={styles.spinnerIcon}
           />
-        ) : null}
+        ) : (
+          <ChevronRight size={17} style={styles.feePaymentOptionToggle} />
+        )}
       </span>
     </button>
   );
@@ -1092,8 +1139,89 @@ export default function ProviderApprovalOverlay({
     );
   };
 
+  const renderFeeSelectionMain = () => {
+    const isLoadingFeeOptions =
+      activeRequest.preparation?.phase === 'loading-fees';
+
+    return (
+      <>
+        <main
+          aria-live="polite"
+          style={{
+            ...styles.content,
+            ...(isLoadingFeeOptions ? styles.feeSelectionLoading : {}),
+          }}
+        >
+          <div style={{ ...styles.summaryIcon, ...styles.transactionIcon }}>
+            {isLoadingFeeOptions ? (
+              <LoaderCircle
+                size={24}
+                strokeWidth={2.4}
+                style={styles.spinnerIcon}
+              />
+            ) : (
+              <Send size={22} strokeWidth={2.2} />
+            )}
+          </div>
+
+          <div style={styles.summaryText}>
+            <h1 style={styles.title}>
+              {isLoadingFeeOptions
+                ? 'Checking fee options'
+                : 'Choose gas token'}
+            </h1>
+            <p style={styles.description}>
+              {isLoadingFeeOptions
+                ? 'Finding the available ways to pay the network fee.'
+                : 'Select how you want to pay the network fee.'}
+            </p>
+          </div>
+
+          {!isLoadingFeeOptions ? (
+            <>
+              <div style={styles.detailList}>
+                <div style={styles.detailRow}>
+                  <span style={styles.detailLabel}>Network</span>
+                  <span style={styles.detailValue}>
+                    {getRequestChainName(activeRequest)}
+                  </span>
+                </div>
+              </div>
+
+              <section style={styles.feeSelectionPanel}>
+                <span style={styles.feePaymentLabel}>Pay fee in</span>
+                <div style={styles.feePaymentList}>
+                  {feePaymentOptions.map(renderFeePaymentOption)}
+                </div>
+              </section>
+
+              {errorMessage ? (
+                <p style={styles.errorMessage}>{errorMessage}</p>
+              ) : null}
+            </>
+          ) : null}
+        </main>
+
+        <footer style={{ ...styles.actions, ...styles.singleActionFooter }}>
+          <button
+            disabled={isResponding}
+            onClick={() => handleResponse(false)}
+            style={{ ...styles.button, ...styles.rejectButton }}
+            type="button"
+          >
+            <X size={18} strokeWidth={2.4} />
+            Reject
+          </button>
+        </footer>
+      </>
+    );
+  };
+
   const transactionStatusContent = showTransactionStatusView
     ? renderTransactionStatusMain()
+    : null;
+  const feeSelectionContent = showFeeSelectionView
+    ? renderFeeSelectionMain()
     : null;
 
   return (
@@ -1132,7 +1260,7 @@ export default function ProviderApprovalOverlay({
           ) : null}
         </header>
 
-        {transactionStatusContent ?? (
+        {transactionStatusContent ?? feeSelectionContent ?? (
           <>
             <main style={styles.content}>
               <div
@@ -1156,29 +1284,15 @@ export default function ProviderApprovalOverlay({
                     <span style={styles.detailValue}>{row.value}</span>
                   </div>
                 ))}
-              </div>
-
-              {showFeePaymentSelect ? (
-                <section style={styles.feePaymentPanel}>
-                  <span style={styles.feePaymentLabel}>Pay fee in</span>
-                  <div style={styles.feePaymentList}>
-                    {selectedFeePaymentOption
-                      ? renderFeePaymentOption({
-                          option: selectedFeePaymentOption,
-                          selected: true,
-                        })
-                      : null}
-                    {isFeePaymentExpanded
-                      ? feePaymentOptions
-                          .filter(
-                            (option) =>
-                              option.id !== selectedFeePaymentOption?.id
-                          )
-                          .map((option) => renderFeePaymentOption({ option }))
-                      : null}
+                {isTransactionRequest && selectedFeePaymentOption ? (
+                  <div style={styles.detailRow}>
+                    <span style={styles.detailLabel}>Pay fee in</span>
+                    <span style={styles.detailValue}>
+                      {selectedFeePaymentOption.title}
+                    </span>
                   </div>
-                </section>
-              ) : null}
+                ) : null}
+              </div>
 
               {connectNeedsUnlock ? (
                 <section style={styles.unlockPanel}>
@@ -1224,10 +1338,15 @@ export default function ProviderApprovalOverlay({
               {hasRevertAlert ? (
                 <div role="alert" style={styles.revertAlert}>
                   <AlertTriangle size={17} strokeWidth={2.3} />
-                  <span>
-                    {activeRequest.preparation?.phase === 'revert'
-                      ? activeRequest.preparation.message
-                      : 'Gas estimation indicates this request will revert.'}
+                  <span style={styles.revertAlertText}>
+                    <strong style={styles.revertAlertTitle}>
+                      Transaction likely to fail
+                    </strong>
+                    <span>
+                      {activeRequest.preparation?.phase === 'revert'
+                        ? activeRequest.preparation.message
+                        : 'Gas estimation indicates this request will revert.'}
+                    </span>
                   </span>
                 </div>
               ) : null}
@@ -1559,13 +1678,16 @@ function getApprovalOverlayStyles({
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap',
     },
-    feePaymentPanel: {
-      background: 'rgba(255, 255, 255, 0.04)',
-      border: '1px solid rgba(255, 255, 255, 0.08)',
-      borderRadius: 8,
+    feeSelectionLoading: {
+      alignContent: 'center',
+      justifyItems: 'center',
+      minHeight: 360,
+      textAlign: 'center',
+    },
+    feeSelectionPanel: {
       display: 'grid',
-      gap: 8,
-      padding: 12,
+      gap: 10,
+      width: '100%',
     },
     errorMessage: {
       background: 'rgba(255, 54, 108, 0.1)',
@@ -1703,12 +1825,24 @@ function getApprovalOverlayStyles({
       fontWeight: 700,
       gap: 9,
       lineHeight: 1.4,
+      minWidth: 0,
       padding: 10,
+      width: '100%',
     },
     revertAlertButton: {
       background: 'rgba(255, 54, 108, 0.18)',
       border: '1px solid rgba(255, 54, 108, 0.34)',
       color: '#ffadc3',
+    },
+    revertAlertText: {
+      display: 'grid',
+      gap: 3,
+      minWidth: 0,
+      overflowWrap: 'anywhere',
+    },
+    revertAlertTitle: {
+      color: '#ffc0d1',
+      fontSize: 13,
     },
     sheet: {
       background: '#111015',

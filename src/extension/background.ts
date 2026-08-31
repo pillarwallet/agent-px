@@ -36,12 +36,14 @@ import {
 import {
   PILLARX_PROVIDER_APPROVAL_GET_PENDING,
   PILLARX_PROVIDER_APPROVAL_RESPOND,
+  PILLARX_PROVIDER_APPROVAL_SELECT_FEE,
   PILLARX_PROVIDER_RPC_REQUEST,
   ProviderApprovalFeePayment,
   ProviderApprovalFeePaymentOption,
   ProviderApprovalKind,
   ProviderApprovalRequestView,
   ProviderApprovalRespondMessage,
+  ProviderApprovalSelectFeeMessage,
   ProviderApprovalStatus,
   ProviderRequestArguments,
   ProviderRpcErrorPayload,
@@ -376,7 +378,10 @@ const getWalletAddEthereumChainCustomChain = (
   }
 
   if (!rpcUrl) {
-    throw providerError(-32602, 'Missing rpcUrls for wallet add chain request.');
+    throw providerError(
+      -32602,
+      'Missing rpcUrls for wallet add chain request.'
+    );
   }
 
   if (!nativeTokenSymbol) {
@@ -559,8 +564,11 @@ type PortfolioGaslessToken = {
 type PendingProviderApproval = {
   approved?: boolean;
   cleanupId?: ReturnType<typeof setTimeout>;
+  feeSelectionReject?: (error: ProviderRpcError) => void;
+  feeSelectionResolve?: (feePayment: ProviderApprovalFeePayment) => void;
   reject: (error: ProviderRpcError) => void;
   resolve: (response?: { feePayment?: ProviderApprovalFeePayment }) => void;
+  selectedFeePayment?: ProviderApprovalFeePayment;
   timeoutId: ReturnType<typeof setTimeout>;
   view: ProviderApprovalRequestView;
 };
@@ -2145,7 +2153,131 @@ const isGaslessFeePayment = (
   isAddress(feePayment.token) &&
   isAddress(feePayment.paymasterAddress);
 
-const sendGaslessDappTransaction = async ({
+type PreparedGaslessDappOperation = {
+  authorization?: SignedAuthorization;
+  batchName: string;
+  chainId: number;
+  estimatedFee: TransactionFeeEstimateView;
+  kit: EtherspotTransactionKit;
+  paymasterDetails: {
+    context: {
+      mode: 'commonerc20';
+      token: string;
+    };
+  };
+  publicClient: ReturnType<typeof createPublicClient>;
+};
+
+type GaslessDappCall = {
+  data: Hex;
+  name: string;
+  to: Address;
+  value: bigint;
+};
+
+const prepareGaslessDappOperation = async ({
+  account,
+  batchName,
+  calls,
+  chainId,
+  estimationErrorMessage,
+  feePayment,
+}: {
+  account: UnlockedAccount;
+  batchName: string;
+  calls: GaslessDappCall[];
+  chainId: number;
+  estimationErrorMessage: string;
+  feePayment: Extract<ProviderApprovalFeePayment, { type: 'gasless' }>;
+}): Promise<PreparedGaslessDappOperation> => {
+  const chain = getChainById(chainId);
+  const authorization = await getDelegationAuthorization({
+    account,
+    chain,
+  });
+  const kit = new EtherspotTransactionKit({
+    bundlerApiKey,
+    chainId,
+    debugMode: import.meta.env.DEV,
+    viemLocalAccount: account,
+    walletMode: 'delegatedEoa',
+  });
+  const paymasterDetails = {
+    context: {
+      mode: 'commonerc20' as const,
+      token: feePayment.token,
+    },
+  };
+  const approveData = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: 'approve',
+    args: [
+      feePayment.paymasterAddress,
+      parseUnits(GASLESS_TOKEN_APPROVAL_AMOUNT, feePayment.decimals),
+    ],
+  });
+
+  kit
+    .transaction({
+      chainId,
+      to: feePayment.token,
+      value: '0',
+      data: approveData,
+    })
+    .name({ transactionName: 'approve gas fee token' })
+    .addToBatch({ batchName });
+
+  calls.forEach((call) => {
+    kit
+      .transaction({
+        chainId,
+        to: call.to,
+        value: call.value.toString(),
+        data: call.data,
+      })
+      .name({ transactionName: call.name })
+      .addToBatch({ batchName });
+  });
+
+  const batchEstimate = await kit.estimateBatches({
+    onlyBatchNames: [batchName],
+    authorization: authorization || undefined,
+    paymasterDetails,
+  });
+  const estimatedBatch = batchEstimate.batches[batchName];
+
+  if (!batchEstimate.isEstimatedSuccessfully || estimatedBatch?.errorMessage) {
+    throw providerError(
+      4900,
+      estimatedBatch?.errorMessage || estimationErrorMessage
+    );
+  }
+
+  const totalCost = estimatedBatch?.totalCost ?? BigInt(0);
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(getRpcUrl(chainId)),
+  });
+
+  return {
+    authorization: authorization || undefined,
+    batchName,
+    chainId,
+    estimatedFee: {
+      formatted: formatNativeFee(
+        totalCost,
+        chainId,
+        chain.nativeCurrency.symbol
+      ),
+      totalWei: totalCost.toString(),
+    },
+    kit,
+    paymasterDetails,
+    publicClient,
+  };
+};
+
+const prepareGaslessDappTransaction = async ({
   account,
   chainId,
   feePayment,
@@ -2156,7 +2288,6 @@ const sendGaslessDappTransaction = async ({
   feePayment: Extract<ProviderApprovalFeePayment, { type: 'gasless' }>;
   transaction: DappTransactionRequest;
 }) => {
-  const chain = getChainById(chainId);
   const requestedChainId = parseChainId(transaction.chainId);
 
   if (requestedChainId && requestedChainId !== chainId) {
@@ -2175,86 +2306,24 @@ const sendGaslessDappTransaction = async ({
     );
   }
 
-  const authorization = await getDelegationAuthorization({
+  return prepareGaslessDappOperation({
     account,
-    chain,
-  });
-  const batchName = `dapp-gasless-${Date.now()}`;
-  const kit = new EtherspotTransactionKit({
-    bundlerApiKey,
-    chainId,
-    debugMode: import.meta.env.DEV,
-    viemLocalAccount: account,
-    walletMode: 'delegatedEoa',
-  });
-  const approveData = encodeFunctionData({
-    abi: erc20Abi,
-    functionName: 'approve',
-    args: [
-      feePayment.paymasterAddress,
-      parseUnits(GASLESS_TOKEN_APPROVAL_AMOUNT, feePayment.decimals),
-    ],
-  });
-
-  kit
-    .transaction({
-      chainId,
-      to: feePayment.token,
-      value: '0',
-      data: approveData,
-    })
-    .name({ transactionName: 'approve gas fee token' })
-    .addToBatch({ batchName });
-
-  kit
-    .transaction({
-      chainId,
-      to: getAddress(transaction.to),
-      value: (parseQuantity(transaction.value) ?? BigInt(0)).toString(),
-      data: normalizeHexData(transaction.data),
-    })
-    .name({ transactionName: 'dapp transaction' })
-    .addToBatch({ batchName });
-
-  const batchSend = await kit.sendBatches({
-    onlyBatchNames: [batchName],
-    authorization: authorization || undefined,
-    paymasterDetails: {
-      context: {
-        mode: 'commonerc20',
-        token: feePayment.token,
+    batchName: `dapp-gasless-${Date.now()}`,
+    calls: [
+      {
+        data: normalizeHexData(transaction.data),
+        name: 'dapp transaction',
+        to: getAddress(transaction.to),
+        value: parseQuantity(transaction.value) ?? BigInt(0),
       },
-    },
+    ],
+    chainId,
+    estimationErrorMessage: 'Gasless dapp transaction estimation failed.',
+    feePayment,
   });
-  const sentBatch = batchSend.batches[batchName];
-
-  if (!batchSend.isSentSuccessfully || sentBatch?.errorMessage) {
-    throw providerError(
-      4900,
-      sentBatch?.errorMessage || 'Gasless dapp transaction failed.'
-    );
-  }
-
-  const userOpHash = sentBatch?.chainGroups?.[chainId]?.userOpHash;
-  if (!userOpHash) {
-    throw providerError(
-      4900,
-      'Gasless dapp transaction did not return a hash.'
-    );
-  }
-
-  const transactionHash = await kit.getTransactionHash(userOpHash, chainId);
-  if (!transactionHash) {
-    throw providerError(
-      4900,
-      'Gasless dapp transaction was sent, but the transaction hash was not available yet.'
-    );
-  }
-
-  return transactionHash;
 };
 
-const sendGaslessDappCalls = async ({
+const prepareGaslessDappCalls = ({
   account,
   calls,
   chainId,
@@ -2264,88 +2333,80 @@ const sendGaslessDappCalls = async ({
   calls: ParsedWalletSendCallsCall[];
   chainId: number;
   feePayment: Extract<ProviderApprovalFeePayment, { type: 'gasless' }>;
-}) => {
-  const chain = getChainById(chainId);
-  const authorization = await getDelegationAuthorization({
+}) =>
+  prepareGaslessDappOperation({
     account,
-    chain,
-  });
-  const batchName = `dapp-send-calls-gasless-${Date.now()}`;
-  const kit = new EtherspotTransactionKit({
-    bundlerApiKey,
+    batchName: `dapp-send-calls-gasless-${Date.now()}`,
+    calls: calls.map((call, index) => ({
+      data: call.data,
+      name: `wallet_sendCalls ${index + 1}`,
+      to: call.to,
+      value: call.value,
+    })),
     chainId,
-    debugMode: import.meta.env.DEV,
-    viemLocalAccount: account,
-    walletMode: 'delegatedEoa',
-  });
-  const approveData = encodeFunctionData({
-    abi: erc20Abi,
-    functionName: 'approve',
-    args: [
-      feePayment.paymasterAddress,
-      parseUnits(GASLESS_TOKEN_APPROVAL_AMOUNT, feePayment.decimals),
-    ],
+    estimationErrorMessage: 'Gasless wallet_sendCalls estimation failed.',
+    feePayment,
   });
 
-  kit
-    .transaction({
-      chainId,
-      to: feePayment.token,
-      value: '0',
-      data: approveData,
-    })
-    .name({ transactionName: 'approve gas fee token' })
-    .addToBatch({ batchName });
-
-  calls.forEach((call, index) => {
-    kit
-      .transaction({
-        chainId,
-        to: call.to,
-        value: call.value.toString(),
-        data: call.data,
-      })
-      .name({ transactionName: `wallet_sendCalls ${index + 1}` })
-      .addToBatch({ batchName });
+const sendPreparedGaslessDappOperation = async ({
+  errorMessage,
+  missingHashMessage,
+  operation,
+  unavailableHashMessage,
+}: {
+  errorMessage: string;
+  missingHashMessage: string;
+  operation: PreparedGaslessDappOperation;
+  unavailableHashMessage: string;
+}) => {
+  const batchSend = await operation.kit.sendBatches({
+    onlyBatchNames: [operation.batchName],
+    authorization: operation.authorization,
+    paymasterDetails: operation.paymasterDetails,
   });
-
-  const batchSend = await kit.sendBatches({
-    onlyBatchNames: [batchName],
-    authorization: authorization || undefined,
-    paymasterDetails: {
-      context: {
-        mode: 'commonerc20',
-        token: feePayment.token,
-      },
-    },
-  });
-  const sentBatch = batchSend.batches[batchName];
+  const sentBatch = batchSend.batches[operation.batchName];
 
   if (!batchSend.isSentSuccessfully || sentBatch?.errorMessage) {
-    throw providerError(
-      4900,
-      sentBatch?.errorMessage || 'Gasless wallet_sendCalls failed.'
-    );
+    throw providerError(4900, sentBatch?.errorMessage || errorMessage);
   }
 
-  const userOpHash = sentBatch?.chainGroups?.[chainId]?.userOpHash;
+  const userOpHash = sentBatch?.chainGroups?.[operation.chainId]?.userOpHash;
   if (!userOpHash) {
-    throw providerError(
-      4900,
-      'Gasless wallet_sendCalls did not return a hash.'
-    );
+    throw providerError(4900, missingHashMessage);
   }
 
-  const transactionHash = await kit.getTransactionHash(userOpHash, chainId);
+  const transactionHash = await operation.kit.getTransactionHash(
+    userOpHash,
+    operation.chainId
+  );
   if (!transactionHash) {
-    throw providerError(
-      4900,
-      'Gasless wallet_sendCalls was sent, but the transaction hash was not available yet.'
-    );
+    throw providerError(4900, unavailableHashMessage);
   }
 
   return transactionHash;
 };
+
+const sendPreparedGaslessDappTransaction = (
+  operation: PreparedGaslessDappOperation
+) =>
+  sendPreparedGaslessDappOperation({
+    errorMessage: 'Gasless dapp transaction failed.',
+    missingHashMessage: 'Gasless dapp transaction did not return a hash.',
+    operation,
+    unavailableHashMessage:
+      'Gasless dapp transaction was sent, but the transaction hash was not available yet.',
+  });
+
+const sendPreparedGaslessDappCalls = (
+  operation: PreparedGaslessDappOperation
+) =>
+  sendPreparedGaslessDappOperation({
+    errorMessage: 'Gasless wallet_sendCalls failed.',
+    missingHashMessage: 'Gasless wallet_sendCalls did not return a hash.',
+    operation,
+    unavailableHashMessage:
+      'Gasless wallet_sendCalls was sent, but the transaction hash was not available yet.',
+  });
 
 const requestRpc = async ({
   chainId,
@@ -2843,6 +2904,13 @@ const closeApprovalSurfaceIfIdle = () => {
   closeApprovalSurface();
 };
 
+const rejectPendingFeeSelection = (
+  pending: PendingProviderApproval,
+  error: ProviderRpcError
+) => {
+  pending.feeSelectionReject?.(error);
+};
+
 async function openApprovalSurface() {
   const approvalUrl = chromeLike?.runtime?.getURL?.('extension/approval.html');
   if (!approvalUrl) {
@@ -2877,7 +2945,9 @@ const rejectPendingProviderApprovals = (message: string) => {
     }
 
     if (!pending.approved) {
-      pending.reject(providerError(4001, message));
+      const error = providerError(4001, message);
+      rejectPendingFeeSelection(pending, error);
+      pending.reject(error);
     }
 
     pendingProviderApprovals.delete(id);
@@ -2927,8 +2997,16 @@ const requestProviderApproval = ({
   >((resolve, reject) => {
     const timeoutId = setTimeout(
       () => {
+        const pending = pendingProviderApprovals.get(message.id);
+        const error = providerError(
+          4001,
+          'PillarX request approval timed out.'
+        );
+        if (pending) {
+          rejectPendingFeeSelection(pending, error);
+        }
         pendingProviderApprovals.delete(message.id);
-        reject(providerError(4001, 'PillarX request approval timed out.'));
+        reject(error);
       },
       5 * 60 * 1000
     );
@@ -2959,15 +3037,18 @@ const requestProviderApproval = ({
 
     openApprovalSurface().catch((error) => {
       clearTimeout(timeoutId);
+      const pending = pendingProviderApprovals.get(message.id);
       pendingProviderApprovals.delete(message.id);
-      reject(
-        providerError(
-          4001,
-          error instanceof Error
-            ? error.message
-            : 'Unable to open PillarX approval window.'
-        )
+      const approvalError = providerError(
+        4001,
+        error instanceof Error
+          ? error.message
+          : 'Unable to open PillarX approval window.'
       );
+      if (pending) {
+        rejectPendingFeeSelection(pending, approvalError);
+      }
+      reject(approvalError);
     });
   });
 
@@ -2983,6 +3064,132 @@ const requestProviderApproval = ({
   return approvalPromise;
 };
 
+const feePaymentFromOption = (
+  option: ProviderApprovalFeePaymentOption
+): ProviderApprovalFeePayment =>
+  option.type === 'gasless'
+    ? {
+        decimals: option.decimals,
+        paymasterAddress: option.paymasterAddress,
+        token: option.token,
+        type: 'gasless',
+      }
+    : { type: 'native' };
+
+const feePaymentMatchesOption = (
+  feePayment: ProviderApprovalFeePayment,
+  option: ProviderApprovalFeePaymentOption
+) => {
+  if (feePayment.type === 'native') return option.type === 'native';
+  if (option.type !== 'gasless') return false;
+
+  return (
+    feePayment.decimals === option.decimals &&
+    feePayment.token.toLowerCase() === option.token.toLowerCase() &&
+    feePayment.paymasterAddress.toLowerCase() ===
+      option.paymasterAddress.toLowerCase()
+  );
+};
+
+const waitForProviderFeeSelection = ({
+  feePaymentOptions,
+  id,
+}: {
+  feePaymentOptions: ProviderApprovalFeePaymentOption[];
+  id: string;
+}): Promise<ProviderApprovalFeePayment> => {
+  const pending = pendingProviderApprovals.get(id);
+  const defaultOption = feePaymentOptions[0];
+  if (!pending || !defaultOption) {
+    return Promise.reject(
+      providerError(-32000, 'Unable to prepare transaction fee options.')
+    );
+  }
+
+  updateProviderApprovalView(id, { feePaymentOptions });
+
+  if (feePaymentOptions.length === 1) {
+    const feePayment = feePaymentFromOption(defaultOption);
+    pending.selectedFeePayment = feePayment;
+    updateProviderApprovalView(id, {
+      preparation: { phase: 'estimating' },
+      selectedFeePaymentId: defaultOption.id,
+    });
+    return Promise.resolve(feePayment);
+  }
+
+  updateProviderApprovalView(id, {
+    preparation: { phase: 'selecting-fee' },
+  });
+
+  return new Promise((resolve, reject) => {
+    pending.feeSelectionResolve = resolve;
+    pending.feeSelectionReject = reject;
+  });
+};
+
+const selectProviderApprovalFee = ({
+  feePayment,
+  id,
+}: ProviderApprovalSelectFeeMessage) => {
+  const pending = pendingProviderApprovals.get(id);
+  if (!pending) {
+    throw providerError(4900, 'PillarX approval request is no longer pending.');
+  }
+
+  if (pending.view.preparation?.phase !== 'selecting-fee') {
+    throw providerError(-32000, 'Fee selection is no longer available.');
+  }
+
+  const option = pending.view.feePaymentOptions?.find((candidate) =>
+    feePaymentMatchesOption(feePayment, candidate)
+  );
+  if (!option) {
+    throw providerError(-32602, 'Unsupported transaction fee option.');
+  }
+
+  const selectedFeePayment = feePaymentFromOption(option);
+  const resolve = pending.feeSelectionResolve;
+  pending.selectedFeePayment = selectedFeePayment;
+  delete pending.feeSelectionReject;
+  delete pending.feeSelectionResolve;
+  updateProviderApprovalView(id, {
+    preparation: { phase: 'estimating' },
+    selectedFeePaymentId: option.id,
+  });
+  resolve?.(selectedFeePayment);
+
+  return { ok: true };
+};
+
+const getProviderPreparationErrorMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const normalizedMessage = message.toLowerCase();
+
+  console.warn('PillarX transaction estimation failed', error);
+
+  if (normalizedMessage.includes('insufficient funds')) {
+    return 'This account does not have enough funds to cover the transaction and its network fee.';
+  }
+
+  if (
+    normalizedMessage.includes('gas price below minimum') ||
+    normalizedMessage.includes('gas tip cap')
+  ) {
+    return 'The network rejected the proposed gas price. Refresh the request in the dapp and try again.';
+  }
+
+  if (
+    normalizedMessage.includes('execution reverted') ||
+    normalizedMessage.includes('will revert') ||
+    normalizedMessage.includes('revert')
+  ) {
+    return 'This transaction is expected to fail on-chain. Review the transaction in the dapp and try again.';
+  }
+
+  return 'This transaction could not be estimated and may fail on-chain. Review it in the dapp before trying again.';
+};
+
 const failProviderApprovalPreparation = async ({
   approvalPromise,
   error,
@@ -2992,10 +3199,7 @@ const failProviderApprovalPreparation = async ({
   error: unknown;
   id: string;
 }): Promise<never> => {
-  const preparationError =
-    error instanceof Error
-      ? error.message
-      : 'Transaction gas estimation failed.';
+  const preparationError = getProviderPreparationErrorMessage(error);
 
   updateProviderApprovalView(id, {
     preparation: {
@@ -3062,13 +3266,17 @@ const respondToProviderApproval = ({
       closeApprovalSurfaceIfIdle();
     }
 
-    pending.resolve({ feePayment });
+    pending.resolve({
+      feePayment: pending.selectedFeePayment ?? feePayment,
+    });
     return { ok: true };
   }
 
   pendingProviderApprovals.delete(id);
   closeApprovalSurfaceIfIdle();
-  pending.reject(providerError(4001, 'User rejected the PillarX request.'));
+  const rejection = providerError(4001, 'User rejected the PillarX request.');
+  rejectPendingFeeSelection(pending, rejection);
+  pending.reject(rejection);
   return { ok: true };
 };
 
@@ -3604,22 +3812,30 @@ const handleProviderRequest = async (
         chainId: effectiveChainId,
         message,
         method,
-        preparation: { phase: 'estimating' },
+        preparation: { phase: 'loading-fees' },
       });
       approvalPromise.catch(() => undefined);
       const preparedTransaction = await (async () => {
         try {
-          const prepared = await buildDappTransactionRequest({
+          const feePaymentOptions = await getDappFeePaymentOptions({
             account,
             chainId: effectiveChainId,
-            transaction,
           });
-          const estimatedFee = await getDappTransactionFeeEstimate(prepared);
-          const [simulation, feePaymentOptions] = await Promise.all([
-            getDappTransactionSimulation({
+          const feePayment = await waitForProviderFeeSelection({
+            feePaymentOptions,
+            id: message.id,
+          });
+
+          if (isGaslessFeePayment(feePayment)) {
+            const operation = await prepareGaslessDappTransaction({
               account,
               chainId: effectiveChainId,
-              estimatedFee,
+              feePayment,
+              transaction,
+            });
+            const simulation = await getDappTransactionSimulation({
+              account,
+              chainId: effectiveChainId,
               transaction,
             }).catch((error) =>
               alchemyApiKey
@@ -3631,12 +3847,44 @@ const handleProviderRequest = async (
                         : 'Alchemy transaction simulation failed.',
                   }
                 : undefined
-            ),
-            getDappFeePaymentOptions({
-              account,
-              chainId: effectiveChainId,
-            }),
-          ]);
+            );
+
+            updateProviderApprovalView(message.id, {
+              estimatedFee: operation.estimatedFee,
+              feePaymentOptions,
+              preparation: { phase: 'ready' },
+              simulation,
+            });
+
+            return {
+              operation,
+              publicClient: operation.publicClient,
+              type: 'gasless' as const,
+            };
+          }
+
+          const prepared = await buildDappTransactionRequest({
+            account,
+            chainId: effectiveChainId,
+            transaction,
+          });
+          const estimatedFee = await getDappTransactionFeeEstimate(prepared);
+          const simulation = await getDappTransactionSimulation({
+            account,
+            chainId: effectiveChainId,
+            estimatedFee,
+            transaction,
+          }).catch((error) =>
+            alchemyApiKey
+              ? {
+                  changes: [],
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : 'Alchemy transaction simulation failed.',
+                }
+              : undefined
+          );
 
           updateProviderApprovalView(message.id, {
             estimatedFee,
@@ -3645,7 +3893,11 @@ const handleProviderRequest = async (
             simulation,
           });
 
-          return prepared;
+          return {
+            prepared,
+            publicClient: prepared.publicClient,
+            type: 'native' as const,
+          };
         } catch (error) {
           return failProviderApprovalPreparation({
             approvalPromise,
@@ -3654,21 +3906,17 @@ const handleProviderRequest = async (
           });
         }
       })();
-      const approvalResponse = await approvalPromise;
+      await approvalPromise;
 
       try {
-        const transactionHash = isGaslessFeePayment(
-          approvalResponse?.feePayment
-        )
-          ? await sendGaslessDappTransaction({
-              account,
-              chainId: effectiveChainId,
-              feePayment: approvalResponse.feePayment,
-              transaction,
-            })
-          : await preparedTransaction.walletClient.sendTransaction(
-              preparedTransaction.request
-            );
+        const transactionHash =
+          preparedTransaction.type === 'gasless'
+            ? await sendPreparedGaslessDappTransaction(
+                preparedTransaction.operation
+              )
+            : await preparedTransaction.prepared.walletClient.sendTransaction(
+                preparedTransaction.prepared.request
+              );
 
         updateProviderApprovalStatus(message.id, {
           phase: 'confirming',
@@ -3729,29 +3977,37 @@ const handleProviderRequest = async (
         chainId: sendCallsRequest.chainId,
         message,
         method,
-        preparation: { phase: 'estimating' },
+        preparation: { phase: 'loading-fees' },
       });
       approvalPromise.catch(() => undefined);
       const preparedTransaction = await (async () => {
         try {
-          const prepared = await buildDappBatchTransactionRequest({
+          const feePaymentOptions = await getDappFeePaymentOptions({
             account,
-            calls: sendCallsRequest.calls,
             chainId: sendCallsRequest.chainId,
           });
-          const estimatedFee = await getDappTransactionFeeEstimate(prepared);
-          const simulationCall =
-            sendCallsRequest.calls.length === 1
-              ? sendCallsRequest.calls[0]
-              : undefined;
-          const [simulation, feePaymentOptions] = await Promise.all([
-            getDappTransactionSimulation({
+          const feePayment = await waitForProviderFeeSelection({
+            feePaymentOptions,
+            id: message.id,
+          });
+
+          if (isGaslessFeePayment(feePayment)) {
+            const operation = await prepareGaslessDappCalls({
+              account,
+              calls: sendCallsRequest.calls,
+              chainId: sendCallsRequest.chainId,
+              feePayment,
+            });
+            const simulationCall =
+              sendCallsRequest.calls.length === 1
+                ? sendCallsRequest.calls[0]
+                : undefined;
+            const simulation = await getDappTransactionSimulation({
               account,
               chainId: sendCallsRequest.chainId,
-              estimatedFee,
               transaction: {
                 chainId: numberToChainHex(sendCallsRequest.chainId),
-                data: simulationCall?.data ?? prepared.request.data,
+                data: simulationCall?.data,
                 from: account.address,
                 to: simulationCall?.to ?? account.address,
                 value: quantityToHex(simulationCall?.value ?? BigInt(0)),
@@ -3766,12 +4022,54 @@ const handleProviderRequest = async (
                         : 'Alchemy transaction simulation failed.',
                   }
                 : undefined
-            ),
-            getDappFeePaymentOptions({
-              account,
-              chainId: sendCallsRequest.chainId,
-            }),
-          ]);
+            );
+
+            updateProviderApprovalView(message.id, {
+              estimatedFee: operation.estimatedFee,
+              feePaymentOptions,
+              preparation: { phase: 'ready' },
+              simulation,
+            });
+
+            return {
+              operation,
+              publicClient: operation.publicClient,
+              type: 'gasless' as const,
+            };
+          }
+
+          const prepared = await buildDappBatchTransactionRequest({
+            account,
+            calls: sendCallsRequest.calls,
+            chainId: sendCallsRequest.chainId,
+          });
+          const estimatedFee = await getDappTransactionFeeEstimate(prepared);
+          const simulationCall =
+            sendCallsRequest.calls.length === 1
+              ? sendCallsRequest.calls[0]
+              : undefined;
+          const simulation = await getDappTransactionSimulation({
+            account,
+            chainId: sendCallsRequest.chainId,
+            estimatedFee,
+            transaction: {
+              chainId: numberToChainHex(sendCallsRequest.chainId),
+              data: simulationCall?.data ?? prepared.request.data,
+              from: account.address,
+              to: simulationCall?.to ?? account.address,
+              value: quantityToHex(simulationCall?.value ?? BigInt(0)),
+            },
+          }).catch((error) =>
+            alchemyApiKey
+              ? {
+                  changes: [],
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : 'Alchemy transaction simulation failed.',
+                }
+              : undefined
+          );
 
           updateProviderApprovalView(message.id, {
             estimatedFee,
@@ -3780,7 +4078,11 @@ const handleProviderRequest = async (
             simulation,
           });
 
-          return prepared;
+          return {
+            prepared,
+            publicClient: prepared.publicClient,
+            type: 'native' as const,
+          };
         } catch (error) {
           return failProviderApprovalPreparation({
             approvalPromise,
@@ -3789,21 +4091,15 @@ const handleProviderRequest = async (
           });
         }
       })();
-      const approvalResponse = await approvalPromise;
+      await approvalPromise;
 
       try {
-        const transactionHash = isGaslessFeePayment(
-          approvalResponse?.feePayment
-        )
-          ? await sendGaslessDappCalls({
-              account,
-              calls: sendCallsRequest.calls,
-              chainId: sendCallsRequest.chainId,
-              feePayment: approvalResponse.feePayment,
-            })
-          : await preparedTransaction.walletClient.sendTransaction(
-              preparedTransaction.request
-            );
+        const transactionHash =
+          preparedTransaction.type === 'gasless'
+            ? await sendPreparedGaslessDappCalls(preparedTransaction.operation)
+            : await preparedTransaction.prepared.walletClient.sendTransaction(
+                preparedTransaction.prepared.request
+              );
 
         walletCallBatchStatuses.set(statusKey, {
           atomic: true,
@@ -4007,6 +4303,23 @@ chromeLike?.runtime?.onMessage?.addListener(
         ok: true,
         pending: getPendingProviderApprovalViews(),
       });
+      return true;
+    }
+
+    if (
+      isObject(message) &&
+      message.type === PILLARX_PROVIDER_APPROVAL_SELECT_FEE
+    ) {
+      try {
+        sendResponse(
+          selectProviderApprovalFee(message as ProviderApprovalSelectFeeMessage)
+        );
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: serializeProviderError(error),
+        });
+      }
       return true;
     }
 
