@@ -6,6 +6,8 @@ export const PILLARX_PROVIDER_APPROVAL_GET_PENDING =
   'PILLARX_PROVIDER_APPROVAL_GET_PENDING';
 export const PILLARX_PROVIDER_APPROVAL_RESPOND =
   'PILLARX_PROVIDER_APPROVAL_RESPOND';
+export const PILLARX_PROVIDER_APPROVAL_SELECT_FEE =
+  'PILLARX_PROVIDER_APPROVAL_SELECT_FEE';
 
 export type ProviderRequestArguments = {
   method: string;
@@ -126,6 +128,12 @@ export type ProviderApprovalStatus =
 
 export type ProviderApprovalPreparation =
   | {
+      phase: 'loading-fees';
+    }
+  | {
+      phase: 'selecting-fee';
+    }
+  | {
       phase: 'estimating';
     }
   | {
@@ -155,6 +163,7 @@ export type ProviderApprovalRequestView = {
   origin: string;
   params?: ProviderRequestArguments['params'];
   preparation?: ProviderApprovalPreparation;
+  selectedFeePaymentId?: string;
   simulation?: {
     changes: {
       amount?: string;
@@ -183,4 +192,10 @@ export type ProviderApprovalRespondMessage = {
   id: string;
   approved: boolean;
   feePayment?: ProviderApprovalFeePayment;
+};
+
+export type ProviderApprovalSelectFeeMessage = {
+  type: typeof PILLARX_PROVIDER_APPROVAL_SELECT_FEE;
+  id: string;
+  feePayment: ProviderApprovalFeePayment;
 };
