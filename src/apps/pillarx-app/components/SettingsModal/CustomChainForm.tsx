@@ -549,10 +549,10 @@ const PrimaryButton = styled.button`
   min-height: 52px;
   align-items: center;
   justify-content: center;
-  border: 2px solid #5d41a8;
+  border: 2px solid ${({ theme }) => theme.color.background.buttonPrimary};
   border-radius: 14px;
-  background: #6d55d8;
-  color: #ffffff;
+  background: ${({ theme }) => theme.color.background.buttonPrimary};
+  color: ${({ theme }) => theme.color.text.buttonPrimary};
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
