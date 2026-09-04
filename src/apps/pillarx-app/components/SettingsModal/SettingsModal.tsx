@@ -413,10 +413,10 @@ const AddChainButton = styled.button`
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border: 2px solid #7f63ff;
+  border: 2px solid ${({ theme }) => theme.color.background.buttonPrimary};
   border-radius: 14px;
-  background: #6d55d8;
-  color: #ffffff;
+  background: ${({ theme }) => theme.color.background.buttonPrimary};
+  color: ${({ theme }) => theme.color.text.buttonPrimary};
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
