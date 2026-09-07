@@ -20,6 +20,21 @@ type CustomChainFormProps = {
   onChainAdded: () => void;
 };
 
+const isOptionalHttpUrl = (value: string) => {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return true;
+
+  try {
+    const parsedUrl = new URL(trimmedValue);
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+const normalizeOptionalUrl = (value: string) =>
+  value.trim().replace(/\/+$/u, '') || undefined;
+
 const CustomChainForm = ({
   initialChain,
   onCancel,
@@ -32,6 +47,10 @@ const CustomChainForm = ({
   const [chainIdError, setChainIdError] = useState('');
   const [isFetchingChainId, setIsFetchingChainId] = useState(false);
   const [chainName, setChainName] = useState(initialChain?.chainName || '');
+  const [logoUrl, setLogoUrl] = useState(initialChain?.logoUrl || '');
+  const [explorerUrl, setExplorerUrl] = useState(
+    initialChain?.explorerUrl || ''
+  );
   const [nativeTokenDecimals, setNativeTokenDecimals] = useState(
     initialChain ? String(initialChain.nativeTokenDecimals) : '18'
   );
@@ -71,11 +90,15 @@ const CustomChainForm = ({
   const isNativeTokenSymbolValid =
     normalizedNativeTokenSymbol.length > 0 &&
     normalizedNativeTokenSymbol.length <= 16;
+  const isLogoUrlValid = isOptionalHttpUrl(logoUrl);
+  const isExplorerUrlValid = isOptionalHttpUrl(explorerUrl);
   const canAddChain =
     !!rpcUrl.trim() &&
     !!chainId &&
     !alreadySupportedChain &&
     !!chainName.trim() &&
+    isLogoUrlValid &&
+    isExplorerUrlValid &&
     isNativeTokenDecimalsValid &&
     isNativeTokenSymbolValid &&
     !isFetchingChainId;
@@ -127,6 +150,8 @@ const CustomChainForm = ({
     if (!alreadyAddedCustomChain) return;
 
     setChainName(alreadyAddedCustomChain.chainName);
+    setLogoUrl(alreadyAddedCustomChain.logoUrl || '');
+    setExplorerUrl(alreadyAddedCustomChain.explorerUrl || '');
     setNativeTokenDecimals(String(alreadyAddedCustomChain.nativeTokenDecimals));
     setNativeTokenSymbol(alreadyAddedCustomChain.nativeTokenSymbol);
     setTokens(alreadyAddedCustomChain.tokens);
@@ -205,6 +230,8 @@ const CustomChainForm = ({
     const nextChain: CustomChain = {
       chainId,
       chainName: chainName.trim(),
+      explorerUrl: normalizeOptionalUrl(explorerUrl),
+      logoUrl: normalizeOptionalUrl(logoUrl),
       rpcUrl: rpcUrl.trim(),
       nativeTokenDecimals: parsedNativeTokenDecimals,
       nativeTokenSymbol: normalizedNativeTokenSymbol,
@@ -274,6 +301,34 @@ const CustomChainForm = ({
           placeholder="Ethereum"
         />
         <HelperText>This name will be used across the wallet UI.</HelperText>
+      </FieldGroup>
+
+      <FieldGroup>
+        <Label htmlFor="custom-chain-logo-url">Chain logo URL (optional)</Label>
+        <Input
+          id="custom-chain-logo-url"
+          value={logoUrl}
+          onChange={(event) => setLogoUrl(event.target.value)}
+          placeholder="https://.../logo.png"
+        />
+        {!isLogoUrlValid && (
+          <ErrorText>Enter a valid HTTP or HTTPS logo URL.</ErrorText>
+        )}
+      </FieldGroup>
+
+      <FieldGroup>
+        <Label htmlFor="custom-chain-explorer-url">
+          Block explorer URL (optional)
+        </Label>
+        <Input
+          id="custom-chain-explorer-url"
+          value={explorerUrl}
+          onChange={(event) => setExplorerUrl(event.target.value)}
+          placeholder="https://explorer.example.com"
+        />
+        {!isExplorerUrlValid && (
+          <ErrorText>Enter a valid HTTP or HTTPS explorer URL.</ErrorText>
+        )}
       </FieldGroup>
 
       <FieldGroup>

@@ -28,6 +28,8 @@ export type CustomChainToken = {
 export type CustomChain = {
   chainId: number;
   chainName: string;
+  explorerUrl?: string;
+  logoUrl?: string;
   rpcUrl: string;
   nativeTokenDecimals: number;
   nativeTokenSymbol: string;
@@ -60,9 +62,11 @@ const getStorage = () => {
 };
 
 const getChromeLocalStorage = () =>
-  (globalThis as {
-    chrome?: { storage?: { local?: ChromeStorageAreaLike } };
-  }).chrome?.storage?.local;
+  (
+    globalThis as {
+      chrome?: { storage?: { local?: ChromeStorageAreaLike } };
+    }
+  ).chrome?.storage?.local;
 
 const syncCustomChainsToChromeStorage = (chains: CustomChain[]) => {
   try {
@@ -105,6 +109,9 @@ const isCustomChain = (
     Number.isInteger(chain.chainId) &&
     chain.chainId > 0 &&
     typeof chain.chainName === 'string' &&
+    (chain.explorerUrl === undefined ||
+      typeof chain.explorerUrl === 'string') &&
+    (chain.logoUrl === undefined || typeof chain.logoUrl === 'string') &&
     typeof chain.rpcUrl === 'string' &&
     Number.isInteger(chain.nativeTokenDecimals) &&
     (chain.nativeTokenSymbol === undefined ||
@@ -128,6 +135,8 @@ export const readCustomChains = (): CustomChain[] => {
 
     const customChains = parsedValue.filter(isCustomChain).map((chain) => ({
       ...chain,
+      explorerUrl: chain.explorerUrl?.trim() || undefined,
+      logoUrl: chain.logoUrl?.trim() || undefined,
       nativeTokenSymbol: normalizeNativeTokenSymbol(chain.nativeTokenSymbol),
     }));
 
@@ -165,6 +174,12 @@ export const upsertCustomChain = (chain: CustomChain) => {
     customChains.map((item, index) =>
       index === existingChainIndex ? chain : item
     )
+  );
+};
+
+export const removeCustomChain = (chainId: number) => {
+  writeCustomChains(
+    readCustomChains().filter((chain) => chain.chainId !== chainId)
   );
 };
 
@@ -266,7 +281,9 @@ const callErc20Metadata = async ({
       }),
     });
   } catch (error) {
-    throw new Error(`Unable to fetch ERC-20 ${field}: ${getErrorMessage(error)}`);
+    throw new Error(
+      `Unable to fetch ERC-20 ${field}: ${getErrorMessage(error)}`
+    );
   }
 };
 
@@ -324,7 +341,9 @@ export const fetchErc20TokenMetadata = async ({
       data: symbolResult,
     });
   } catch (error) {
-    throw new Error(`Unable to decode ERC-20 metadata: ${getErrorMessage(error)}`);
+    throw new Error(
+      `Unable to decode ERC-20 metadata: ${getErrorMessage(error)}`
+    );
   }
 
   if (
