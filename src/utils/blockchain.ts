@@ -84,7 +84,7 @@ export const getNativeAssetForChainId = (chainId: number): TokenListToken => {
       name: `${customChain.chainName} Native Token`,
       symbol: customChain.nativeTokenSymbol,
       decimals: customChain.nativeTokenDecimals,
-      logoURI: logoEvm,
+      logoURI: customChain.logoUrl || logoEvm,
     };
   }
 
@@ -184,6 +184,14 @@ export const getCustomViemChains = () =>
           http: [customChain.rpcUrl],
         },
       },
+      blockExplorers: customChain.explorerUrl
+        ? {
+            default: {
+              name: `${customChain.chainName} Explorer`,
+              url: customChain.explorerUrl,
+            },
+          }
+        : undefined,
       testnet: true,
     })
   );
@@ -213,6 +221,11 @@ export const visibleChains = supportedChains.filter((chain) =>
 );
 
 export const getLogoForChainId = (chainId: number): string => {
+  const customChainLogoUrl = getCustomChainById(chainId)?.logoUrl;
+  if (customChainLogoUrl) {
+    return customChainLogoUrl;
+  }
+
   if (chainId === mainnet.id) {
     return logoEthereum;
   }
@@ -282,8 +295,12 @@ export const getBlockScan = (chain: number, isAddress: boolean = false) => {
       return `https://optimistic.etherscan.io/${isAddress ? 'address' : 'tx'}/`;
     case 42161:
       return `https://arbiscan.io/${isAddress ? 'address' : 'tx'}/`;
-    default:
-      return '';
+    default: {
+      const explorerUrl = getCustomChainById(chain)?.explorerUrl;
+      return explorerUrl
+        ? `${explorerUrl.replace(/\/+$/u, '')}/${isAddress ? 'address' : 'tx'}/`
+        : '';
+    }
   }
 };
 
@@ -301,8 +318,12 @@ export const getBlockScanName = (chain: number) => {
       return 'Optimistic Etherscan';
     case 42161:
       return 'Arbiscan';
-    default:
-      return '';
+    default: {
+      const customChain = getCustomChainById(chain);
+      return customChain?.explorerUrl
+        ? `${customChain.chainName} Explorer`
+        : '';
+    }
   }
 };
 

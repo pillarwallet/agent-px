@@ -145,6 +145,7 @@ export type ProviderApprovalPreparation =
     };
 
 export type ProviderApprovalRequestView = {
+  blockExplorerUrl?: string;
   id: string;
   account?: string;
   chainId: number;

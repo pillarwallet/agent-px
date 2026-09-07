@@ -304,6 +304,9 @@ const isCustomChainRecord = (value: unknown): value is CustomChain => {
     Number.isInteger(chain.chainId) &&
     chain.chainId > 0 &&
     typeof chain.chainName === 'string' &&
+    (chain.explorerUrl === undefined ||
+      typeof chain.explorerUrl === 'string') &&
+    (chain.logoUrl === undefined || typeof chain.logoUrl === 'string') &&
     typeof chain.rpcUrl === 'string' &&
     Number.isInteger(chain.nativeTokenDecimals) &&
     typeof chain.nativeTokenSymbol === 'string' &&
@@ -343,6 +346,14 @@ const customChainToViemChain = (customChain: CustomChain): Chain =>
         http: [customChain.rpcUrl],
       },
     },
+    blockExplorers: customChain.explorerUrl
+      ? {
+          default: {
+            name: `${customChain.chainName} Explorer`,
+            url: customChain.explorerUrl,
+          },
+        }
+      : undefined,
     testnet: true,
   });
 
@@ -354,13 +365,20 @@ const setProviderCustomChains = async (customChains: CustomChain[]) =>
   );
 
 const getFirstString = (value: unknown) =>
-  Array.isArray(value) && typeof value[0] === 'string' ? value[0] : undefined;
+  Array.isArray(value) && typeof value[0] === 'string'
+    ? value[0].trim() || undefined
+    : undefined;
 
 const getWalletAddEthereumChainCustomChain = (
   request: WalletAddEthereumChainRequest
 ): CustomChain => {
   const chainId = parseChainId(request.chainId);
   const rpcUrl = getFirstString(request.rpcUrls);
+  const explorerUrl = getFirstString(request.blockExplorerUrls)?.replace(
+    /\/+$/u,
+    ''
+  );
+  const logoUrl = getFirstString(request.iconUrls);
   const nativeCurrency = isObject(request.nativeCurrency)
     ? request.nativeCurrency
     : {};
@@ -407,7 +425,9 @@ const getWalletAddEthereumChainCustomChain = (
         ? request.chainName.trim()
         : `Chain ${chainId}`,
     createdAt: now,
+    explorerUrl,
     gaslessEnabled: false,
+    logoUrl,
     nativeTokenDecimals,
     nativeTokenSymbol,
     rpcUrl,
@@ -433,6 +453,8 @@ const upsertProviderCustomChain = async (customChain: CustomChain) => {
         ? {
             ...customChain,
             createdAt: chain.createdAt,
+            explorerUrl: customChain.explorerUrl ?? chain.explorerUrl,
+            logoUrl: customChain.logoUrl ?? chain.logoUrl,
             tokens: chain.tokens,
           }
         : chain
@@ -469,8 +491,10 @@ type DappTransactionRequest = {
 };
 
 type WalletAddEthereumChainRequest = {
+  blockExplorerUrls?: unknown;
   chainId?: unknown;
   chainName?: unknown;
+  iconUrls?: unknown;
   nativeCurrency?: unknown;
   rpcUrls?: unknown;
 };
@@ -1613,7 +1637,11 @@ const buildDappTransactionRequest = async ({
         account,
         chain,
         to: account.address,
-        value: BigInt(0),
+        // The kernel execute call encodes inner call values inside calldata,
+        // but `estimateGas` must receive the aggregate `value` that will
+        // actually be sent with the outer transaction so the node can
+        // simulate forwarded value correctly.
+        value: innerCall.value ?? BigInt(0),
         data: encodePillarExecuteCall(innerCall),
         ...(authorization ? { authorizationList: [authorization] } : {}),
         ...transactionOverrides,
@@ -1705,7 +1733,12 @@ const buildDappBatchTransactionRequest = async ({
         account,
         chain,
         to: account.address,
-        value: BigInt(0),
+        // Sum all inner call values so the outer transaction `value`
+        // reflects the total forwarded value inside the kernel execute batch.
+        value: pillarCalls.reduce(
+          (acc, c) => acc + (c.value ?? BigInt(0)),
+          BigInt(0)
+        ),
         data:
           pillarCalls.length === 1
             ? encodePillarExecuteCall(pillarCalls[0])
@@ -3055,6 +3088,7 @@ const requestProviderApproval = ({
   getProviderChainById(chainId)
     .then((approvalChain) => {
       updateProviderApprovalView(message.id, {
+        blockExplorerUrl: approvalChain.blockExplorers?.default.url,
         chainName: approvalChain.name,
         nativeCurrencySymbol: approvalChain.nativeCurrency.symbol,
       });

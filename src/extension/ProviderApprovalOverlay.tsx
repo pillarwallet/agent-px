@@ -219,8 +219,20 @@ const compactHex = (value?: string) => {
   return `${value.slice(0, 14)}...${value.slice(-8)}`;
 };
 
-const getTransactionExplorer = (chainId: number, transactionHash?: string) => {
-  const explorer = CHAIN_EXPLORER_TX_URLS[chainId];
+const getTransactionExplorer = (
+  chainId: number,
+  transactionHash?: string,
+  blockExplorerUrl?: string,
+  chainName?: string
+) => {
+  const explorer =
+    CHAIN_EXPLORER_TX_URLS[chainId] ??
+    (blockExplorerUrl
+      ? {
+          name: `${chainName || 'Block'} Explorer`,
+          url: `${blockExplorerUrl.replace(/\/+$/u, '')}/tx/`,
+        }
+      : undefined);
   if (!explorer || !transactionHash) return undefined;
 
   return {
@@ -974,7 +986,9 @@ export default function ProviderApprovalOverlay({
         : undefined;
     const explorer = getTransactionExplorer(
       activeRequest.chainId,
-      transactionHash
+      transactionHash,
+      activeRequest.blockExplorerUrl,
+      getRequestChainName(activeRequest)
     );
     const isSubmitting = transactionStatus.phase === 'submitting';
     const isConfirming = transactionStatus.phase === 'confirming';

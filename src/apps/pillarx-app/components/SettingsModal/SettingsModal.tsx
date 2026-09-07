@@ -1,4 +1,4 @@
-import { Add } from 'iconsax-react';
+import { Add, Trash } from 'iconsax-react';
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
@@ -6,7 +6,11 @@ import {
   allCompatibleChains,
   getLogoForChainId,
 } from '../../../../utils/blockchain';
-import { CustomChain, readCustomChains } from '../../../../utils/customChains';
+import {
+  CustomChain,
+  readCustomChains,
+  removeCustomChain,
+} from '../../../../utils/customChains';
 import {
   DEFAULT_EXTENSION_DISPLAY_MODE,
   ExtensionDisplayMode,
@@ -24,6 +28,8 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
   const [isClosing, setIsClosing] = useState(false);
   const [isAddingCustomChain, setIsAddingCustomChain] = useState(false);
   const [editingCustomChain, setEditingCustomChain] =
+    useState<CustomChain | null>(null);
+  const [chainPendingDeletion, setChainPendingDeletion] =
     useState<CustomChain | null>(null);
   const [customChains, setCustomChains] = useState<CustomChain[]>(() =>
     readCustomChains()
@@ -77,6 +83,20 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
     });
   }, [editingCustomChain, isAddingCustomChain]);
 
+  useEffect(() => {
+    if (!chainPendingDeletion) return undefined;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setChainPendingDeletion(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [chainPendingDeletion]);
+
   const handleAddCustomChain = () => {
     setEditingCustomChain(null);
     setIsAddingCustomChain(true);
@@ -91,6 +111,18 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
   const handleCustomChainCancel = () => {
     setIsAddingCustomChain(false);
     setEditingCustomChain(null);
+  };
+
+  const handleDeleteCustomChain = (chain: CustomChain) => {
+    setChainPendingDeletion(chain);
+  };
+
+  const handleConfirmCustomChainDeletion = () => {
+    if (!chainPendingDeletion) return;
+
+    removeCustomChain(chainPendingDeletion.chainId);
+    setCustomChains(readCustomChains());
+    setChainPendingDeletion(null);
   };
 
   const handleClose = () => {
@@ -175,12 +207,22 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
                       {chain.chainId} · {chain.nativeTokenSymbol}
                     </ChainId>
                   </ChainInfo>
-                  <EditChainButton
-                    type="button"
-                    onClick={() => setEditingCustomChain(chain)}
-                  >
-                    Edit
-                  </EditChainButton>
+                  <ChainActions>
+                    <EditChainButton
+                      type="button"
+                      onClick={() => setEditingCustomChain(chain)}
+                    >
+                      Edit
+                    </EditChainButton>
+                    <DeleteChainButton
+                      type="button"
+                      aria-label={`Delete ${chain.chainName}`}
+                      title={`Delete ${chain.chainName}`}
+                      onClick={() => handleDeleteCustomChain(chain)}
+                    >
+                      <Trash size={17} variant="Outline" />
+                    </DeleteChainButton>
+                  </ChainActions>
                 </ChainRow>
               ))}
             </ChainList>
@@ -192,6 +234,48 @@ const SettingsModal = ({ onClose }: SettingsModalProps) => {
           </>
         )}
       </Content>
+      {chainPendingDeletion && (
+        <DeleteConfirmationBackdrop
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setChainPendingDeletion(null);
+            }
+          }}
+        >
+          <DeleteConfirmationDialog
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-chain-title"
+            aria-describedby="delete-chain-description"
+          >
+            <DeleteConfirmationIcon>
+              <Trash size={22} variant="Outline" />
+            </DeleteConfirmationIcon>
+            <DeleteConfirmationTitle id="delete-chain-title">
+              Delete {chainPendingDeletion.chainName}?
+            </DeleteConfirmationTitle>
+            <DeleteConfirmationDescription id="delete-chain-description">
+              Its RPC configuration and tracked tokens will be removed from
+              PillarX.
+            </DeleteConfirmationDescription>
+            <DeleteConfirmationActions>
+              <DeleteConfirmationCancelButton
+                type="button"
+                onClick={() => setChainPendingDeletion(null)}
+              >
+                Cancel
+              </DeleteConfirmationCancelButton>
+              <DeleteConfirmationButton
+                type="button"
+                autoFocus
+                onClick={handleConfirmCustomChainDeletion}
+              >
+                Delete chain
+              </DeleteConfirmationButton>
+            </DeleteConfirmationActions>
+          </DeleteConfirmationDialog>
+        </DeleteConfirmationBackdrop>
+      )}
     </Overlay>
   );
 };
@@ -391,6 +475,13 @@ const ChainId = styled.span`
   line-height: 1.2;
 `;
 
+const ChainActions = styled.div`
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+`;
+
 const EditChainButton = styled.button`
   display: flex;
   min-height: 34px;
@@ -404,6 +495,115 @@ const EditChainButton = styled.button`
   font-size: 12px;
   font-weight: 500;
   padding: 0 12px;
+`;
+
+const DeleteChainButton = styled.button`
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #4b2a36;
+  border-radius: 10px;
+  background: #211219;
+  color: #ff6b8a;
+  cursor: pointer;
+  padding: 0;
+
+  &:hover {
+    border-color: #ff6b8a;
+    background: #2d1721;
+  }
+`;
+
+const DeleteConfirmationBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(3 3 6 / 82%);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+`;
+
+const DeleteConfirmationDialog = styled.div`
+  display: flex;
+  width: 100%;
+  max-width: 360px;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid #393245;
+  border-radius: 14px;
+  background: #111016;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 45%);
+  padding: 24px;
+  text-align: center;
+`;
+
+const DeleteConfirmationIcon = styled.div`
+  display: flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #5e2c3c;
+  border-radius: 50%;
+  background: #2d1721;
+  color: #ff6b8a;
+`;
+
+const DeleteConfirmationTitle = styled.h2`
+  margin: 16px 0 0;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.2;
+`;
+
+const DeleteConfirmationDescription = styled.p`
+  margin: 10px 0 0;
+  color: #a9a0b7;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+`;
+
+const DeleteConfirmationActions = styled.div`
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 24px;
+`;
+
+const DeleteConfirmationCancelButton = styled.button`
+  min-height: 46px;
+  border: 1px solid #393245;
+  border-radius: 10px;
+  background: #1a181f;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+`;
+
+const DeleteConfirmationButton = styled.button`
+  min-height: 46px;
+  border: 1px solid #ff6b8a;
+  border-radius: 10px;
+  background: #d63f61;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+
+  &:hover {
+    background: #e34c6d;
+  }
 `;
 
 const AddChainButton = styled.button`
