@@ -11,7 +11,10 @@ import {
 } from '../types/api';
 
 // utils
-import { CompatibleChains, getNativeAssetForChainId } from '../utils/blockchain';
+import {
+  CompatibleChains,
+  getNativeAssetForChainId,
+} from '../utils/blockchain';
 import {
   getCustomChainIdByName,
   getCustomChainName,

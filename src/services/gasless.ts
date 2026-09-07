@@ -120,27 +120,22 @@ export const supportedGaslessTokens: SupportedGaslessToken[] = [
   },
   {
     chainId: 56,
-    tokenAddress: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+    tokenAddress: '0x55d398326f99059ff775485246999027b3197955',
     paymasterAddress: MULTITOKEN_PAYMASTER_ADDRESS,
   },
   {
     chainId: 56,
-    tokenAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+    tokenAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
     paymasterAddress: MULTITOKEN_PAYMASTER_ADDRESS,
   },
   {
     chainId: 56,
-    tokenAddress: '0x6b175474e89094c44da98b954eedeac495271d0f',
-    paymasterAddress: MULTITOKEN_PAYMASTER_ADDRESS,
-  },
-  {
-    chainId: 56,
-    tokenAddress: '0xdc035d45d973e3ec169d2276ddab16f1e407384f',
+    tokenAddress: '0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34',
     paymasterAddress: MULTITOKEN_PAYMASTER_ADDRESS,
   },
 ];
 
-export const GASLESS_TOKEN_APPROVAL_AMOUNT = '0.1';
+export const GASLESS_TOKEN_APPROVAL_AMOUNT = '1';
 const MIN_GASLESS_TOKEN_BALANCE = 0.01;
 
 const normalizeGaslessChainName = (chainName: string) =>
