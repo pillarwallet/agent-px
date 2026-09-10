@@ -536,6 +536,27 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     selectedAssetPrice,
   ]);
 
+  const getMaxAmountInputValue = () => {
+    if (selectedAsset?.type !== 'token') return `${maxAmountAvailable}`;
+
+    if (
+      !isAmountInputAsFiat &&
+      !isNativeToken(selectedAsset.asset.contract) &&
+      selectedAsset.asset.balanceRaw
+    ) {
+      try {
+        return formatUnits(
+          BigInt(selectedAsset.asset.balanceRaw),
+          selectedAsset.asset.decimals
+        );
+      } catch {
+        return `${maxAmountAvailable}`;
+      }
+    }
+
+    return `${maxAmountAvailable}`;
+  };
+
   useEffect(() => {
     const addressPasteActionTimeout = setTimeout(() => {
       setPasteClicked(false);
@@ -2056,6 +2077,8 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
           data: txData.data,
           authorization: directEoaAuthorization || undefined,
           gas: directEstimate.gas,
+          maxFeePerGas: directEstimate.maxFeePerGas,
+          maxPriorityFeePerGas: directEstimate.maxPriorityFeePerGas,
         });
         transactionDebugLog('Direct EOA transaction sent:', sent);
 
@@ -2637,7 +2660,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
                       </AmountInputSymbol>
                       {!isDeploymentCostLoading && maxAmountAvailable > 0 && (
                         <TextInputButton
-                          onClick={() => setAmount(`${maxAmountAvailable}`)}
+                          onClick={() => setAmount(getMaxAmountInputValue())}
                         >
                           {t`helper.max`}
                           <span>
