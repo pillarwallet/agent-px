@@ -108,6 +108,8 @@ export interface EoaTransactionEstimateResult
   extends TransactionEstimateResult {
   gas?: bigint;
   feePerGas?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
 }
 
 export interface EoaTransactionSendResult extends TransactionSendResult {
@@ -239,6 +241,51 @@ type UserOperationFeeEstimate = {
   fees: {
     maxFeePerGas: bigint;
     maxPriorityFeePerGas: bigint;
+  };
+};
+
+type DirectEoaFeeMarkup = {
+  maxFeePerGasBps: bigint;
+  maxPriorityFeePerGasBps: bigint;
+};
+
+const DIRECT_EOA_FEE_MARKUPS: Record<number, DirectEoaFeeMarkup> = {
+  1: {
+    maxFeePerGasBps: BigInt(1000),
+    maxPriorityFeePerGasBps: BigInt(1500),
+  },
+};
+
+const applyDirectEoaFeeMarkup = ({
+  chainId,
+  maxFeePerGas,
+  maxPriorityFeePerGas,
+}: {
+  chainId: number;
+  maxFeePerGas: bigint;
+  maxPriorityFeePerGas: bigint;
+}) => {
+  const markup = DIRECT_EOA_FEE_MARKUPS[chainId] || {
+    maxFeePerGasBps: BigInt(0),
+    maxPriorityFeePerGasBps: BigInt(0),
+  };
+
+  const applyBps = (value: bigint, bps: bigint) =>
+    (value * (BigInt(10000) + bps) + BigInt(9999)) / BigInt(10000);
+
+  const markedUpMaxPriorityFeePerGas = applyBps(
+    maxPriorityFeePerGas,
+    markup.maxPriorityFeePerGasBps
+  );
+  const markedUpMaxFeePerGas = applyBps(maxFeePerGas, markup.maxFeePerGasBps);
+
+  return {
+    maxFeePerGas:
+      markedUpMaxFeePerGas < markedUpMaxPriorityFeePerGas
+        ? markedUpMaxPriorityFeePerGas
+        : markedUpMaxFeePerGas,
+    maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas,
+    markup,
   };
 };
 
@@ -1827,13 +1874,34 @@ export class EtherspotTransactionKit {
 
       const gas = await publicClient.estimateGas(request);
       let feePerGas: bigint;
+      let maxFeePerGas: bigint | undefined;
+      let maxPriorityFeePerGas: bigint | undefined;
 
       try {
         const fees = await publicClient.estimateFeesPerGas();
-        feePerGas = fees.maxFeePerGas || fees.gasPrice || BigInt(0);
+        maxPriorityFeePerGas =
+          fees.maxPriorityFeePerGas && fees.maxPriorityFeePerGas > BigInt(0)
+            ? fees.maxPriorityFeePerGas
+            : BigInt(1);
+        maxFeePerGas = fees.maxFeePerGas || fees.gasPrice || BigInt(0);
+        if (maxFeePerGas < maxPriorityFeePerGas) {
+          maxFeePerGas = maxPriorityFeePerGas;
+        }
+        feePerGas = maxFeePerGas;
       } catch {
         feePerGas = await publicClient.getGasPrice();
+        maxFeePerGas = feePerGas;
+        maxPriorityFeePerGas = feePerGas > BigInt(0) ? feePerGas : BigInt(1);
       }
+
+      const markedUpFees = applyDirectEoaFeeMarkup({
+        chainId,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+      });
+      maxFeePerGas = markedUpFees.maxFeePerGas;
+      maxPriorityFeePerGas = markedUpFees.maxPriorityFeePerGas;
+      feePerGas = maxFeePerGas;
 
       const cost = gas * feePerGas;
 
@@ -1841,6 +1909,11 @@ export class EtherspotTransactionKit {
         chainId,
         gas: gas.toString(),
         feePerGas: feePerGas.toString(),
+        maxFeePerGas: maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: maxPriorityFeePerGas?.toString(),
+        maxFeePerGasMarkupBps: markedUpFees.markup.maxFeePerGasBps.toString(),
+        maxPriorityFeePerGasMarkupBps:
+          markedUpFees.markup.maxPriorityFeePerGasBps.toString(),
         cost: cost.toString(),
       });
 
@@ -1850,6 +1923,8 @@ export class EtherspotTransactionKit {
         cost,
         gas,
         feePerGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
         isEstimatedSuccessfully: true,
       };
     } catch (error) {
@@ -1879,7 +1954,13 @@ export class EtherspotTransactionKit {
     data = '0x',
     authorization,
     gas,
-  }: TransactionParams & { gas?: bigint }): Promise<EoaTransactionSendResult> {
+    maxFeePerGas,
+    maxPriorityFeePerGas,
+  }: TransactionParams & {
+    gas?: bigint;
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
+  }): Promise<EoaTransactionSendResult> {
     const transaction = { chainId, to, value, data };
     const baseResult = toBaseResult(transaction);
 
@@ -1920,6 +2001,8 @@ export class EtherspotTransactionKit {
           data: preparedTransaction.outerData,
         }),
         hasGasEstimate: typeof gas === 'bigint',
+        maxFeePerGas: maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: maxPriorityFeePerGas?.toString(),
         authorization: summarizeAuthorization(authorization),
       });
 
@@ -1931,6 +2014,10 @@ export class EtherspotTransactionKit {
         data: preparedTransaction.outerData,
         ...(authorizationList ? { authorizationList } : {}),
         ...(typeof gas === 'bigint' ? { gas } : {}),
+        ...(typeof maxFeePerGas === 'bigint' ? { maxFeePerGas } : {}),
+        ...(typeof maxPriorityFeePerGas === 'bigint'
+          ? { maxPriorityFeePerGas }
+          : {}),
       });
 
       transactionDebugLog('[TransactionKit] direct EOA transaction sent', {
