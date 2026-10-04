@@ -26,163 +26,176 @@ import { useGetAllDeveloperAppsQuery } from '../apps/developer-apps/api/develope
 import { loadApps } from '../apps';
 import { ApiAllowedApp } from '../providers/AllowedAppsProvider';
 
-const AppsList = ({ hideTitle = false }: { hideTitle?: boolean }) => {
-  const [apps, setApps] = React.useState<
-    Record<string, AppManifest | ApiAllowedApp>
-  >({});
-  const navigate = useNavigate();
-  const { setIsAnimated } = useAllowedApps();
-  const { hide } = useBottomMenuModal();
-  const { isLoading: isLoadingAllowedApps, allowed } = useAllowedApps();
-  const [t] = useTranslation();
-  const { walletAddress: accountAddress } = useTransactionKit();
-  const { walletAddress: ownerEoaAddress } = useAuthAccount();
-
-  // Use RTK Query for developer apps
-  const { data: developerAppsData, isLoading: isLoadingDeveloperApps } =
-    useGetAllDeveloperAppsQuery(
-      { eoaAddress: ownerEoaAddress },
-      {
-        skip: !ownerEoaAddress,
-      }
-    );
-  /**
-   * Import the recordPresence mutation from the
-   * pillarXApiPresence service. We use this to
-   * collect data on what apps are being opened
-   */
-  const [recordPresence] = useRecordPresenceMutation();
-
-  React.useEffect(() => {
-    const fetchApps = async () => {
-      const loadedApps = loadApps(allowed);
-      setApps(await loadedApps);
-    };
-    fetchApps();
-  }, [allowed]);
-
-  // Get developer apps from RTK Query data
-  const developerApps = React.useMemo(() => {
-    if (!developerAppsData?.data || !ownerEoaAddress) return [];
-    return developerAppsData.data.filter(
-      (a) =>
-        a?.ownerEoaAddress &&
-        a.ownerEoaAddress.toLowerCase() === ownerEoaAddress.toLowerCase()
-    );
-  }, [developerAppsData, ownerEoaAddress]);
-
-  return (
-    <Wrapper id="apps-modal">
-      {!hideTitle && (
-        <ModalTitle>
-          <IconApps size={18} />
-          {t`title.apps`}
-        </ModalTitle>
-      )}
-      <ExploreAppsCard>
-        <ExploreAppsCardTitle>Explore Apps</ExploreAppsCardTitle>
-        <ExploreAppsCardContent>
-          Discover new apps and services
-        </ExploreAppsCardContent>
-      </ExploreAppsCard>
-      {/* Developer apps (owned by user) */}
-      {ownerEoaAddress && (
-        <>
-          {isLoadingDeveloperApps && (
-            <AppsListWrapper>
-              <SkeletonLoader $height="94px" $width="94px" />
-              <SkeletonLoader $height="94px" $width="94px" />
-              <SkeletonLoader $height="94px" $width="94px" />
-            </AppsListWrapper>
-          )}
-          {!isLoadingDeveloperApps && developerApps.length > 0 && (
-            <>
-              <Label>My developer apps</Label>
-              <AppsListWrapper>
-                {developerApps.map((devApp) => (
-                  <AppListItem
-                    id="dev-app-list-item"
-                    key={devApp.appId}
-                    onClick={() => {
-                      hide();
-                      if (accountAddress) {
-                        recordPresence({
-                          address: accountAddress,
-                          action: 'developerAppOpened',
-                          value: devApp.appId,
-                        });
-                      }
-                      navigate(`/${devApp.appId}`);
-                      // window.open(devApp.launchUrl, '_blank', 'noopener,noreferrer');
-                    }}
-                  >
-                    {devApp.logo ? (
-                      <DevAppLogo src={devApp.logo} alt={devApp.name} />
-                    ) : (
-                      <PlaceholderLogo />
-                    )}
-                    <AppTitle>{devApp.name}</AppTitle>
-                  </AppListItem>
-                ))}
-              </AppsListWrapper>
-              <Separator />
-            </>
-          )}
-        </>
-      )}
-      <Label>{t`label.latestApps`}</Label>
-      <AppsListWrapper id="apps-list">
-        {isLoadingAllowedApps && (
-          <>
-            <SkeletonLoader $height="94px" $width="94px" />
-            <SkeletonLoader $height="94px" $width="94px" />
-            <SkeletonLoader $height="94px" $width="94px" />
-            <SkeletonLoader $height="94px" $width="94px" />
-            <SkeletonLoader $height="94px" $width="94px" />
-          </>
-        )}
-        {!isLoadingAllowedApps &&
-          Object.keys(apps)
-            .filter((appId) => {
-              // Filter out developer apps that are already shown in the developer apps section
-              const app = apps[appId];
-              return (
-                !(app as ApiAllowedApp).type ||
-                (app as ApiAllowedApp).type !== 'app-external'
-              );
-            })
-            .map((appId) => (
-              <AppListItem
-                id="app-list-item"
-                key={appId}
-                onClick={() => {
-                  hide();
-                  // Fire (and forget) the recordPresence mutation
-                  if (accountAddress) {
-                    recordPresence({
-                      address: accountAddress,
-                      action: 'appOpened',
-                      value: appId,
-                    });
-                  }
-                  setIsAnimated(true);
-                  // eslint-disable-next-line prefer-template
-                  navigate('/' + appId);
-                }}
-              >
-                <AppIcon app={apps[appId]} appId={appId} />
-                <AppTitle>{apps[appId].title}</AppTitle>
-              </AppListItem>
-            ))}
-      </AppsListWrapper>
-    </Wrapper>
-  );
+type AppsListProps = {
+  hideTitle?: boolean;
+  isModal?: boolean;
 };
 
-const Wrapper = styled.div`
-  max-height: 100%;
+const AppsList = React.forwardRef<HTMLDivElement, AppsListProps>(
+  ({ hideTitle = false, isModal = false }, ref) => {
+    const [apps, setApps] = React.useState<
+      Record<string, AppManifest | ApiAllowedApp>
+    >({});
+    const navigate = useNavigate();
+    const { setIsAnimated } = useAllowedApps();
+    const { hide } = useBottomMenuModal();
+    const { isLoading: isLoadingAllowedApps, allowed } = useAllowedApps();
+    const [t] = useTranslation();
+    const { walletAddress: accountAddress } = useTransactionKit();
+    const { walletAddress: ownerEoaAddress } = useAuthAccount();
+
+    // Use RTK Query for developer apps
+    const { data: developerAppsData, isLoading: isLoadingDeveloperApps } =
+      useGetAllDeveloperAppsQuery(
+        { eoaAddress: ownerEoaAddress },
+        {
+          skip: !ownerEoaAddress,
+        }
+      );
+    /**
+     * Import the recordPresence mutation from the
+     * pillarXApiPresence service. We use this to
+     * collect data on what apps are being opened
+     */
+    const [recordPresence] = useRecordPresenceMutation();
+
+    React.useEffect(() => {
+      const fetchApps = async () => {
+        const loadedApps = loadApps(allowed);
+        setApps(await loadedApps);
+      };
+      fetchApps();
+    }, [allowed]);
+
+    // Get developer apps from RTK Query data
+    const developerApps = React.useMemo(() => {
+      if (!developerAppsData?.data || !ownerEoaAddress) return [];
+      return developerAppsData.data.filter(
+        (a) =>
+          a?.ownerEoaAddress &&
+          a.ownerEoaAddress.toLowerCase() === ownerEoaAddress.toLowerCase()
+      );
+    }, [developerAppsData, ownerEoaAddress]);
+
+    return (
+      <Wrapper id="apps-modal" ref={ref} $isModal={isModal}>
+        {!hideTitle && (
+          <ModalTitle>
+            <IconApps size={18} />
+            {t`title.apps`}
+          </ModalTitle>
+        )}
+        <ExploreAppsCard>
+          <ExploreAppsCardTitle>Explore Apps</ExploreAppsCardTitle>
+          <ExploreAppsCardContent>
+            Discover new apps and services
+          </ExploreAppsCardContent>
+        </ExploreAppsCard>
+        {/* Developer apps (owned by user) */}
+        {ownerEoaAddress && (
+          <>
+            {isLoadingDeveloperApps && (
+              <AppsListWrapper>
+                <SkeletonLoader $height="94px" $width="94px" />
+                <SkeletonLoader $height="94px" $width="94px" />
+                <SkeletonLoader $height="94px" $width="94px" />
+              </AppsListWrapper>
+            )}
+            {!isLoadingDeveloperApps && developerApps.length > 0 && (
+              <>
+                <Label>My developer apps</Label>
+                <AppsListWrapper>
+                  {developerApps.map((devApp) => (
+                    <AppListItem
+                      id="dev-app-list-item"
+                      key={devApp.appId}
+                      onClick={() => {
+                        hide();
+                        if (accountAddress) {
+                          recordPresence({
+                            address: accountAddress,
+                            action: 'developerAppOpened',
+                            value: devApp.appId,
+                          });
+                        }
+                        navigate(`/${devApp.appId}`);
+                        // window.open(devApp.launchUrl, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      {devApp.logo ? (
+                        <DevAppLogo src={devApp.logo} alt={devApp.name} />
+                      ) : (
+                        <PlaceholderLogo />
+                      )}
+                      <AppTitle>{devApp.name}</AppTitle>
+                    </AppListItem>
+                  ))}
+                </AppsListWrapper>
+                <Separator />
+              </>
+            )}
+          </>
+        )}
+        <Label>{t`label.latestApps`}</Label>
+        <AppsListWrapper id="apps-list">
+          {isLoadingAllowedApps && (
+            <>
+              <SkeletonLoader $height="94px" $width="94px" />
+              <SkeletonLoader $height="94px" $width="94px" />
+              <SkeletonLoader $height="94px" $width="94px" />
+              <SkeletonLoader $height="94px" $width="94px" />
+              <SkeletonLoader $height="94px" $width="94px" />
+            </>
+          )}
+          {!isLoadingAllowedApps &&
+            Object.keys(apps)
+              .filter((appId) => {
+                // Filter out developer apps that are already shown in the developer apps section
+                const app = apps[appId];
+                return (
+                  !(app as ApiAllowedApp).type ||
+                  (app as ApiAllowedApp).type !== 'app-external'
+                );
+              })
+              .map((appId) => (
+                <AppListItem
+                  id="app-list-item"
+                  key={appId}
+                  onClick={() => {
+                    hide();
+                    // Fire (and forget) the recordPresence mutation
+                    if (accountAddress) {
+                      recordPresence({
+                        address: accountAddress,
+                        action: 'appOpened',
+                        value: appId,
+                      });
+                    }
+                    setIsAnimated(true);
+                    // eslint-disable-next-line prefer-template
+                    navigate('/' + appId);
+                  }}
+                >
+                  <AppIcon app={apps[appId]} appId={appId} />
+                  <AppTitle>{apps[appId].title}</AppTitle>
+                </AppListItem>
+              ))}
+        </AppsListWrapper>
+      </Wrapper>
+    );
+  }
+);
+
+AppsList.displayName = 'AppsList';
+
+const Wrapper = styled.div<{ $isModal: boolean }>`
+  min-height: 0;
+  height: ${({ $isModal }) => ($isModal ? '100%' : 'auto')};
+  flex: ${({ $isModal }) => ($isModal ? '1 1 auto' : 'initial')};
   width: 100%;
-  overflow-y: scroll;
+  overflow-y: auto;
+  overflow-anchor: none;
+  overscroll-behavior: contain;
 `;
 
 const AppsListWrapper = styled.div`

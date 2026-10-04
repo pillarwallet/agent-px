@@ -83,7 +83,7 @@ describe('<BottomMenu />', () => {
     expect(
       (bottomMenuElement.children?.[1] as ReactTestRendererJSON)?.children
         ?.length
-    ).toBe(5); // other menu items
+    ).toBe(6); // five menu items plus the chevron action
     expect(bottomMenuElement.type).toBe('div');
 
     vi.clearAllMocks();
