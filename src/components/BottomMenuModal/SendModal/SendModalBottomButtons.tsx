@@ -19,6 +19,8 @@ interface SendModalBottomButtonsProps {
   allowBatching?: boolean;
   onAddToBatch?: () => void;
   onCancel?: () => void;
+  confirmLabel?: React.ReactNode;
+  confirmingLabel?: React.ReactNode;
 }
 
 const SendModalBottomButtons = ({
@@ -33,6 +35,8 @@ const SendModalBottomButtons = ({
   allowBatching = true,
   onAddToBatch,
   onCancel,
+  confirmLabel,
+  confirmingLabel,
 }: SendModalBottomButtonsProps) => {
   const [t] = useTranslation();
 
@@ -85,11 +89,11 @@ const SendModalBottomButtons = ({
           $fullWidth
           $last
         >
-          {isSending && t`progress.sending`}
+          {isSending && (confirmingLabel || t`progress.sending`)}
           {!isSending &&
             (safetyWarningMessage && !errorMessage
               ? t`action.sendAnyway`
-              : t`action.send`)}
+              : confirmLabel || t`action.send`)}
         </Button>
       </ButtonsWrapper>
       {!!errorMessage && !!estimatedCostFormatted && (

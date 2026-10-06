@@ -41,6 +41,7 @@ import useDeployWallet from '../../../hooks/useDeployWallet';
 import useGlobalTransactionsBatch from '../../../hooks/useGlobalTransactionsBatch';
 import { useTransactionDebugLogger } from '../../../hooks/useTransactionDebugLogger';
 import useTransactionKit from '../../../hooks/useTransactionKit';
+import useWalletApproval from '../../../hooks/useWalletApproval';
 
 // services
 import {
@@ -54,6 +55,7 @@ import { getUserOperationStatus } from '../../../services/userOpStatus';
 import { isNativeToken } from '../../../apps/the-exchange/utils/wrappedTokens';
 import {
   buildTransactionData,
+  getChainName,
   getNativeAssetForChainId,
   isSupportedChainId,
   isValidEthereumAddress,
@@ -184,6 +186,7 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
   const [selectedAssetPrice, setSelectedAssetPrice] = React.useState<number>(0);
   const [nativeAssetPrice, setNativeAssetPrice] = React.useState<number>(0);
   const { kit } = useTransactionKit();
+  const { requestApproval } = useWalletApproval();
   const { setTransactionMetaForName } = useGlobalTransactionsBatch();
   const [isAmountInputAsFiat, setIsAmountInputAsFiat] =
     React.useState<boolean>(false);
@@ -597,6 +600,91 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
     setLatestUserOpChainId(undefined);
   };
 
+  const estimateApprovalFee = async (): Promise<string | undefined> => {
+    if (!selectedAsset || selectedAsset.type !== 'token') return undefined;
+
+    const { chainId } = selectedAsset;
+    const valueToSend = isAmountInputAsFiat
+      ? amountForPrice.toString()
+      : amount;
+    const txData = buildTransactionData({
+      tokenAddress: selectedAsset.asset.contract,
+      recipient,
+      amount: valueToSend,
+      decimals: selectedAsset.asset.decimals,
+    });
+
+    if (isPaymaster && selectedPaymasterAddress && selectedFeeAsset) {
+      const batchName = 'approval-fee-preview';
+      const existingBatch = kit.getState().batches[batchName];
+      if (existingBatch) kit.batch({ batchName }).remove();
+
+      try {
+        kit
+          .transaction({
+            chainId,
+            to: selectedFeeAsset.token,
+            value: '0',
+            data: approveData,
+          })
+          .name({ transactionName: 'approval-fee-preview-approve' })
+          .addToBatch({ batchName });
+        kit
+          .transaction({
+            chainId,
+            to: txData.to,
+            value: txData.value,
+            data: txData.data,
+          })
+          .name({ transactionName: 'approval-fee-preview-transfer' })
+          .addToBatch({ batchName });
+
+        const estimate = await kit.estimateBatches({
+          onlyBatchNames: [batchName],
+          paymasterDetails: { context: paymasterContext! },
+        });
+        const cost = estimate.batches[batchName]?.totalCost;
+        if (!estimate.isEstimatedSuccessfully || !cost) return undefined;
+
+        const selectedFeeOption = feeAssetOptions.find(
+          (option) => option.id === selectedFeeAsset.id
+        );
+        const { symbol: feeSymbol = 'Fee token' } =
+          selectedFeeOption?.asset || {};
+        return `${formatAmountDisplay(
+          formatUnits(cost, selectedFeeAsset.decimals),
+          0,
+          6
+        )} ${feeSymbol}`;
+      } finally {
+        if (kit.getState().batches[batchName]) {
+          kit.batch({ batchName }).remove();
+        }
+      }
+    }
+
+    const authorization = getCustomChainById(chainId)
+      ? null
+      : await getEIP7702AuthorizationIfNeeded(kit, chainId, {
+          authorizationExecutor: 'self',
+        });
+    const estimate = await kit.estimateEoaTransaction({
+      chainId,
+      to: txData.to,
+      value: txData.value !== undefined ? txData.value.toString() : '0',
+      data: txData.data,
+      authorization: authorization || undefined,
+    });
+    if (!estimate.isEstimatedSuccessfully || !estimate.cost) return undefined;
+
+    const nativeAsset = getNativeAssetForChainId(chainId);
+    return `${formatAmountDisplay(
+      formatUnits(estimate.cost, nativeAsset.decimals),
+      0,
+      6
+    )} ${nativeAsset.symbol}`;
+  };
+
   const handleEstimation = (
     estimated: TransactionEstimateResult,
     sendId: string
@@ -987,6 +1075,48 @@ const SendModalTokensTabView = ({ payload }: { payload?: SendModalData }) => {
       });
 
       return;
+    }
+
+    if (!ignoreSafetyWarning) {
+      const approvalTransaction =
+        payload && 'transaction' in payload ? payload.transaction : undefined;
+      const approvalChainId =
+        approvalTransaction?.chainId || selectedAsset?.chainId;
+      const nativeAsset = approvalChainId
+        ? getNativeAssetForChainId(approvalChainId)
+        : undefined;
+      let approvalValue: string | undefined;
+      if (approvalTransaction) {
+        const rawValue = safeBigIntConversion(approvalTransaction.value || '0');
+        if (rawValue > BigInt(0) && nativeAsset) {
+          approvalValue = `${formatUnits(rawValue, nativeAsset.decimals)} ${nativeAsset.symbol}`;
+        }
+      } else if (selectedAsset) {
+        approvalValue = `${amount} ${getAssetSymbol(selectedAsset)}`;
+      }
+      const approved = await requestApproval({
+        type: 'transaction',
+        title: payload?.title || 'Send assets',
+        description:
+          payload?.description ||
+          (payload && 'batches' in payload
+            ? `Review ${payload.batches.reduce((count, batch) => count + batch.transactions.length, 0)} batched transactions.`
+            : 'Review this transaction before it is submitted.'),
+        source: 'Send',
+        network: approvalChainId
+          ? getChainName(approvalChainId)
+          : 'Multiple networks',
+        account: accountAddress,
+        to: approvalTransaction?.to || recipient || undefined,
+        value: approvalValue,
+        assetLogoUrl: selectedAsset?.imageSrc,
+        assetSymbol: getAssetSymbol(selectedAsset),
+        estimatedFee: selectedAsset ? undefined : 'Unavailable',
+        estimateFee: selectedAsset ? estimateApprovalFee : undefined,
+        data: approvalTransaction?.data,
+        confirmLabel: 'Approve transaction',
+      });
+      if (!approved) return;
     }
 
     Sentry.addBreadcrumb({

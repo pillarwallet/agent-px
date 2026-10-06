@@ -17,7 +17,9 @@ import { useAuthAccount } from '../hooks/useAuthAccount';
 // providers
 import AccountTransactionHistoryProvider from '../providers/AccountTransactionHistoryProvider';
 import BottomMenuModalProvider from '../providers/BottomMenuModalProvider';
+import CreateAlertProvider from '../providers/CreateAlertProvider';
 import { EtherspotTransactionKitProvider } from '../providers/EtherspotTransactionKitProvider';
+import WalletApprovalProvider from '../providers/WalletApprovalProvider';
 import GlobalTransactionBatchesProvider from '../providers/GlobalTransactionsBatchProvider';
 import SelectedChainsHistoryProvider from '../providers/SelectedChainsHistoryProvider';
 import { getExtensionViewContext } from '../utils/extensionRuntime';
@@ -156,33 +158,37 @@ export default function Authorized({
 
   return (
     <EtherspotTransactionKitProvider config={kitConfig}>
-      <AccountTransactionHistoryProvider>
-        <GlobalTransactionBatchesProvider>
-          <BottomMenuModalProvider>
-            <SelectedChainsHistoryProvider>
-              <AuthContentWrapper
-                $isExtensionPanelMode={isExtensionPanelMode}
-              >
-                <Outlet />
-              </AuthContentWrapper>
-              <BottomMenu />
+      <WalletApprovalProvider>
+        <CreateAlertProvider>
+          <AccountTransactionHistoryProvider>
+            <GlobalTransactionBatchesProvider>
+              <BottomMenuModalProvider>
+                <SelectedChainsHistoryProvider>
+                  <AuthContentWrapper
+                    $isExtensionPanelMode={isExtensionPanelMode}
+                  >
+                    <Outlet />
+                  </AuthContentWrapper>
+                  <BottomMenu />
 
-              {/* Debug Panel - shown when debug_connections is enabled */}
-              {localStorage.getItem('debug_connections') === 'true' && (
-                <DebugPanel title="Connection Debug">
-                  <ConnectionDebug
-                    debugInfo={debugInfo}
-                    onDisconnect={() => {
-                      // This will be handled by the comprehensive logout utility
-                      // when the user logs out through the normal flow
-                    }}
-                  />
-                </DebugPanel>
-              )}
-            </SelectedChainsHistoryProvider>
-          </BottomMenuModalProvider>
-        </GlobalTransactionBatchesProvider>
-      </AccountTransactionHistoryProvider>
+                  {/* Debug Panel - shown when debug_connections is enabled */}
+                  {localStorage.getItem('debug_connections') === 'true' && (
+                    <DebugPanel title="Connection Debug">
+                      <ConnectionDebug
+                        debugInfo={debugInfo}
+                        onDisconnect={() => {
+                          // This will be handled by the comprehensive logout utility
+                          // when the user logs out through the normal flow
+                        }}
+                      />
+                    </DebugPanel>
+                  )}
+                </SelectedChainsHistoryProvider>
+              </BottomMenuModalProvider>
+            </GlobalTransactionBatchesProvider>
+          </AccountTransactionHistoryProvider>
+        </CreateAlertProvider>
+      </WalletApprovalProvider>
     </EtherspotTransactionKitProvider>
   );
 }

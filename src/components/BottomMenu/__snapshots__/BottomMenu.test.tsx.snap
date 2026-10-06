@@ -245,7 +245,7 @@ exports[`<BottomMenu /> > renders correctly when authenticated 1`] = `
       </div>
       <div
         className="c6 c7"
-        id="menu-item-Automations"
+        id="menu-item-Smart Trades"
         onClick={[Function]}
       >
         <div
@@ -277,7 +277,7 @@ exports[`<BottomMenu /> > renders correctly when authenticated 1`] = `
         <span
           className="c8 c9"
         >
-          Automations
+          Smart Trades
         </span>
       </div>
       <div

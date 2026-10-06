@@ -3,9 +3,13 @@ import TokenInsightCard from './TokenInsightCard';
 
 type TokenInsightsTableProps = {
   tokens: TokenInsight[];
+  onCreateAlert: (token: TokenInsight) => void;
 };
 
-const TokenInsightsTable = ({ tokens }: TokenInsightsTableProps) => (
+const TokenInsightsTable = ({
+  tokens,
+  onCreateAlert,
+}: TokenInsightsTableProps) => (
   <section
     style={{
       display: 'grid',
@@ -18,6 +22,7 @@ const TokenInsightsTable = ({ tokens }: TokenInsightsTableProps) => (
         <TokenInsightCard
           key={`${token.rank}-${token.address}-${token.symbol}`}
           token={token}
+          onCreateAlert={onCreateAlert}
         />
       ))
     ) : (

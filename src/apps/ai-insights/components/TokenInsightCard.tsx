@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Copy } from 'lucide-react';
+import { Bell, Check, ChevronDown, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { TokenInsight } from '../types';
@@ -13,6 +13,7 @@ import ScoreBar from './ScoreBar';
 
 type TokenInsightCardProps = {
   token: TokenInsight;
+  onCreateAlert: (token: TokenInsight) => void;
 };
 
 const Metric = ({ label, value }: { label: string; value: string }) => (
@@ -51,7 +52,7 @@ const Metric = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const TokenInsightCard = ({ token }: TokenInsightCardProps) => {
+const TokenInsightCard = ({ token, onCreateAlert }: TokenInsightCardProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const copiedTimeoutRef = useRef<number>();
@@ -239,32 +240,64 @@ const TokenInsightCard = ({ token }: TokenInsightCardProps) => {
               </div>
             </div>
           </div>
-          <button
-            aria-label={isExpanded ? 'Collapse token details' : 'Expand token details'}
-            onClick={() => setIsExpanded((currentValue) => !currentValue)}
+          <div
             style={{
               alignItems: 'center',
-              background: '#17151f',
-              border: '1px solid #302c3a',
-              borderRadius: 999,
-              color: '#9e98ad',
-              cursor: 'pointer',
               display: 'flex',
-              height: 30,
-              justifyContent: 'center',
-              width: 30,
+              gap: 7,
             }}
-            type="button"
           >
-            <ChevronDown
-              aria-hidden
-              size={18}
+            <button
+              aria-label={`Create order for ${token.symbol}`}
+              disabled={!token.address}
+              onClick={() => onCreateAlert(token)}
               style={{
-                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 160ms ease',
+                alignItems: 'center',
+                background: '#241d3a',
+                border: '1px solid #433765',
+                borderRadius: 999,
+                color: '#a78bfa',
+                cursor: token.address ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                height: 30,
+                justifyContent: 'center',
+                opacity: token.address ? 1 : 0.5,
+                width: 30,
               }}
-            />
-          </button>
+              title="Create order"
+              type="button"
+            >
+              <Bell aria-hidden size={15} />
+            </button>
+            <button
+              aria-label={
+                isExpanded ? 'Collapse token details' : 'Expand token details'
+              }
+              onClick={() => setIsExpanded((currentValue) => !currentValue)}
+              style={{
+                alignItems: 'center',
+                background: '#17151f',
+                border: '1px solid #302c3a',
+                borderRadius: 999,
+                color: '#9e98ad',
+                cursor: 'pointer',
+                display: 'flex',
+                height: 30,
+                justifyContent: 'center',
+                width: 30,
+              }}
+              type="button"
+            >
+              <ChevronDown
+                aria-hidden
+                size={18}
+                style={{
+                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 160ms ease',
+                }}
+              />
+            </button>
+          </div>
         </div>
         <div
           style={{
@@ -303,7 +336,10 @@ const TokenInsightCard = ({ token }: TokenInsightCardProps) => {
         >
           <Metric label="Liquidity" value={formatCompactUsd(token.liquidity)} />
           <Metric label="Vol 1h" value={formatCompactUsd(token.volume1hUsd)} />
-          <Metric label="Confidence" value={formatScore(token.confidenceScore)} />
+          <Metric
+            label="Confidence"
+            value={formatScore(token.confidenceScore)}
+          />
           <Metric label="Age" value={token.age || '-'} />
         </div>
       ) : null}
