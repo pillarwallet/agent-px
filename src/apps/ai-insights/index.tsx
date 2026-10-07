@@ -18,11 +18,13 @@ import {
 import { parseTokensFromMcpResponse } from './utils/mcpParsing';
 import RefreshIcon from '../pillarx-app/images/refresh-button.png';
 import { defaultTheme } from '../../theme';
+import useCreateAlert from '../../hooks/useCreateAlert';
 
 const REFRESH_INTERVAL_MS = 30_000;
 const PROGRESS_TICK_MS = 1_000;
 
 const AiInsightsApp = () => {
+  const { openCreateAlert } = useCreateAlert();
   const [tokens, setTokens] = useState<TokenInsight[]>([]);
   const [selectedChain] = useState('base');
   const [hasAcceptedDisclaimer, setHasAcceptedDisclaimer] = useState(
@@ -44,77 +46,82 @@ const AiInsightsApp = () => {
   const isLoadingRef = useRef(false);
   const isMountedRef = useRef(true);
 
-  const loadInsights = useCallback(async (
-    options: {
-      commitQuery?: boolean;
-      failureMessage?: string;
-      query?: string;
-      signal?: AbortSignal;
-      showBusyMessage?: boolean;
-      successMessage?: string;
-    } = {}
-  ) => {
-    if (isLoadingRef.current) {
-      if (options.showBusyMessage) {
-        setMessage('AI Insights is already researching. Try again in a moment.');
-        setMessageTone('error');
+  const loadInsights = useCallback(
+    async (
+      options: {
+        commitQuery?: boolean;
+        failureMessage?: string;
+        query?: string;
+        signal?: AbortSignal;
+        showBusyMessage?: boolean;
+        successMessage?: string;
+      } = {}
+    ) => {
+      if (isLoadingRef.current) {
+        if (options.showBusyMessage) {
+          setMessage(
+            'AI Insights is already researching. Try again in a moment.'
+          );
+          setMessageTone('error');
+        }
+
+        return false;
       }
 
-      return false;
-    }
+      isLoadingRef.current = true;
+      setIsRefreshing(true);
 
-    isLoadingRef.current = true;
-    setIsRefreshing(true);
+      try {
+        const requestSignal = options.signal ?? new AbortController().signal;
+        const nextSessionId = await initializeMcpSession(requestSignal);
 
-    try {
-      const requestSignal = options.signal ?? new AbortController().signal;
-      const nextSessionId = await initializeMcpSession(requestSignal);
-
-      const researchBody = await researchTokens(
-        nextSessionId,
-        requestSignal,
-        options.query ?? activeQueryRef.current
-      );
-      const nextTokens = parseTokensFromMcpResponse(researchBody);
-
-      if (!nextTokens.length) {
-        throw new Error(
-          'AI Insights response did not include token opportunities.'
+        const researchBody = await researchTokens(
+          nextSessionId,
+          requestSignal,
+          options.query ?? activeQueryRef.current
         );
+        const nextTokens = parseTokensFromMcpResponse(researchBody);
+
+        if (!nextTokens.length) {
+          throw new Error(
+            'AI Insights response did not include token opportunities.'
+          );
+        }
+
+        if (!isMountedRef.current || options.signal?.aborted) return false;
+
+        setTokens(nextTokens);
+        if (options.commitQuery && options.query) {
+          activeQueryRef.current = options.query;
+        }
+        if (options.successMessage) {
+          setMessage(options.successMessage);
+          setMessageTone('success');
+        } else {
+          setMessage('');
+        }
+        setRefreshCycleStartedAt(Date.now());
+        return true;
+      } catch (error) {
+        if (options.signal?.aborted) return false;
+
+        console.error('Unable to load AI Insights MCP data.', error);
+        setMessage(
+          options.failureMessage ??
+            'Unable to load AI Insights data. Try refreshing again shortly.'
+        );
+        setMessageTone('error');
+        return false;
+      } finally {
+        isLoadingRef.current = false;
+
+        if (!isMountedRef.current || options.signal?.aborted) return;
+
+        setIsRefreshing(false);
       }
-
-      if (!isMountedRef.current || options.signal?.aborted) return false;
-
-      setTokens(nextTokens);
-      if (options.commitQuery && options.query) {
-        activeQueryRef.current = options.query;
-      }
-      if (options.successMessage) {
-        setMessage(options.successMessage);
-        setMessageTone('success');
-      } else {
-        setMessage('');
-      }
-      setRefreshCycleStartedAt(Date.now());
-      return true;
-    } catch (error) {
-      if (options.signal?.aborted) return false;
-
-      console.error('Unable to load AI Insights MCP data.', error);
-      setMessage(
-        options.failureMessage ??
-          'Unable to load AI Insights data. Try refreshing again shortly.'
-      );
-      setMessageTone('error');
-      return false;
-    } finally {
-      isLoadingRef.current = false;
-
-      if (!isMountedRef.current || options.signal?.aborted) return;
-
-      setIsRefreshing(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   const submitPrompt = useCallback(async () => {
     const trimmedPrompt = prompt.trim();
@@ -308,7 +315,19 @@ const AiInsightsApp = () => {
             </div>
           ) : null}
 
-          <TokenInsightsTable tokens={tokens} />
+          <TokenInsightsTable
+            tokens={tokens}
+            onCreateAlert={(token) =>
+              openCreateAlert({
+                chainId: 8453,
+                tokenAddress: token.address,
+                tokenName: token.name,
+                tokenSymbol: token.symbol,
+                tokenLogoUrl: token.imageUrl,
+                currentPrice: token.price,
+              })
+            }
+          />
 
           {isPromptOpen ? (
             <AiInsightsPromptOverlay

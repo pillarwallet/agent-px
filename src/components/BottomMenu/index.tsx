@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Element as IconApps,
-  Receipt1 as IconHistory,
   Home2 as IconHome,
   Send2 as IconSend,
+  Timer1 as IconAutomations,
   Wallet2 as IconWallet,
 } from 'iconsax-react';
 import React, { useEffect, useState } from 'react';
@@ -34,8 +34,14 @@ const BottomMenu = () => {
   const navLocation = useLocation();
   const navigate = useNavigate();
   const [t] = useTranslation();
-  const { active, showSend, showApps, showHistory, showAccount, hide } =
-    useBottomMenuModal();
+  const {
+    active,
+    showAutomations,
+    showSend,
+    showApps,
+    showAccount,
+    hide,
+  } = useBottomMenuModal();
   const { batchCount } = useGlobalTransactionsBatch();
   const overlayRef = React.useRef<HTMLDivElement>(null);
   const [isDebugMode, setIsDebugMode] = useState(false);
@@ -87,12 +93,18 @@ const BottomMenu = () => {
 
   const isHomeActive =
     active === null && navLocation.pathname === navigationRoute.home;
-
   const menuItems = [
     {
       icon: <IconHome />,
       type: 'home',
       label: t`menuAction.home`,
+    },
+    {
+      icon: <IconAutomations />,
+      type: 'automations',
+      label: t`menuAction.automations`,
+      show: showAutomations,
+      color: '#A78BFA',
     },
     {
       icon: <IconSend />,
@@ -101,13 +113,6 @@ const BottomMenu = () => {
       label: t`menuAction.send`,
       show: showSend,
       color: '#8A77FF',
-    },
-    {
-      icon: <IconHistory />,
-      type: 'history',
-      label: t`menuAction.history`,
-      show: showHistory,
-      color: '#77FFF9',
     },
     {
       icon: <IconWallet />,

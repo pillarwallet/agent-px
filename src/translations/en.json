@@ -19,7 +19,8 @@
     "history": "History",
     "apps": "Apps",
     "account": "Account",
-    "home": "Home"
+    "home": "Home",
+    "automations": "Smart Trades"
   },
   "action": {
     "getStarted": "Get Started",

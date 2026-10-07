@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import styled from 'styled-components';
+import { useLayoutEffect, useRef } from 'react';
 
 // components
 import AppsList from '../AppsList';
@@ -9,9 +10,15 @@ interface AppsModalProps {
 }
 
 const AppsModal = ({ isContentVisible }: AppsModalProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (isContentVisible) scrollRef.current?.scrollTo({ top: 0 });
+  }, [isContentVisible]);
+
   if (!isContentVisible) return <DefaultWrapper />;
 
-  return <AppsList />;
+  return <AppsList ref={scrollRef} isModal />;
 };
 
 const DefaultWrapper = styled.div`

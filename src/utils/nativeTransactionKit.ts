@@ -84,6 +84,7 @@ export interface TransactionParams {
   value?: bigint | string;
   data?: string;
   authorization?: SignAuthorizationReturnType;
+  executionMode?: 'delegated' | 'raw';
 }
 
 export interface TransactionEstimateResult {
@@ -1820,6 +1821,7 @@ export class EtherspotTransactionKit {
     value = '0',
     data = '0x',
     authorization,
+    executionMode = 'delegated',
   }: TransactionParams): Promise<EoaTransactionEstimateResult> {
     const transaction = { chainId, to, value, data };
     const baseResult = toBaseResult(transaction);
@@ -1835,7 +1837,8 @@ export class EtherspotTransactionKit {
       const isCustomChain = Boolean(getCustomChainById(chainId));
       const authorizationList =
         !isCustomChain && authorization ? [authorization] : undefined;
-      const preparedTransaction = isCustomChain
+      const usesRawExecution = isCustomChain || executionMode === 'raw';
+      const preparedTransaction = usesRawExecution
         ? toPlainEoaExecutionTransaction({
             account: owner.address,
             to,
@@ -1860,7 +1863,8 @@ export class EtherspotTransactionKit {
         '[TransactionKit] estimating direct EOA transaction',
         {
           chainId,
-          isPlainCustomChainTransaction: isCustomChain,
+          executionMode,
+          usesRawExecution,
           innerTransaction: summarizeTransaction(transaction),
           outerTransaction: summarizeTransaction({
             chainId,
@@ -1953,6 +1957,7 @@ export class EtherspotTransactionKit {
     value = '0',
     data = '0x',
     authorization,
+    executionMode = 'delegated',
     gas,
     maxFeePerGas,
     maxPriorityFeePerGas,
@@ -1976,7 +1981,8 @@ export class EtherspotTransactionKit {
       const isCustomChain = Boolean(getCustomChainById(chainId));
       const authorizationList =
         !isCustomChain && authorization ? [authorization] : undefined;
-      const preparedTransaction = isCustomChain
+      const usesRawExecution = isCustomChain || executionMode === 'raw';
+      const preparedTransaction = usesRawExecution
         ? toPlainEoaExecutionTransaction({
             account: owner.address,
             to,
@@ -1992,7 +1998,8 @@ export class EtherspotTransactionKit {
 
       transactionDebugLog('[TransactionKit] sending direct EOA transaction', {
         chainId,
-        isPlainCustomChainTransaction: isCustomChain,
+        executionMode,
+        usesRawExecution,
         innerTransaction: summarizeTransaction(transaction),
         outerTransaction: summarizeTransaction({
           chainId,

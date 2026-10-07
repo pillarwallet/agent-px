@@ -11,6 +11,7 @@ export interface BottomMenuModalContext {
     showHistory: () => void;
     showAccount: () => void;
     showApps: () => void;
+    showAutomations: () => void;
     hide: () => void;
     active: BottomMenuItem | null;
     activeIndex: number | null;
@@ -30,7 +31,7 @@ interface BottomMenuSend {
 
 export type BottomMenuItem =
   | {
-      type: 'history' | 'account' | 'apps';
+      type: 'automations' | 'history' | 'account' | 'apps';
     }
   | BottomMenuSend;
 
@@ -48,7 +49,9 @@ const BottomMenuModalProvider = ({ children }: React.PropsWithChildren) => {
 
   const activeIndex = useMemo(() => {
     return activeMenuItem?.type
-      ? ['send', 'history', 'account', 'apps'].indexOf(activeMenuItem.type)
+      ? ['automations', 'send', 'history', 'account', 'apps'].indexOf(
+          activeMenuItem.type
+        )
       : null;
   }, [activeMenuItem?.type]);
 
@@ -56,6 +59,7 @@ const BottomMenuModalProvider = ({ children }: React.PropsWithChildren) => {
     () => ({
       showTransactionConfirmation: (payload?: SendModalData) =>
         setActiveMenuItem({ type: 'send', payload }),
+      showAutomations: () => setActiveMenuItem({ type: 'automations' }),
       showSend: () => setActiveMenuItem({ type: 'send' }),
       showHistory: () => setActiveMenuItem({ type: 'history' }),
       showAccount: () => setActiveMenuItem({ type: 'account' }),

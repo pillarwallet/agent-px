@@ -9,6 +9,8 @@ import {
 } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 
+import { automationApi } from './services/automationApi';
+
 // Services
 import depositSlice from './apps/deposit/reducer/depositSlice';
 import leaderboardSlice from './apps/leaderboard/reducer/LeaderboardSlice';
@@ -92,6 +94,7 @@ addMiddleware(pillarXApiVerificationCheck);
 addMiddleware(pillarXApiTransactionsHistory);
 addMiddleware(pillarXApiWalletTransactions);
 addMiddleware(relayApi);
+addMiddleware(automationApi);
 addReducer(swapSlice);
 addReducer(tokenAtlasSlice);
 addReducer(depositSlice);

@@ -4,6 +4,8 @@ PillarX is a browser-based web3 wallet and app hub. The current wallet flow is b
 
 Building a PillarX app? See [src/apps/README.md](src/apps/README.md).
 
+Agent handoff notes for the wallet, extension provider, transactions, automations, and testing are in [docs/agent-handoff/README.md](docs/agent-handoff/README.md).
+
 > [!CAUTION]
 > App submissions must not render iframe tags.
 

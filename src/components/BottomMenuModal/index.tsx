@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Transition } from 'react-transition-group';
 import styled from 'styled-components';
 
 // modals
 import AccountModal from './AccountModal';
 import AppsModal from './AppsModal';
+import AutomationsModal from './AutomationsModal';
 import HistoryModal from './HistoryModal/HistoryModal';
 import SendModal from './SendModal';
 
@@ -16,13 +17,6 @@ const BottomMenuModal = () => {
   const modalRef = React.useRef<HTMLDivElement>(null);
   const { active, activeIndex, hide } = useBottomMenuModal();
 
-  const lastValidActiveIndex = React.useRef<number>(activeIndex ?? 0);
-
-  useEffect(() => {
-    if (activeIndex === null) return;
-    lastValidActiveIndex.current = activeIndex ?? 0;
-  }, [activeIndex]);
-
   return (
     <Transition nodeRef={modalRef} in={!!active} timeout={100}>
       {(overlayState) => (
@@ -31,25 +25,20 @@ const BottomMenuModal = () => {
             $offset={overlayState === 'entered' ? 0 : 1000}
             $display={overlayState !== 'exited'}
           >
-            <ModalContentHorizontalAnimation
-              $in={overlayState === 'entered'}
-              $activeIndex={activeIndex ?? lastValidActiveIndex.current}
-            >
-              {[SendModal, HistoryModal, AccountModal, AppsModal].map(
-                (Modal, index) => (
-                  <ModalContent key={index}>
-                    <Modal
-                      key={`${index}`}
-                      isContentVisible={activeIndex === index}
-                      // eslint-disable-next-line react/jsx-props-no-spreading
-                      {...(active?.type === 'send'
-                        ? { payload: active.payload }
-                        : {})}
-                    />
-                  </ModalContent>
-                )
+            <ModalContent>
+              {activeIndex === 0 && <AutomationsModal isContentVisible />}
+              {activeIndex === 1 && (
+                <SendModal
+                  isContentVisible
+                  {...(active?.type === 'send'
+                    ? { payload: active.payload }
+                    : {})}
+                />
               )}
-            </ModalContentHorizontalAnimation>
+              {activeIndex === 2 && <HistoryModal isContentVisible />}
+              {activeIndex === 3 && <AccountModal isContentVisible />}
+              {activeIndex === 4 && <AppsModal isContentVisible />}
+            </ModalContent>
             <ModalHandlebar onClick={hide} />
           </ModalContentVerticalAnimation>
         </OverflowControlWrapper>
@@ -76,28 +65,16 @@ const ModalContentVerticalAnimation = styled.div<{
   position: relative;
 `;
 
-const ModalContentHorizontalAnimation = styled.div<{
-  $activeIndex: number;
-  $in: boolean;
-}>`
-  align-self: flex-start;
-  ${({ $in }) => $in && 'transition: 50ms linear;'};
-  ${({ $activeIndex }) =>
-    `transform: translateX(calc(${$activeIndex} * -336px));`};
-  display: flex;
-  flex-direction: row;
-  align-content: start;
-  justify-content: start;
-`;
-
 const ModalContent = styled.div`
   width: 336px;
+  height: 75dvh;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 31px 20px 20px;
   overflow: hidden;
-  max-height: 50vh;
+  min-height: 0;
 `;
 
 const ModalHandlebar = styled.div`
@@ -108,7 +85,8 @@ const ModalHandlebar = styled.div`
   border-radius: 2px;
   position: absolute;
   top: 14px;
-  left: 148px;
+  left: 50%;
+  transform: translateX(-50%);
 `;
 
 export default BottomMenuModal;
