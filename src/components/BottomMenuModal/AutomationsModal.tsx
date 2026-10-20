@@ -531,7 +531,7 @@ const AutomationsModal = ({ isContentVisible }: AutomationsModalProps) => {
         chainId: selectedChainId,
         name: name.trim(),
         cumulativeUsdcLimit: parseUnits(budget, 6).toString(),
-        providerIds: ['0x-allowance-holder'],
+        providerIds: ['0x-allowance-holder', 'uniswap-trading-api', 'lifi-mcp'],
         validUntil: new Date(`${validUntil}T23:59:59.000Z`).toISOString(),
       }).unwrap();
       setName('');
@@ -760,7 +760,7 @@ const AutomationsModal = ({ isContentVisible }: AutomationsModalProps) => {
               onChange={(event) => setValidUntil(event.target.value)}
             />
           </Field>
-          <ProviderNote>Trading provider: 0x</ProviderNote>
+          <ProviderNote>Trading providers: 0x, Uniswap, and LI.FI</ProviderNote>
           {formError && <ErrorText role="alert">{formError}</ErrorText>}
           <PrimaryButton type="submit" disabled={!canCreatePolicy}>
             {isCreating ? 'Creating…' : 'Create policy'}
@@ -773,7 +773,7 @@ const AutomationsModal = ({ isContentVisible }: AutomationsModalProps) => {
   const isAlertsView = view === 'alerts' && hasPolicies;
 
   return (
-    <Content aria-hidden={!isContentVisible}>
+    <OverviewContent aria-hidden={!isContentVisible}>
       <Header>
         <Title>Smart Trades</Title>
         <Subtitle>Monitor markets and automate token purchases.</Subtitle>
@@ -837,66 +837,68 @@ const AutomationsModal = ({ isContentVisible }: AutomationsModalProps) => {
           </Tabs>
         ) : null}
       </AutomationToolbar>
-      {isAlertsView && isLoadingAlerts ? (
-        <LoadingText>Loading orders…</LoadingText>
-      ) : isAlertsView && alertsError ? (
-        <EmptyState>
-          <EmptyIcon>
-            <NotificationBing size={25} />
-          </EmptyIcon>
-          <EmptyTitle>Unable to load orders</EmptyTitle>
-          <EmptyText>{alertsError}</EmptyText>
-          <RetryButton type="button" onClick={loadAlerts}>
-            Try again
-          </RetryButton>
-        </EmptyState>
-      ) : isAlertsView && alerts.length > 0 ? (
-        <PolicyList>
-          {alerts.map((order) => (
-            <AlertRow
-              key={order.id}
-              order={order}
-              onDeleted={(orderId) =>
-                setAlerts((current) =>
-                  current.filter((alert) => alert.id !== orderId)
-                )
-              }
-            />
-          ))}
-        </PolicyList>
-      ) : isAlertsView || (!isLoadingPolicies && policies.length === 0) ? (
-        <EmptyState>
-          <EmptyIcon>
-            {isAlertsView ? (
+      <ScrollableOverview>
+        {isAlertsView && isLoadingAlerts ? (
+          <LoadingText>Loading orders…</LoadingText>
+        ) : isAlertsView && alertsError ? (
+          <EmptyState>
+            <EmptyIcon>
               <NotificationBing size={25} />
-            ) : (
-              <ShieldTick size={25} />
-            )}
-          </EmptyIcon>
-          <EmptyTitle>
-            {isAlertsView ? 'No orders yet' : 'No policies yet'}
-          </EmptyTitle>
-          <EmptyText>
-            {isAlertsView
-              ? 'Create an order to buy a token when your price condition is met.'
-              : 'Create a policy to set the budget and providers your orders can use.'}
-          </EmptyText>
-        </EmptyState>
-      ) : isLoadingPolicies ? (
-        <LoadingText>Loading policies…</LoadingText>
-      ) : (
-        <PolicyList>
-          {policies.map((policy) => (
-            <PolicyRow
-              key={policy.id}
-              policy={policy}
-              installationStage={installingPolicies[policy.id]}
-              installationError={installationErrors[policy.id]}
-              onInstall={prepareInstallation}
-            />
-          ))}
-        </PolicyList>
-      )}
+            </EmptyIcon>
+            <EmptyTitle>Unable to load orders</EmptyTitle>
+            <EmptyText>{alertsError}</EmptyText>
+            <RetryButton type="button" onClick={loadAlerts}>
+              Try again
+            </RetryButton>
+          </EmptyState>
+        ) : isAlertsView && alerts.length > 0 ? (
+          <PolicyList>
+            {alerts.map((order) => (
+              <AlertRow
+                key={order.id}
+                order={order}
+                onDeleted={(orderId) =>
+                  setAlerts((current) =>
+                    current.filter((alert) => alert.id !== orderId)
+                  )
+                }
+              />
+            ))}
+          </PolicyList>
+        ) : isAlertsView || (!isLoadingPolicies && policies.length === 0) ? (
+          <EmptyState>
+            <EmptyIcon>
+              {isAlertsView ? (
+                <NotificationBing size={25} />
+              ) : (
+                <ShieldTick size={25} />
+              )}
+            </EmptyIcon>
+            <EmptyTitle>
+              {isAlertsView ? 'No orders yet' : 'No policies yet'}
+            </EmptyTitle>
+            <EmptyText>
+              {isAlertsView
+                ? 'Create an order to buy a token when your price condition is met.'
+                : 'Create a policy to set the budget and providers your orders can use.'}
+            </EmptyText>
+          </EmptyState>
+        ) : isLoadingPolicies ? (
+          <LoadingText>Loading policies…</LoadingText>
+        ) : (
+          <PolicyList>
+            {policies.map((policy) => (
+              <PolicyRow
+                key={policy.id}
+                policy={policy}
+                installationStage={installingPolicies[policy.id]}
+                installationError={installationErrors[policy.id]}
+                onInstall={prepareInstallation}
+              />
+            ))}
+          </PolicyList>
+        )}
+      </ScrollableOverview>
       {isAlertsView ? (
         <SectionAction
           type="button"
@@ -917,7 +919,7 @@ const AutomationsModal = ({ isContentVisible }: AutomationsModalProps) => {
           <Add size={17} /> Create policy
         </SectionAction>
       )}
-    </Content>
+    </OverviewContent>
   );
 };
 
@@ -931,6 +933,15 @@ const Content = styled.section`
   overflow-y: auto;
   color: #ffffff;
   font-family: inherit;
+`;
+const OverviewContent = styled(Content)`
+  overflow: hidden;
+`;
+const ScrollableOverview = styled.div`
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 16px;
 `;
 const Header = styled.header`
   text-align: left;
@@ -987,7 +998,8 @@ const Tab = styled.button<{ $active: boolean }>`
 const SectionAction = styled.button`
   width: 100%;
   min-height: 42px;
-  margin-top: auto;
+  flex: none;
+  margin-top: 8px;
   display: flex;
   align-items: center;
   justify-content: center;

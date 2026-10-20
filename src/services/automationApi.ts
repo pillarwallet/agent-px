@@ -36,7 +36,7 @@ type CreatePolicyRequest = {
   chainId: number;
   name: string;
   cumulativeUsdcLimit: string;
-  providerIds: ['0x-allowance-holder'];
+  providerIds: ('0x-allowance-holder' | 'uniswap-trading-api' | 'lifi-mcp')[];
   validUntil: string;
 };
 
