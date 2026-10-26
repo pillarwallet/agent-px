@@ -147,6 +147,27 @@ export type ListOrdersRequest = {
   chainId: number;
 };
 
+export type ResolveTokenPriceRequest = {
+  chainId: number;
+  asset: { kind: 'erc20'; address: Address };
+  quoteCurrency: 'usd';
+};
+
+export type ResolveTokenPriceResponse = {
+  price?: string | number;
+  value?: string | number;
+  currentPrice?: string | number;
+  data?: {
+    price?: string | number;
+    value?: string | number;
+  };
+  observation?: {
+    price?: string | number;
+    provider?: string;
+    observedAt?: number;
+  };
+};
+
 export const automationApi = createApi({
   reducerPath: 'automationApi',
   baseQuery: fetchBaseQuery({
@@ -241,6 +262,16 @@ export const automationApi = createApi({
       }),
       invalidatesTags: ['Orders'],
     }),
+    resolveTokenPrice: builder.query<
+      ResolveTokenPriceResponse,
+      ResolveTokenPriceRequest
+    >({
+      query: (body) => ({
+        url: '/v1/prices/resolve',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -252,5 +283,6 @@ export const {
   useGetPoliciesQuery,
   useListOrdersMutation,
   usePreparePolicyInstallationMutation,
+  useLazyResolveTokenPriceQuery,
   useSubmitOrderConsentMutation,
 } = automationApi;

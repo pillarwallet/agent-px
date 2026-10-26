@@ -24,6 +24,7 @@ import {
 } from 'viem';
 
 import Button from '../components/Button';
+import SkeletonLoader from '../components/SkeletonLoader';
 import useTransactionKit from '../hooks/useTransactionKit';
 import useWalletApproval from '../hooks/useWalletApproval';
 import {
@@ -31,6 +32,7 @@ import {
   TradingPolicy,
   useCreateOrderMutation,
   useGetPoliciesQuery,
+  useLazyResolveTokenPriceQuery,
   useSubmitOrderConsentMutation,
 } from '../services/automationApi';
 import { getChainName } from '../utils/blockchain';
@@ -118,6 +120,36 @@ const formatRemainingPolicyBalance = (
   }
 };
 
+const getResolvedPrice = (response: {
+  price?: string | number;
+  value?: string | number;
+  currentPrice?: string | number;
+  data?: { price?: string | number; value?: string | number };
+  observation?: { price?: string | number };
+}) =>
+  response.observation?.price ??
+  response.price ??
+  response.currentPrice ??
+  response.value ??
+  response.data?.price ??
+  response.data?.value;
+
+const formatUsdPrice = (price: number) => {
+  if (price === 0) return '0';
+  if (price < 0.000001) {
+    return price.toLocaleString(undefined, {
+      maximumSignificantDigits: 6,
+      notation: 'scientific',
+    });
+  }
+  let maximumFractionDigits = 8;
+  if (price >= 1_000) maximumFractionDigits = 2;
+  else if (price >= 1) maximumFractionDigits = 4;
+  return price.toLocaleString(undefined, {
+    maximumFractionDigits,
+  });
+};
+
 const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
   const { kit, walletAddress } = useTransactionKit();
   const { requestApproval } = useWalletApproval();
@@ -132,6 +164,9 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
   const [tokenLogoUrl, setTokenLogoUrl] = useState('');
   const [tokenMetadataError, setTokenMetadataError] = useState('');
   const [isLoadingTokenMetadata, setIsLoadingTokenMetadata] = useState(false);
+  const [currentTokenPrice, setCurrentTokenPrice] = useState<number>();
+  const [tokenPriceError, setTokenPriceError] = useState('');
+  const [isLoadingTokenPrice, setIsLoadingTokenPrice] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<AutomationOrder>();
   const [amount, setAmount] = useState('');
   const [condition, setCondition] = useState<'below' | 'above'>('below');
@@ -141,6 +176,7 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createOrder] = useCreateOrderMutation();
+  const [resolveTokenPrice] = useLazyResolveTokenPriceQuery();
   const [submitConsent] = useSubmitOrderConsentMutation();
   const policySelectRef = useRef<HTMLDivElement>(null);
   const { data: policiesData, isLoading: isLoadingPolicies } =
@@ -160,6 +196,27 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
   const selectedPolicy = activePolicies.find(
     (policy) => policy.id === policyId
   );
+  const selectedPolicyBalance = selectedPolicy
+    ? getRemainingPolicyBalance(selectedPolicy)
+    : undefined;
+  const selectedPolicyBalanceLabel = selectedPolicy
+    ? formatRemainingPolicyBalance(selectedPolicy, chain.decimals)
+    : undefined;
+  let amountInBaseUnits: bigint | undefined;
+  try {
+    amountInBaseUnits = amount ? parseUnits(amount, chain.decimals) : undefined;
+  } catch {
+    amountInBaseUnits = undefined;
+  }
+  let amountExceedsPolicyBalance = false;
+  if (amountInBaseUnits !== undefined && selectedPolicyBalance !== undefined) {
+    try {
+      amountExceedsPolicyBalance =
+        amountInBaseUnits > BigInt(selectedPolicyBalance);
+    } catch {
+      amountExceedsPolicyBalance = false;
+    }
+  }
   const hasLoadedPolicies = !isLoadingPolicies && Boolean(policiesData);
   const hasNoPolicies =
     hasLoadedPolicies && (policiesData?.policies.length || 0) === 0;
@@ -167,20 +224,48 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
   const tokenLabel = tokenSymbol || tokenName || 'Selected token';
   const hasTokenMetadata = Boolean(tokenName && tokenSymbol);
   const canContinueFromToken = isAddress(tokenAddress) && hasTokenMetadata;
-  const canContinueFromPolicy = Number(amount) >= 1 && Boolean(policyId);
+  const canContinueFromPolicy =
+    Number(amount) >= 1 && Boolean(policyId) && !amountExceedsPolicyBalance;
   const canSubmit =
     Boolean(walletAddress) &&
     Boolean(policyId) &&
     isAddress(tokenAddress) &&
     Number(amount) >= 1 &&
+    !amountExceedsPolicyBalance &&
     Number(targetPrice) > 0 &&
     Number(slippagePercent) > 0 &&
     Number(slippagePercent) <= 50 &&
     expiresAt >= minimumExpiry &&
     !isSubmitting;
+  const numericTargetPrice = Number(targetPrice);
+  const isTriggerAlreadyMet =
+    currentTokenPrice !== undefined &&
+    numericTargetPrice > 0 &&
+    (condition === 'below'
+      ? currentTokenPrice < numericTargetPrice
+      : currentTokenPrice > numericTargetPrice);
   let policyPlaceholder = 'No active policies on this network';
   if (isLoadingPolicies) policyPlaceholder = 'Loading policies...';
   else if (activePolicies.length) policyPlaceholder = 'Select an active policy';
+  let marketPriceContent: React.ReactNode = (
+    <SkeletonLoader
+      aria-label="Loading current market price"
+      $height="18px"
+      $width="90px"
+      $radius="5px"
+    />
+  );
+  if (!isLoadingTokenPrice && currentTokenPrice !== undefined) {
+    marketPriceContent = (
+      <MarketPriceValue $error={false}>
+        ${formatUsdPrice(currentTokenPrice)}
+      </MarketPriceValue>
+    );
+  } else if (!isLoadingTokenPrice && tokenPriceError) {
+    marketPriceContent = (
+      <MarketPriceValue $error>{tokenPriceError}</MarketPriceValue>
+    );
+  }
 
   useEffect(() => {
     if (!prefill || !isAddress(tokenAddress)) {
@@ -238,26 +323,52 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
   }, [chainId, kit, prefill, tokenAddress]);
 
   useEffect(() => {
-    if (step !== 2 || policyId || Number(amount) < 1) return;
-
-    let amountIn: bigint;
-    try {
-      amountIn = parseUnits(amount, chain.decimals);
-    } catch {
-      return;
+    if (step !== 3 || !isAddress(tokenAddress)) {
+      setCurrentTokenPrice(undefined);
+      setTokenPriceError('');
+      setIsLoadingTokenPrice(false);
+      return undefined;
     }
 
-    const policyWithBalance = activePolicies.find((policy) => {
-      const remaining = getRemainingPolicyBalance(policy);
-      if (remaining === undefined) return true;
+    let cancelled = false;
+    let refreshTimeout: number | undefined;
+
+    const refreshPrice = async () => {
+      setIsLoadingTokenPrice(true);
+      setCurrentTokenPrice(undefined);
+      setTokenPriceError('');
       try {
-        return BigInt(remaining) >= amountIn;
+        const response = await resolveTokenPrice({
+          chainId,
+          asset: { kind: 'erc20', address: getAddress(tokenAddress) },
+          quoteCurrency: 'usd',
+        }).unwrap();
+        if (cancelled) return;
+        const resolvedPrice = Number(getResolvedPrice(response));
+        if (!Number.isFinite(resolvedPrice) || resolvedPrice < 0) {
+          setTokenPriceError('Current price is unavailable.');
+        } else {
+          setCurrentTokenPrice(resolvedPrice);
+        }
       } catch {
-        return false;
+        if (!cancelled) setTokenPriceError('Unable to load current price.');
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTokenPrice(false);
+          refreshTimeout = window.setTimeout(refreshPrice, 10_000);
+        }
       }
-    });
-    if (policyWithBalance) setPolicyId(policyWithBalance.id);
-  }, [activePolicies, amount, chain.decimals, policyId, step]);
+    };
+
+    refreshPrice();
+
+    return () => {
+      cancelled = true;
+      if (refreshTimeout !== undefined) {
+        window.clearTimeout(refreshTimeout);
+      }
+    };
+  }, [chainId, resolveTokenPrice, step, tokenAddress]);
 
   useEffect(() => {
     if (!isPolicySelectOpen) return undefined;
@@ -508,35 +619,11 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
 
                     {step === 2 && (
                       <StepContent>
-                        <StepHeading>Set amount and policy</StepHeading>
+                        <StepHeading>Select policy and amount</StepHeading>
                         <StepDescription>
-                          Choose how much USDC to spend and the policy that
-                          controls this order.
+                          Choose the policy first, then enter an amount within
+                          its available balance.
                         </StepDescription>
-                        <Field>
-                          <Label htmlFor="alert-amount">Spend amount</Label>
-                          <InputGroup>
-                            <Input
-                              id="alert-amount"
-                              type="number"
-                              inputMode="decimal"
-                              min="1"
-                              step="0.000001"
-                              value={amount}
-                              placeholder="100"
-                              onChange={(event) => {
-                                setAmount(event.target.value);
-                                setPolicyId('');
-                              }}
-                            />
-                            <Unit>USDC</Unit>
-                          </InputGroup>
-                          {amount && Number(amount) < 1 && (
-                            <ValidationText role="alert">
-                              Spend amount must be at least 1 USDC.
-                            </ValidationText>
-                          )}
-                        </Field>
                         <Field>
                           <Label id="alert-policy-label">Active policy</Label>
                           <PolicySelect ref={policySelectRef}>
@@ -545,9 +632,7 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
                               aria-labelledby="alert-policy-label"
                               aria-expanded={isPolicySelectOpen}
                               disabled={
-                                Number(amount) < 1 ||
-                                isLoadingPolicies ||
-                                activePolicies.length === 0
+                                isLoadingPolicies || activePolicies.length === 0
                               }
                               onClick={() =>
                                 setIsPolicySelectOpen((current) => !current)
@@ -569,10 +654,21 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
                                     $selected={policy.id === policyId}
                                     onClick={() => {
                                       setPolicyId(policy.id);
+                                      setAmount('');
                                       setIsPolicySelectOpen(false);
                                     }}
                                   >
-                                    {policy.name}
+                                    <PolicyOptionName>
+                                      {policy.name}
+                                    </PolicyOptionName>
+                                    <PolicyOptionBalance>
+                                      Balance:{' '}
+                                      {formatRemainingPolicyBalance(
+                                        policy,
+                                        chain.decimals
+                                      ) || '—'}{' '}
+                                      USDC
+                                    </PolicyOptionBalance>
                                   </PolicyOption>
                                 ))}
                               </PolicyOptions>
@@ -580,19 +676,11 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
                           </PolicySelect>
                           {selectedPolicy && (
                             <PolicyBalanceText>
-                              Balance:{' '}
-                              {formatRemainingPolicyBalance(
-                                selectedPolicy,
-                                chain.decimals
-                              ) || '—'}{' '}
-                              USDC
+                              Available balance:{' '}
+                              <strong>
+                                {selectedPolicyBalanceLabel || '—'} USDC
+                              </strong>
                             </PolicyBalanceText>
-                          )}
-                          {Number(amount) < 1 && (
-                            <HelperText>
-                              Enter an amount of at least 1 USDC to select a
-                              policy.
-                            </HelperText>
                           )}
                           {hasNoActivePolicies && (
                             <PolicyWarning role="status">
@@ -608,6 +696,42 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
                             </PolicyWarning>
                           )}
                         </Field>
+                        <Field>
+                          <Label htmlFor="alert-amount">Spend amount</Label>
+                          <InputGroup>
+                            <Input
+                              id="alert-amount"
+                              type="text"
+                              inputMode="decimal"
+                              value={amount}
+                              placeholder="0.00"
+                              disabled={!selectedPolicy}
+                              onChange={(event) => {
+                                const nextAmount = event.target.value;
+                                if (/^\d*(?:\.\d{0,6})?$/.test(nextAmount)) {
+                                  setAmount(nextAmount);
+                                }
+                              }}
+                            />
+                            <Unit>USDC</Unit>
+                          </InputGroup>
+                          {!selectedPolicy && (
+                            <HelperText>
+                              Select an active policy to enter an amount.
+                            </HelperText>
+                          )}
+                          {amount && Number(amount) < 1 && (
+                            <ValidationText role="alert">
+                              Spend amount must be at least 1 USDC.
+                            </ValidationText>
+                          )}
+                          {amountExceedsPolicyBalance && (
+                            <ValidationText role="alert">
+                              Amount exceeds the available policy balance of{' '}
+                              {selectedPolicyBalanceLabel || '0'} USDC.
+                            </ValidationText>
+                          )}
+                        </Field>
                       </StepContent>
                     )}
 
@@ -618,36 +742,63 @@ const CreateAlertProvider = ({ children }: React.PropsWithChildren) => {
                           Set when the order can execute and its safety limits.
                         </StepDescription>
                         <Field>
-                          <Label>Trigger</Label>
-                          <Segmented>
-                            <Segment
-                              type="button"
-                              $active={condition === 'below'}
-                              onClick={() => setCondition('below')}
-                            >
-                              Price below
-                            </Segment>
-                            <Segment
-                              type="button"
-                              $active={condition === 'above'}
-                              onClick={() => setCondition('above')}
-                            >
-                              Price above
-                            </Segment>
-                          </Segmented>
-                          <InputGroup>
-                            <Prefix>$</Prefix>
-                            <Input
-                              type="number"
-                              min="0.00000001"
-                              step="any"
-                              value={targetPrice}
-                              placeholder="Target price"
-                              onChange={(event) =>
-                                setTargetPrice(event.target.value)
-                              }
-                            />
-                          </InputGroup>
+                          <MarketPriceCard aria-live="polite">
+                            <div>
+                              <MarketPriceLabel>
+                                Current market price
+                              </MarketPriceLabel>
+                              <MarketPair>
+                                {tokenSymbol || 'Token'} / USD
+                              </MarketPair>
+                            </div>
+                            {marketPriceContent}
+                          </MarketPriceCard>
+                          <TriggerControls>
+                            <div>
+                              <ControlLabel>Execute when price is</ControlLabel>
+                              <Segmented>
+                                <Segment
+                                  type="button"
+                                  $active={condition === 'below'}
+                                  onClick={() => setCondition('below')}
+                                >
+                                  Below
+                                </Segment>
+                                <Segment
+                                  type="button"
+                                  $active={condition === 'above'}
+                                  onClick={() => setCondition('above')}
+                                >
+                                  Above
+                                </Segment>
+                              </Segmented>
+                            </div>
+                            <div>
+                              <ControlLabel htmlFor="alert-target-price">
+                                Trigger price
+                              </ControlLabel>
+                              <InputGroup>
+                                <Prefix>$</Prefix>
+                                <Input
+                                  id="alert-target-price"
+                                  type="number"
+                                  min="0.00000001"
+                                  step="any"
+                                  value={targetPrice}
+                                  placeholder="0.00"
+                                  onChange={(event) =>
+                                    setTargetPrice(event.target.value)
+                                  }
+                                />
+                              </InputGroup>
+                            </div>
+                          </TriggerControls>
+                          {isTriggerAlreadyMet && (
+                            <TriggerNotice role="status">
+                              This condition is already met. The order may be
+                              submitted immediately after activation.
+                            </TriggerNotice>
+                          )}
                         </Field>
                         <Row>
                           <Field>
@@ -917,6 +1068,63 @@ const HelperText = styled.p`
   font-size: 11px;
   line-height: 1.4;
 `;
+const MarketPriceCard = styled.div`
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid #3b3546;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #211c2c 0%, #19171e 70%);
+`;
+const MarketPriceLabel = styled.p`
+  margin: 0;
+  color: #aaa5b1;
+  font-size: 11px;
+  font-weight: 600;
+`;
+const MarketPair = styled.p`
+  margin: 3px 0 0;
+  color: #716c78;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+`;
+const MarketPriceValue = styled.strong<{ $error: boolean }>`
+  color: ${({ $error }) => ($error ? '#ff9cb9' : '#fff')};
+  font-size: ${({ $error }) => ($error ? '11px' : '16px')};
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: right;
+`;
+const TriggerControls = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+
+  > div {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+  }
+`;
+const ControlLabel = styled.label`
+  color: #817b89;
+  font-size: 10px;
+  font-weight: 600;
+`;
+const TriggerNotice = styled.p`
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #2b2417;
+  color: #f2ce68;
+  font-size: 10px;
+  line-height: 1.4;
+`;
 const ValidationText = styled.p`
   margin: 0;
   color: #ff8ca8;
@@ -978,6 +1186,8 @@ const PolicyOption = styled.button<{ $selected: boolean }>`
   color: ${({ $selected }) => ($selected ? '#b8adff' : '#fff')};
   font: inherit;
   font-size: 13px;
+  display: grid;
+  gap: 3px;
   text-align: left;
   cursor: pointer;
 
@@ -985,10 +1195,25 @@ const PolicyOption = styled.button<{ $selected: boolean }>`
     background: #28232f;
   }
 `;
+const PolicyOptionName = styled.span`
+  color: inherit;
+  font-size: 13px;
+  font-weight: 650;
+`;
+const PolicyOptionBalance = styled.span`
+  color: #817b89;
+  font-size: 10px;
+  font-weight: 500;
+`;
 const PolicyBalanceText = styled.p`
   margin: 0;
   color: #aaa5b1;
   font-size: 11px;
+
+  strong {
+    color: #fff;
+    font-weight: 650;
+  }
 `;
 const TokenResult = styled.div`
   display: flex;
